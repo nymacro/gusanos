@@ -27,10 +27,9 @@ class Console
 
 	void registerIntVariable(const std::string &name, int* src, int defaultValue);
 	void registerCommand(const std::string &name, std::string (*func)(const std::list<std::string>&));
-	void parseLine(const std::string &text);
-	void parse(std::list<std::string> &args);
+	void parseLine(const std::string &text, bool parseRelease = false);
+	void parse(std::list<std::string> &args, bool parseRelease);
 	void bind(const std::string &key, const std::string &action);
-	void setVariableValue(const std::string &name, const std::string &value);
 	void addLogMsg(const std::string &msg);
 	void analizeKeyEvent(bool state, char key);
 	
