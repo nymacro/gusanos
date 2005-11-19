@@ -1,5 +1,5 @@
 /*
-** $Id: lobject.c,v 1.1 2005/11/06 16:57:11 gliptic Exp $
+** $Id: lobject.c,v 1.2 2005/11/19 17:39:12 gliptic Exp $
 ** Some generic functions over Lua objects
 ** See Copyright Notice in lua.h
 */
@@ -75,7 +75,7 @@ int luaO_rawequalObj (const TValue *t1, const TValue *t2) {
     case LUA_TNIL:
       return 1;
     case LUA_TNUMBER:
-      return luai_numeq(L, nvalue(t1), nvalue(t2));
+      return luai_numeq(nvalue(t1), nvalue(t2));
     case LUA_TBOOLEAN:
       return bvalue(t1) == bvalue(t2);  /* boolean true must be 1 !! */
     case LUA_TLIGHTUSERDATA:

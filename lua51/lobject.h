@@ -1,5 +1,5 @@
 /*
-** $Id: lobject.h,v 1.1 2005/11/06 16:57:11 gliptic Exp $
+** $Id: lobject.h,v 1.2 2005/11/19 17:39:12 gliptic Exp $
 ** Type definitions for Lua objects
 ** See Copyright Notice in lua.h
 */
@@ -353,7 +353,7 @@ typedef struct Table {
 ** `module' operation for hashing (size is always a power of 2)
 */
 #define lmod(s,size) \
-	check_exp((size&(size-1))==0, (cast(int, (s) & ((size)-1))))
+	(check_exp((size&(size-1))==0, (cast(int, (s) & ((size)-1)))))
 
 
 #define twoto(x)	(1<<(x))

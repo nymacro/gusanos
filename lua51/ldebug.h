@@ -1,5 +1,5 @@
 /*
-** $Id: ldebug.h,v 1.1 2005/11/06 16:57:11 gliptic Exp $
+** $Id: ldebug.h,v 1.2 2005/11/19 17:39:12 gliptic Exp $
 ** Auxiliary functions from Debug Interface module
 ** See Copyright Notice in lua.h
 */
