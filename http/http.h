@@ -57,21 +57,38 @@ struct Host
 	struct Options
 	{
 		Options()
-		: hasProxy(false)
-		, userAgent("adlib/3 ($Date: 2005/11/19 17:39:39 $)")
+		: hasProxy(false), changed(true)
+		, userAgent("adlib/3 ($Date: 2005/12/05 00:45:52 $)")
 		{
 		}
 		
 		Options(std::string proxy_, int proxyPort_)
 		: hasProxy(true), proxy(proxy_), proxyPort(proxyPort_)
-		, userAgent("adlib/3 ($Date: 2005/11/19 17:39:39 $)")
+		, userAgent("adlib/3 ($Date: 2005/12/05 00:45:52 $)")
+		, changed(true)
 		{
+		}
+		
+		void setProxy(std::string proxy_, int proxyPort_)
+		{
+			changed = true;
+			
+			if(proxy_.empty() || proxyPort_ < 0)
+			{
+				hasProxy = false;
+				return;
+			}
+			
+			hasProxy = true;
+			proxy = proxy_;
+			proxyPort = proxyPort_;
 		}
 		
 		bool hasProxy;
 		std::string proxy;
 		int proxyPort;
 		std::string userAgent;
+		bool changed;
 	};
 	
 	Host(std::string host_, int port_ = 80, Options const& options_ = Options())
