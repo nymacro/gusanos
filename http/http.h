@@ -6,6 +6,12 @@
 #include <utility>
 #include "tcp.h"
 
+#define HAS_ZOIDCOM
+
+#ifdef HAS_ZOIDCOM // TODO: Use Zoidcom for async hostname look-up
+#include <zoidcom.h>
+#endif
+
 namespace TCP
 {
 	
@@ -58,13 +64,13 @@ struct Host
 	{
 		Options()
 		: hasProxy(false), changed(true)
-		, userAgent("adlib/3 ($Date: 2005/12/05 00:45:52 $)")
+		, userAgent("adlib/3 ($Date: 2005/12/16 19:36:03 $)")
 		{
 		}
 		
 		Options(std::string proxy_, int proxyPort_)
 		: hasProxy(true), proxy(proxy_), proxyPort(proxyPort_)
-		, userAgent("adlib/3 ($Date: 2005/12/05 00:45:52 $)")
+		, userAgent("adlib/3 ($Date: 2005/12/16 19:36:03 $)")
 		, changed(true)
 		{
 		}
