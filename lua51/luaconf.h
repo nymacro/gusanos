@@ -1,5 +1,5 @@
 /*
-** $Id: luaconf.h,v 1.2 2005/11/19 17:39:12 gliptic Exp $
+** $Id: luaconf.h,v 1.3 2006/01/22 15:17:54 gliptic Exp $
 ** Configuration file for Lua
 ** See Copyright Notice in lua.h
 */
@@ -183,7 +183,9 @@
 @@ lua_assert describes the internal assertions in Lua.
 ** CHANGE that only if you need to debug Lua.
 */
-#define lua_assert(c)		((void)0)
+//#define lua_assert(c)		((void)0)
+#include <assert.h>
+#define lua_assert(c)		(assert(c))
 
 
 /*
