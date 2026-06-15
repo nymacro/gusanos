@@ -1,5 +1,5 @@
 Import('env')
 
-if not env.noParsers:
+if not env['NO_PARSERS']:
 	env.Parser('omfg_script_parser.h', 'omfg_script_parser.pg')
 env.StaticLibrary(env.getLibName('omfgscript'), env.getObjects())
