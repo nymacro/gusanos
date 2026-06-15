@@ -1,236 +1,130 @@
 import re
 import os
-import time
-import types
-import UserList
+import subprocess
 
 exp = Split('env')
-sconscript = ['GUI',
-			'Utility/util',
-            'Console',
-            'loadpng',
-            'Goop',
-            'OmfgScript',
-            'liero2gus',
-            #'lua',
-			'lua51',
-            #'panzer',
-            'lighter',
-            'http',
-            #'IoVM',
-			#'SmallLang',
-			#'netlib',
-			#'filetransfer',
-			]
-			
-def is_List(e):
-    return type(e) is types.ListType or isinstance(e, UserList.UserList)
+sconscript = [
+    'GUI',
+    'Utility/util',
+    'Console',
+    'loadpng',
+    'Goop',
+    'OmfgScript',
+    'liero2gus',
+    'lua51',
+    'lighter',
+    'http',
+]
 
-class MyEnv(Environment):
-	sourcePattern = re.compile('\.(cpp|c)$')
-	
-	def __init__(self):
-		Environment.__init__(self)
-		
-		self.conf = ARGUMENTS.get('conf', 'posix')
-		self.build = ARGUMENTS.get('build', 'release')
-		self.subfolder = os.path.join(self.conf, self.build)
-		self.noParsers = ARGUMENTS.get('no-parsers', False)
-		
-	def confLibs(self, l):
-		return [self['LIB__' + lib] for lib in Split(l)]
-		
-	def getLibName(self, lib):
-		return os.path.join('#lib', self.subfolder, lib)
-		
-	def getBinName(self, bin):
-		if self.conf == 'mingw-cross':
-			bin += '.exe'
-		return os.path.join('#bin', self.conf, bin) # Put executable here so not to confuse
-	
-	#Builds all cpp and c files in this directory and returns a list of nodes
-	def getObjects(self, dir='.'):
-		if is_List(dir):
-			l = []
-			for d in dir:
-				l += self.getObjects(d)
-			return l
-			
-		#sourcePattern = re.compile('\.(cpp|c)$')
-	
-		buildDir = os.path.join(dir, '.build', self.subfolder)
-		self.BuildDir(buildDir, dir, duplicate = 0)
-		
-		return [self.Object(os.path.join(buildDir, i))
-				for i in os.listdir(dir)
-					if MyEnv.sourcePattern.search(i)]
-class MyConf(Configure):
-	def __init__(self, env):
-		Configure.__init__(self, env)
-		self.d = "Import('env')\n"
-		self.cpppaths = []
-		self.libpaths = []
-		
-	def addLib(self, lib, val):
-		self.d += "env['LIB__%s'] = '%s'\n" % (lib, val)
-		env['LIB__' + lib] = val
-		
-	def addCPPPath(self, path):
-		if path not in self.cpppaths:
-			self.cpppaths.append(path)
-			
-	def addLibPath(self, path):
-		if path not in self.libpaths:
-			self.libpaths.append(path)
-		
-	def checkBoostLib(self, lib):
-		for s in ['-gcc', '-gcc-mt', '-mgw']:
-			if self.CheckLib(lib + s, language = 'C++'):
-				self.addLib(lib, lib + s)
-				return
-				
-		for s in ['-gcc', '-gcc-mt', '-mgw']:
-			for prefix in ['/usr/lib', '/usr/local/lib', '/home/glip/liboob']:
-				for suffix in ['.so', '.a']:
-					path = os.path.join(prefix, 'lib' + lib + s + suffix)
-					if os.path.exists(path):
-						
-						self.addLibPath(prefix)
-						self.addLib(lib, lib + s)
-						print "Found", lib, "in", prefix
-						return
-				
-		print "Could not locate boost library", lib
-		Exit(1)
-		
-	def checkLibs(self, libname, libs):
-		for lib in libs:
-			if self.CheckLib(lib, language = 'C++'):
-				self.addLib(libname, lib)
-				return
-		
-		for lib in libs:
-			for prefix in ['/usr/lib', '/usr/local/lib']:
-				for suffix in ['.so', '.a']:
-					path = os.path.join(prefix, 'lib' + lib + suffix)
-					if os.path.exists(path):
-						
-						self.addLibPath(prefix)
-						self.addLib(libname, lib)
-						print "Found", libname, "in", prefix
-						return
-					
-		print "Could not locate library", libname, "or any variant"
-		Exit(1)
-		
-	def checkHeader(self, header, altsuffix = []):
-		if self.CheckCXXHeader(header):
-			return
-		for prefix in ['/usr/include', '/usr/local/include']:
-			for suffix in [''] + altsuffix:
-				#if self.CheckCXXHeader(os.path.join(prefix, suffix, header)):
-				if os.path.exists(os.path.join(prefix, suffix, header)):
-					path = os.path.join(prefix, suffix)
-					env.Append(CPPPATH = path)
-					self.addCPPPath(path)
-					print "Found", header, "in", path
-					return
-					
-		print "Could not locate header", header
-		Exit(1)
-		
-	def write(self, name):
-		for path in self.cpppaths:
-			self.d += "env.Append(CPPPATH = ['%s'])\n" % path
-			self.env.Append(CPPPATH = path)
-		for path in self.libpaths:
-			self.d += "env.Append(LIBPATH = ['%s'])\n" % path
-			self.env.Append(LIBPATH = path)
-		self.d += "Return('env')\n"
-		f = open(name, 'w')
-		f.write(self.d)
-		f.close()
-		return self.Finish()
-		
-env = MyEnv()
+def is_List(e):
+    return isinstance(e, list)
+
+def getBinName(env, bin_name):
+    conf = env.get('MY_CONF', 'posix')
+    if conf == 'mingw-cross':
+        bin_name += '.exe'
+    return os.path.join('#bin', conf, bin_name)
+
+def getLibName(env, lib):
+    return os.path.join('#lib', env.get('MY_SUBFOLDER', ''), lib)
+
+def getObjects(env, directory='.'):
+    if is_List(directory):
+        l = []
+        for d in directory:
+            l += env.getObjects(d)
+        return l
+        
+    sourcePattern = re.compile(r'\.(cpp|c)$')
+    subfolder = env.get('MY_SUBFOLDER', '')
+    buildDir = os.path.join(directory, '.build', subfolder)
+    env.VariantDir(buildDir, directory, duplicate=0)
+    
+    return [env.Object(os.path.join(buildDir, i))
+            for i in os.listdir(directory)
+            if sourcePattern.search(i)]
+
+# Initialize Environment
+env = Environment(ENV=os.environ.copy())
+
+# Add custom methods
+env.AddMethod(getBinName)
+env.AddMethod(getLibName)
+env.AddMethod(getObjects)
+
+# Set custom variables
+env['MY_CONF'] = ARGUMENTS.get('conf', 'posix')
+env['MY_BUILD'] = ARGUMENTS.get('build', 'release')
+env['MY_SUBFOLDER'] = os.path.join(env['MY_CONF'], env['MY_BUILD'])
+env['NO_PARSERS'] = ARGUMENTS.get('no-parsers', False)
+
+# Add Homebrew paths for Linux
+brew_prefix = '/home/linuxbrew/.linuxbrew'
+if os.path.exists(brew_prefix):
+    env.Append(CPPPATH=[os.path.join(brew_prefix, 'include')])
+    env.Append(LIBPATH=[os.path.join(brew_prefix, 'lib')])
+    pkg_config_path = os.path.join(brew_prefix, 'lib', 'pkgconfig')
+    
+    if 'PKG_CONFIG_PATH' in env['ENV']:
+        env['ENV']['PKG_CONFIG_PATH'] += os.pathsep + pkg_config_path
+    else:
+        env['ENV']['PKG_CONFIG_PATH'] = pkg_config_path
+    
+    brew_bin = os.path.join(brew_prefix, 'bin')
+    if brew_bin not in env['ENV']['PATH']:
+        env['ENV']['PATH'] = brew_bin + os.pathsep + env['ENV']['PATH']
 
 env.Append(
-	CPPPATH = Split('. #http #loadpng #lua51 #Console #GUI #Utility #OmfgScript'),
-	LIBPATH = [os.path.join('#lib', env.subfolder), os.path.join('#lib', env.conf)],
-	CPPFLAGS = Split('-pipe -Wall -Wno-reorder')
+    CPPPATH=Split('. #http #loadpng #lua51 #Console #GUI #Utility #OmfgScript'),
+    LIBPATH=[os.path.join('#lib', env['MY_SUBFOLDER']), os.path.join('#lib', env['MY_CONF'])],
+    CPPFLAGS=Split('-pipe -Wall -Wno-reorder -std=c++17')
 )
 
-if env.build == 'release':
-	env.Append(CPPFLAGS = Split('-O3 -g -DNDEBUG -fomit-frame-pointer'))
-elif env.build == 'debug':
-	env.Append(CPPFLAGS = Split('-O0 -g -DDEBUG -DMAP_DOWNLOADING -DLOG_RUNTIME'))
-elif env.build == 'dedserv':
-	env.Append(CPPFLAGS = Split('-O3 -g -DNDEBUG -DDEDSERV -fomit-frame-pointer'))
-elif env.build == 'dedserv-debug':
-	env.Append(CPPFLAGS = Split('-O0 -g -DDEBUG -DDEDSERV -DLOG_RUNTIME'))
+if env['MY_BUILD'] == 'release':
+    env.Append(CPPFLAGS=Split('-O3 -g -DNDEBUG -fomit-frame-pointer'))
+elif env['MY_BUILD'] == 'debug':
+    env.Append(CPPFLAGS=Split('-O0 -g -DDEBUG -DMAP_DOWNLOADING -DLOG_RUNTIME'))
+elif env['MY_BUILD'] == 'dedserv':
+    env.Append(CPPFLAGS=Split('-O3 -g -DNDEBUG -DDEDSERV -fomit-frame-pointer'))
+elif env['MY_BUILD'] == 'dedserv-debug':
+    env.Append(CPPFLAGS=Split('-O0 -g -DDEBUG -DDEDSERV -DLOG_RUNTIME'))
 
-if env.conf == 'mingw-cross':
-	mingwPath = ARGUMENTS.get('mingw-path', '/usr/local/mingw/')
-	env.Append(
-		CPPFLAGS = ['-DWINDOWS'],
-		LIBS = ['stdc++']
-		)
-	env.Tool('crossmingw', ['SCons/Tools'])
+# Dependency Detection
+libs = ['sdl3', 'sdl3-mixer', 'sdl3-ttf', 'libenet', 'libpng', 'zlib']
+for lib in libs:
+    try:
+        env.ParseConfig(f'pkg-config --cflags --libs {lib}')
+    except Exception as e:
+        print(f"Warning: Could not find {lib} via pkg-config. Error: {e}")
 
-if env.conf == 'lucas':
-	env.Replace(
-		CXX = 'g++-3.4',
-	)
-	
-# Check if we need to configure
-
-configName = 'Config-' + env.conf
-
-#print env['LIBS']
-if not os.path.exists(configName):
-	
-	print 'Configuring... '
-	config = MyConf(env)
-	config.checkBoostLib('boost_filesystem')
-	config.checkBoostLib('boost_signals')
-	config.checkLibs('fmod', ['fmod-3.74.1', 'fmod-3.74', 'fmod'])
-	config.checkLibs('png', ['png13', 'png12', 'png'])
-	config.checkLibs('zoidcom', ['zoidcom', 'zoidcom_mw'])
-	config.checkLibs('z', ['z'])
-	config.checkHeader('zoidcom.h', ['zoidcom'])
-	config.checkHeader('fmod.h', ['fmod'])
-	config.checkHeader('png.h', ['png'])
-	config.checkHeader('zlib.h', ['zlib'])
-	config.checkHeader('boost/utility.hpp', ['boost-1_33_1', 'boost-1_33', 'boost-1_32'])
-	
-	env = config.write(configName)
-else:
-	env = SConscript(configName, exports = exp)
+# Boost Detection
+boost_libs = ['boost_filesystem', 'boost_system']
+for blib in boost_libs:
+    if not env.GetOption('clean'):
+        conf = Configure(env)
+        if not conf.CheckLib(blib, language='C++'):
+            print(f"Warning: Could not find boost library {blib}")
+        env = conf.Finish()
 
 # Build parser generator
-parserGen = SConscript('parsergen/SConscript', exports = exp)
+parserGen = SConscript('parsergen/SConscript', exports=exp)
 
 def parserGenEmitter(target, source, env):
-	env.Depends(target, parserGen)
-	return (target, source)
-	
+    env.Depends(target, parserGen)
+    return (target, source)
+    
 def parserBuilderFunc(target, source, env):
-	os.system('%s %s %s' % (parserGen[0].abspath, str(source[0]), str(target[0]) + '.re'))
-	os.system('re2c %s > %s' % (str(target[0]) + '.re', str(target[0])))
-	return None
-	
-parserBuilder = Builder(action = parserBuilderFunc,
-	emitter = parserGenEmitter,
-	suffix = '.h', src_suffix = '.pg')
-	
+    subprocess.run([parserGen[0].abspath, str(source[0]), str(target[0]) + '.re'], check=True)
+    with open(str(target[0]), 'w') as out:
+        subprocess.run(['re2c', str(target[0]) + '.re'], stdout=out, check=True)
+    return None
+    
+parserBuilder = Builder(action=parserBuilderFunc,
+                         emitter=parserGenEmitter,
+                         suffix='.h', src_suffix='.pg')
+    
 env['BUILDERS']['Parser'] = parserBuilder
 
 # Build the rest
 for i in sconscript:
-	SConscript(i + '/SConscript', exports = exp)
-            
-if env.conf == 'mingw-cross':
-	env.Append(BUILDERS = {'Strip' : Builder(action = os.path.join(mingwPath, 'bin', 'strip') + ' $SOURCE')})
-	gus = env.Install('/usr/local/htdocs/stuff/gusanos-alpha', env.getBinName('gusanos'))
-	env.Strip(gus)
-	env.Alias('upload', '/usr/local/htdocs/stuff/gusanos-alpha')
+    SConscript(i + '/SConscript', exports=exp)

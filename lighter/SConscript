@@ -1,23 +1,12 @@
 Import('env')
 
-env = env.Copy()
+env = env.Clone()
 env.Append(LIBS = Split("""
 	renderLoaders omfgutil loadpng""")
 	)
-	
-#omfghttp
 
-if env.conf == 'mingw-cross':
-	env.Append(LIBS = Split("alleg"))
-else:
-	env.ParseConfig('allegro-config --libs --cppflags')
-	
-env.Append(
-	LIBS = env.confLibs('boost_filesystem boost_signals png') + ['z']
-	)
-
-	        
-# add more platforms here
+# SDL3/Allegro replacement handled in SConstruct or eventually removed
+# but for now we just remove the old allegro-config call.
 
 SConscript([
 	'./loaders/SConscript'

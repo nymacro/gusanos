@@ -1,8 +1,7 @@
-
 Import('env')
 
-env = env.Copy()
+env = env.Clone()
 
-env.Append(LIBS = env.confLibs('boost_filesystem'))
+# boost_filesystem is already in LIBS from SConstruct
 	
 env.Program(env.getBinName('liero2gus'), env.getObjects())
