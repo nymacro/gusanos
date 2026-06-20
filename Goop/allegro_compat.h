@@ -109,15 +109,21 @@ inline int makecol(int r, int g, int b) { return (255 << 24) | (r << 16) | (g <<
 inline int makecol32(int r, int g, int b) { return (255 << 24) | (r << 16) | (g << 8) | b; }
 inline int makecol_depth(int depth, int r, int g, int b) { return makecol(r, g, b); }
 
-// Per-pixel operations on 32-bit bitmaps
+// Per-pixel operations (depth-aware: supports 8, 16, 32 bpp)
 inline int getpixel(BITMAP* bmp, int x, int y) {
     if (x < 0 || x >= bmp->w || y < 0 || y >= bmp->h) return 0;
-    unsigned char* p = bmp->line[y] + x * 4;
+    int bpp = bmp->format / 8;
+    unsigned char* p = bmp->line[y] + x * bpp;
+    if (bpp == 1) return p[0];
+    if (bpp == 2) return *(unsigned short*)p;
     return (p[3] << 24) | (p[0] << 16) | (p[1] << 8) | p[2];
 }
 inline void putpixel(BITMAP* bmp, int x, int y, int color) {
     if (x < 0 || x >= bmp->w || y < 0 || y >= bmp->h) return;
-    unsigned char* p = bmp->line[y] + x * 4;
+    int bpp = bmp->format / 8;
+    unsigned char* p = bmp->line[y] + x * bpp;
+    if (bpp == 1) { p[0] = color & 0xFF; return; }
+    if (bpp == 2) { *(unsigned short*)p = (unsigned short)color; return; }
     p[0] = (color >> 16) & 0xFF;
     p[1] = (color >> 8) & 0xFF;
     p[2] = color & 0xFF;

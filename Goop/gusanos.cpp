@@ -44,6 +44,12 @@
 
 #ifdef POSIX
 #include <unistd.h>
+#include <execinfo.h>
+#include <signal.h>
+#include <cxxabi.h>
+#include <cstdlib>
+#include <sstream>
+#include <cstdio>
 #endif
 
 using namespace std;
@@ -67,6 +73,90 @@ string exitCmd(list<string> const& args)
 	exit();
 	return "";
 }
+
+// --- Crash handler: print backtrace on fatal signals ---
+#ifdef POSIX
+namespace {
+    const int MAX_BT_FRAMES = 128;
+
+    void crashHandler(int sig)
+    {
+        const char* sigName = "UNKNOWN";
+        switch(sig) {
+            case SIGSEGV: sigName = "SIGSEGV"; break;
+            case SIGABRT: sigName = "SIGABRT"; break;
+            case SIGFPE:  sigName = "SIGFPE"; break;
+            case SIGILL:  sigName = "SIGILL"; break;
+            case SIGBUS:  sigName = "SIGBUS"; break;
+        }
+
+        std::cerr << "\n*** CRASH: " << sigName << " (signal " << sig << ") ***\n";
+
+        void* buffer[MAX_BT_FRAMES];
+        int frames = backtrace(buffer, MAX_BT_FRAMES);
+
+        char** symbols = backtrace_symbols(buffer, frames);
+        if (symbols) {
+            for (int i = 0; i < frames; ++i) {
+                std::string frame(symbols[i]);
+                size_t paren = frame.find('(');
+                size_t plus = frame.find('+', paren);
+                if (paren != std::string::npos && plus != std::string::npos) {
+                    std::string mangled = frame.substr(paren + 1, plus - paren - 1);
+                    int status;
+                    char* dm = abi::__cxa_demangle(mangled.c_str(), nullptr, nullptr, &status);
+                    if (dm) {
+                        frame = frame.substr(0, paren + 1) + dm + frame.substr(plus);
+                        free(dm);
+                    }
+                }
+                std::cerr << "  " << (i == 0 ? "=>" : "  ") << "  [" << i << "] " << frame << "\n";
+            }
+            free(symbols);
+        }
+
+        // Resolve source locations via addr2line
+        std::ostringstream cmd;
+        cmd << "addr2line -e /proc/self/exe -f -C -i";
+        for (int i = 0; i < frames; ++i)
+            cmd << " " << std::hex << buffer[i];
+        cmd << " 2>/dev/null";
+
+        FILE* pipe = popen(cmd.str().c_str(), "r");
+        if (pipe) {
+            std::cerr << "\n  Source locations:\n";
+            char line[512];
+            int idx = 0;
+            while (fgets(line, sizeof(line), pipe)) {
+                char* nl = line;
+                while (*nl && *nl != '\n') ++nl;
+                *nl = '\0';
+                if (idx % 2 == 0)
+                    std::cerr << "    " << (idx/2) << ": " << line << "\n";
+                else
+                    std::cerr << "       " << line << "\n";
+                ++idx;
+            }
+            pclose(pipe);
+        }
+
+        std::cerr << "\n";
+
+        signal(sig, SIG_DFL);
+        raise(sig);
+    }
+
+    struct CrashHandlerSetup {
+        CrashHandlerSetup() {
+            signal(SIGSEGV, crashHandler);
+            signal(SIGABRT, crashHandler);
+            signal(SIGFPE,  crashHandler);
+            signal(SIGILL,  crashHandler);
+            signal(SIGBUS,  crashHandler);
+        }
+    } crashSetup;
+}
+#endif
 
 int main(int argc, char **argv)
 try
@@ -293,7 +383,7 @@ try
 				while(b != e);
 			}
 			
-			//rectfill_blend(gfx.buffer, 3, y-2, 3+w+5, 237, 0, 130);
+			//rectfill_blend(gfx.buffer, 3, y-2, 3+w+5, 0, 130);
 			
 			for(std::list<ScreenMessage>::iterator msgiter = rmsgiter.base();
 			    msgiter != game.messages.end();
@@ -386,4 +476,3 @@ catch(...)
 {
 	std::cerr << "Unknown unhandled exception\n";
 }
-

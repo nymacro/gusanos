@@ -76,18 +76,23 @@ if os.path.exists(brew_prefix):
 env.Append(
     CPPPATH=Split('. #http #lua51 #Console #GUI #Utility #OmfgScript #Goop'),
     LIBPATH=[os.path.join('#lib', env['MY_SUBFOLDER']), os.path.join('#lib', env['MY_CONF'])],
-    CPPFLAGS=Split('-pipe -Wall -Wno-reorder -std=c++17'),
+    CCFLAGS=Split('-pipe -Wall -Wno-reorder'),
+    CXXFLAGS=Split('-std=c++17'),
     CPPDEFINES=['_GNU_SOURCE', 'DISABLE_ZOIDCOM', 'BOOST_TIMER_ENABLE_DEPRECATED']
 )
 
 if env['MY_BUILD'] == 'release':
-    env.Append(CPPFLAGS=Split('-O3 -g -DNDEBUG -fomit-frame-pointer'))
+    env.Append(CCFLAGS=Split('-O3 -g'),
+               CPPDEFINES=['NDEBUG'])
 elif env['MY_BUILD'] == 'debug':
-    env.Append(CPPFLAGS=Split('-O0 -g -DDEBUG -DMAP_DOWNLOADING -DLOG_RUNTIME'))
+    env.Append(CCFLAGS=Split('-Og -g -fno-omit-frame-pointer -Wextra'),
+               CPPDEFINES=['DEBUG', 'MAP_DOWNLOADING', 'LOG_RUNTIME'])
 elif env['MY_BUILD'] == 'dedserv':
-    env.Append(CPPFLAGS=Split('-O3 -g -DNDEBUG -DDEDSERV -fomit-frame-pointer'))
+    env.Append(CCFLAGS=Split('-O3 -g'),
+               CPPDEFINES=['NDEBUG', 'DEDSERV'])
 elif env['MY_BUILD'] == 'dedserv-debug':
-    env.Append(CPPFLAGS=Split('-O0 -g -DDEBUG -DDEDSERV -DLOG_RUNTIME'))
+    env.Append(CCFLAGS=Split('-Og -g -fno-omit-frame-pointer'),
+               CPPDEFINES=['DEBUG', 'DEDSERV', 'LOG_RUNTIME'])
 
 # Dependency Detection
 libs = ['sdl3', 'sdl3-mixer', 'sdl3-image', 'sdl3-ttf', 'libenet', 'libpng', 'zlib']

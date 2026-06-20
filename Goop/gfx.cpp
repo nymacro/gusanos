@@ -108,6 +108,7 @@ void Gfx::init()
 	Init_2xSaI(32); 
 	
 	buffer = create_bitmap(320, 240);
+	screen = buffer;
 #endif
 
 	m_initialized = true; 
