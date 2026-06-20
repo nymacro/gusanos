@@ -9,7 +9,7 @@
 #define HAS_ZOIDCOM
 
 #ifdef HAS_ZOIDCOM // TODO: Use Zoidcom for async hostname look-up
-#include <zoidcom.h>
+#include "network_compat.h"
 #endif
 
 namespace TCP

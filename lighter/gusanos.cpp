@@ -1,4 +1,4 @@
-#include <allegro.h>
+#include "allegro_compat.h"
 
 #include "level.h"
 #include "culling.h"
@@ -262,9 +262,9 @@ int main(int argc, char **argv)
 	
 	allegro_message("done");
 
-	allegro_exit();
+	// allegro_exit();
 
 	return(0);
 }
-END_OF_MAIN();
+// END_OF_MAIN();
 

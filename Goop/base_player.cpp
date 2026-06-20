@@ -13,9 +13,9 @@
 #include "lua/bindings-game.h"
 #include "game.h"
 
-#include <zoidcom.h>
+#include "network_compat.h"
 #include "network.h"
-//#include <allegro.h>
+//#include "allegro_compat.h"
 #include <list>
 
 using namespace std;
@@ -35,7 +35,7 @@ LuaReference BasePlayer::metaTable()
 }
 */
 
-BasePlayer::BasePlayer(shared_ptr<PlayerOptions> options, BaseWorm* worm)
+BasePlayer::BasePlayer(boost::shared_ptr<PlayerOptions> options, BaseWorm* worm)
 : m_options(options), stats(new Stats), deleteMe(false)
 , m_worm(0), m_id(0) // TODO: make a invalid_connection_id define thingy
 , m_wormID(INVALID_NODE_ID)
@@ -539,7 +539,7 @@ void BasePlayer::assignWorm(BaseWorm* worm)
 	}
 }
 
-shared_ptr<PlayerOptions> BasePlayer::getOptions()
+boost::shared_ptr<PlayerOptions> BasePlayer::getOptions()
 {
 	return m_options;
 }

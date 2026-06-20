@@ -9,7 +9,7 @@
 #include <vector>
 using boost::shared_ptr;
 
-#include <zoidcom.h>
+#include "network_compat.h"
 
 struct PlayerOptions;
 class BaseWorm;
@@ -31,7 +31,7 @@ struct LuaEventDef;
 #define COMPACT_EVENTS
 #define COMPACT_ACTIONS
 
-class BasePlayer
+class BasePlayer : public ZCom_Control
 {
 public:
 	

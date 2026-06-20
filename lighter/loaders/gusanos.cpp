@@ -4,7 +4,6 @@
 
 #include <boost/filesystem/path.hpp>
 #include <boost/filesystem/operations.hpp>
-#include <boost/filesystem/convenience.hpp>
 #include <boost/filesystem/fstream.hpp>
 namespace fs = boost::filesystem;
 
@@ -17,7 +16,7 @@ bool GusanosLevelLoader::canLoad(fs::path const& path, std::string& name)
 {
 	if(fs::exists(path / "config.cfg"))
 	{
-		name = path.leaf();
+		name = path.filename().string();
 		return true;
 	}
 	return false;
@@ -25,9 +24,9 @@ bool GusanosLevelLoader::canLoad(fs::path const& path, std::string& name)
 	
 bool GusanosLevelLoader::load(Level* level, fs::path const& path)
 {
-	std::string materialPath = (path / "material").native_file_string();
+	std::string materialPath = (path / "material").string();
 	
-	level->path = path.native_directory_string();
+	level->path = path.string();
 	
 	{
 		LocalSetColorDepth cd(8);

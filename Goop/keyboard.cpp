@@ -5,7 +5,7 @@
 #include "console.h"
 #include <algorithm> // For std::find
 
-#include <allegro.h>
+#include "allegro_compat.h"
 #include <list>
 #include <iostream>
 #include <cctype>

@@ -3,8 +3,9 @@
 
 #include <climits>
 #include <iostream>
-#include <zoidcom.h>
+#include <cassert>
 #include <stdexcept>
+#include "network_compat.h"
 
 template<class T>
 class BasicAngle
@@ -191,7 +192,6 @@ public:
 
 typedef BasicAngle<int> Angle;
 typedef BasicAngle<int> AngleDiff;
-
 template<class T>
 class BasicAngleReplicator : public ZCom_ReplicatorBasic
 {
@@ -263,6 +263,4 @@ public:
 
 typedef BasicAngleReplicator<int> AngleReplicator;
 typedef BasicAngleReplicator<int> AngleDiffReplicator;
-
-
 #endif //GUSANOS_ANGLE_H

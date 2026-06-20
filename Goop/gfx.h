@@ -1,10 +1,8 @@
 #ifndef GFX_H
 #define GFX_H
 
-#include <allegro.h>
-
+#include "allegro_compat.h"
 #include <string>
-//#include <list>
 
 enum Blenders
 {
@@ -28,9 +26,6 @@ public:
 	void fullscreenChange();
 	void doubleResChange();
 	int  getGraphicsDriver(); // Selects and returns graphics driver
-	
-	//void fullscreen( int oldValue );
-	//void doubleRes( int oldValue );
 	
 	void updateScreen();
 	
@@ -58,9 +53,12 @@ public:
 	BITMAP* buffer;
 
 	int m_distortionAA;
-	//int darkMode;
-	
 	int m_haxWormLight; //TEMP HAX
+
+	// SDL3 specific members
+	SDL_Window* window;
+	SDL_Renderer* renderer;
+	SDL_Texture* screenTexture;
 #endif
 
 	inline bool compareRGB( int c1, int c2 )
@@ -74,10 +72,6 @@ public:
 	operator bool(); // Returns true if it's safe to use this object
 
 };
-
-#ifndef DEDSERV
-//std::string screenShot(const std::list<std::string> &args);
-#endif
 
 extern Gfx gfx;
 
@@ -115,4 +109,4 @@ private:
 	int old;
 };
 
-#endif // _GFX_H_
+#endif // GFX_H

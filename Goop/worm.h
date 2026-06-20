@@ -5,7 +5,7 @@
 #include "base_worm.h"
 //#include "sprite.h"
 
-#include <zoidcom.h>
+#include "network_compat.h"
 
 class BaseAnimator;
 class BasePlayer;

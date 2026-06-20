@@ -2,6 +2,7 @@
 #define PLAYER_H
 
 #include "base_player.h"
+#include <memory>
 #include <string>
 
 #ifndef DEDSERV
@@ -27,7 +28,7 @@ public:
 		ACTION_COUNT,
 	};
 			
-	Player(shared_ptr<PlayerOptions> options, BaseWorm* worm);
+	Player(boost::shared_ptr<PlayerOptions> options, BaseWorm* worm);
 	~Player();
 	
 	void subThink();

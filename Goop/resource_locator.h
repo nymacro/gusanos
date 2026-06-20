@@ -2,6 +2,7 @@
 #define GUSANOS_RESOURCE_LOCATOR_H
 
 #include <map>
+#include <iterator>
 #include <string>
 #include <list>
 #include <set>
@@ -12,6 +13,7 @@
 #include "util/text.h"
 #include <boost/filesystem/path.hpp>
 #include <boost/filesystem/operations.hpp>
+#include <boost/filesystem/directory.hpp>
 #include <boost/filesystem/exception.hpp>
 #include <boost/utility.hpp>
 namespace fs = boost::filesystem;
@@ -80,7 +82,7 @@ struct ResourceLocator
 	{
 		for(typename NamedResourceMap::iterator i = m_namedResources.begin(); i != m_namedResources.end();)
 		{
-			typename NamedResourceMap::iterator next = boost::next(i);
+			typename NamedResourceMap::iterator next = std::next(i);
 			
 			if(!i->second.cached)
 			{
@@ -137,7 +139,7 @@ private:
 template<class T, bool Cache, bool ReturnResource>
 void ResourceLocator<T, Cache, ReturnResource>::refresh(fs::path const& path)
 {
-	//std::cout << "Scanning: " << path.native_file_string() << std::endl;
+	//std::cout << "Scanning: " << path.string() << std::endl;
 	try
 	{
 		fs::directory_iterator i(path), e;
@@ -153,7 +155,7 @@ void ResourceLocator<T, Cache, ReturnResource>::refresh(fs::path const& path)
 			    l != m_loaders.end();
 			    ++l)
 			{
-				if((*l)->canLoad(*i, name))
+				if((*l)->canLoad(i->path(), name))
 				{
 					loader = *l;
 					break;
@@ -163,7 +165,7 @@ void ResourceLocator<T, Cache, ReturnResource>::refresh(fs::path const& path)
 			if(loader)
 			{
 				// We found a loader
-				std::pair<typename NamedResourceMap::iterator, bool> r = m_namedResources.insert(std::make_pair(name, ResourceInfo(*i, loader)));
+				std::pair<typename NamedResourceMap::iterator, bool> r = m_namedResources.insert(std::make_pair(name, ResourceInfo(i->path(), loader)));
 				/*
 				if(r.second)
 				{
@@ -171,14 +173,14 @@ void ResourceLocator<T, Cache, ReturnResource>::refresh(fs::path const& path)
 				}
 				else
 				{
-					std::cout << "Duplicate resource: " << name << ", old path: " << r.first->second.path.native_file_string() << ", new path: " << i->native_file_string() << std::endl;
+					std::cout << "Duplicate resource: " << name << ", old path: " << r.first->second.path.string() << ", new path: " << i->string() << std::endl;
 				}
 				*/
 			}
-			else if(fs::is_directory(*i))
+			else if(fs::is_directory(i->path()))
 			{
 				// If no loader was found and this is a directory, scan it
-				refresh(*i);
+				refresh(i->path());
 			}
 		}
 	}

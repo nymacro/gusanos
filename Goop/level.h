@@ -8,7 +8,7 @@
 
 #include "encoding.h"
 
-#include <allegro.h>
+#include "allegro_compat.h"
 #include <string>
 #include <vector>
 #include <list>
@@ -103,20 +103,20 @@ class Level
 	Material const& getMaterial(unsigned int x, unsigned int y) const
 	{
 		if(x < static_cast<unsigned int>(material->w) && y < static_cast<unsigned int>(material->h))
-			return m_materialList[(unsigned char)material->line[y][x]];
+			return m_materialList[((unsigned char*)material->line[y])[x]];
 		else
 			return m_materialList[0];
 	}
 	
 	Material const& unsafeGetMaterial(unsigned int x, unsigned int y) const
 	{
-		return m_materialList[(unsigned char)material->line[y][x]];
+		return m_materialList[((unsigned char*)material->line[y])[x]];
 	}
 	
 	unsigned char getMaterialIndex(unsigned int x, unsigned int y) const
 	{
 		if(x < static_cast<unsigned int>(material->w) && y < static_cast<unsigned int>(material->h))
-			return (unsigned char)material->line[y][x];
+			return ((unsigned char*)material->line[y])[x];
 		else
 			return 0;
 	}
@@ -124,13 +124,13 @@ class Level
 	void putMaterial( unsigned char index, unsigned int x, unsigned int y )
 	{
 		if(x < static_cast<unsigned int>(material->w) && y < static_cast<unsigned int>(material->h))
-			material->line[y][x] = index;
+			((unsigned char*)material->line[y])[x] = index;
 	}
 	
 	void putMaterial( Material const& mat, unsigned int x, unsigned int y )
 	{
 		if(x < static_cast<unsigned int>(material->w) && y < static_cast<unsigned int>(material->h))
-			material->line[y][x] = mat.index;
+			((unsigned char*)material->line[y])[x] = mat.index;
 	}
 	
 	bool isInside(unsigned int x, unsigned int y) const
@@ -203,7 +203,7 @@ private:
 	bool m_firstFrame;
 	
 	std::list<WaterParticle> m_water;
-	static const float WaterSkipFactor = 0.05f;
+	static constexpr float WaterSkipFactor = 0.05f;
 };
 
 #define SIGN(x_) ((x_) < 0 ? -1 : (x_) > 0 ? 1 : 0)

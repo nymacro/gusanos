@@ -1,4 +1,4 @@
-#include <allegro.h>
+#include "allegro_compat.h"
 
 #include "gconsole.h"
 #include "resource_list.h"
@@ -166,7 +166,7 @@ try
 			updater.think(); // TODO: Move?
 			
 #ifndef DEDSERV
-			sfx.think(); // WARNING: THIS ¡MUST! BE PLACED BEFORE THE OBJECT DELETE LOOP
+			sfx.think(); // WARNING: THIS ï¿½MUST! BE PLACED BEFORE THE OBJECT DELETE LOOP
 #endif
 			
 			//for ( list<BasePlayer*>::iterator iter = game.players.begin(); iter != game.players.end();)
@@ -228,9 +228,9 @@ try
 		Sleep(0);
 #else
 #ifndef DEDSERV
-		rest(0);
+		SDL_Delay(0);
 #else
-		rest(2);
+		SDL_Delay(2);
 #endif
 #endif
 
@@ -374,7 +374,7 @@ try
 	gfx.shutDown();
 	lua.close();
 
-	allegro_exit();
+	SDL_Quit();
 
 	return(0);
 }
@@ -386,5 +386,4 @@ catch(...)
 {
 	std::cerr << "Unknown unhandled exception\n";
 }
-END_OF_MAIN();
 

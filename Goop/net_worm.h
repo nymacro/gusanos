@@ -6,7 +6,7 @@
 #include "base_worm.h"
 //#include "sprite.h"
 
-#include <zoidcom.h>
+#include "network_compat.h"
 
 class NetWormInterceptor;
 
@@ -38,7 +38,7 @@ public:
 	};
 		
 	static ZCom_ClassID  classID;
-	static const float MAX_ERROR_RADIUS = 10;
+	static constexpr float MAX_ERROR_RADIUS = 10.0f;
 		
 	NetWorm(bool isAuthority);
 	~NetWorm();

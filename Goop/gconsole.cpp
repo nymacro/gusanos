@@ -13,7 +13,7 @@
 
 #include "network.h" //TEMP
 
-#include <allegro.h>
+#include "allegro_compat.h"
 #include <boost/bind.hpp>
 #include <boost/lexical_cast.hpp>
 using boost::lexical_cast;
@@ -275,7 +275,7 @@ string restCmd(list<string> const& args)
 		std::list<string>::const_iterator i = args.begin();
 		
 		int t = cast<int>(*i);
-		rest(t);		
+		SDL_Delay(t);		
 		return "DONE";
 	}
 	
@@ -650,9 +650,9 @@ int GConsole::executeConfig(const std::string& filename)
 {
 	fs::path p(game.getModPath() / filename);
 	if ( fs::exists(p) )
-		return Console::executeConfig(p.native_file_string());
+		return Console::executeConfig(p.string());
 	else
-		return Console::executeConfig((game.getDefaultPath() / filename).native_file_string());
+		return Console::executeConfig((game.getDefaultPath() / filename).string());
 }
 
 void GConsole::addQueueCommand( std::string const & command )

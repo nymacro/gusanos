@@ -19,7 +19,7 @@
 
 #include <math.h>
 #include <vector>
-#include <zoidcom.h>
+#include "network_compat.h"
 
 using namespace std;
 

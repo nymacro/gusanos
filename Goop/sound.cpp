@@ -12,10 +12,10 @@
 #include <boost/filesystem/path.hpp>
 namespace fs = boost::filesystem;
 
-#include <allegro.h>
+#include "allegro_compat.h"
 //#include "text.h"
 
-#include <fmod.h>
+#include "fmod_compat.h"
 
 using namespace std;
 
@@ -33,8 +33,8 @@ Sound::~Sound()
 
 bool Sound::load(fs::path const& filename)
 {	
-	//cerr << "Loading sound: " << filename.native_file_string() << endl;
-	m_sound = FSOUND_Sample_Load( FSOUND_FREE, filename.native_file_string().c_str(), FSOUND_HW3D | FSOUND_FORCEMONO, 0, 0 );
+	//cerr << "Loading sound: " << filename.string() << endl;
+	m_sound = FSOUND_Sample_Load( FSOUND_FREE, filename.string().c_str(), FSOUND_HW3D | FSOUND_FORCEMONO, 0, 0 );
 	if ( m_sound )
 	{
 		return true;

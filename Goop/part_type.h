@@ -6,7 +6,7 @@
 #include "gfx.h"
 #include "distortion.h"
 #include "blitters/context.h"
-#include <allegro.h>
+#include "allegro_compat.h"
 #endif
 #include "events.h"
 #include "util/vec.h"

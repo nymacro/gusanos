@@ -45,9 +45,9 @@ struct GusanosSpriteSet : public BaseSpriteSet
 	
 };
 
-struct AllegroRenderer : public Renderer
+struct SDLRenderer : public Renderer
 {
-	AllegroRenderer()
+	SDLRenderer()
 	{
 	}
 	
@@ -145,7 +145,7 @@ class XMLFile
 public:
 	operator bool()
 	{
-		return f;
+		return f.is_open();
 	}
 	
 	fs::ifstream f;
@@ -163,7 +163,7 @@ public:
 	
 	operator bool()
 	{
-		//return f;
+		//return f.is_open();
 		return loaded;
 	}
 	

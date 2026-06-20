@@ -2,7 +2,7 @@
 #define NOISE_LINE_H
 
 #include <vector>
-#include <allegro.h>
+#include "allegro_compat.h"
 
 class NoiseLine
 {

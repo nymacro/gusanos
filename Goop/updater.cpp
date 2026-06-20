@@ -14,7 +14,6 @@
 #include <utility>
 #include <boost/filesystem/path.hpp>
 #include <boost/filesystem/operations.hpp>
-#include <boost/filesystem/convenience.hpp>
 #include <boost/filesystem/exception.hpp>
 namespace fs = boost::filesystem;
 
@@ -123,7 +122,7 @@ namespace
 		else
 		{
 			DLOG("Queing " << p.string());
-			fileQueue.push_back(std::make_pair(0, p.native_file_string()));
+			fileQueue.push_back(std::make_pair(0, p.string()));
 		}
 	}
 	
@@ -228,7 +227,7 @@ void Updater::think()
 						
 						if(accept)
 						{
-							fs::create_directories(p.branch_path());
+							fs::create_directories(p.parent_path());
 							
 							ILOG("Accepting incoming file with ID " << fid);
 						}

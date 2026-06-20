@@ -4,7 +4,6 @@
 
 #include <boost/filesystem/path.hpp>
 #include <boost/filesystem/operations.hpp>
-#include <boost/filesystem/convenience.hpp>
 #include <boost/filesystem/fstream.hpp>
 namespace fs = boost::filesystem;
 
@@ -12,9 +11,9 @@ LOSPFontLoader LOSPFontLoader::instance;
 
 bool LOSPFontLoader::canLoad(fs::path const& path, std::string& name)
 {
-	if(fs::extension(path) == ".lfn")
+	if(path.extension().string() == ".lfn")
 	{
-		name = basename(path);
+		name = path.stem().string();
 		return true;
 	}
 	return false;

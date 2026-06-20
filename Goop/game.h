@@ -9,7 +9,7 @@
 #include "message_queue.h"
 
 #ifndef DEDSERV
-#include <allegro.h>
+#include "allegro_compat.h"
 #endif
 #include <string>
 #include <vector>
@@ -20,7 +20,7 @@
 #include <boost/filesystem/path.hpp>
 using boost::shared_ptr;
 namespace fs = boost::filesystem;
-#include <zoidcom.h>
+#include "network_compat.h"
 
 class BasePlayer;
 class BaseWorm;

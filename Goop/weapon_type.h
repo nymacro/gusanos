@@ -65,7 +65,7 @@ struct WeaponOrder
 {
 	bool operator () ( WeaponType* weap1, WeaponType* weap2)
 	{
-		if ( weap1->fileName.leaf() < weap2->fileName.leaf() )
+		if ( weap1->fileName.filename() < weap2->fileName.filename() )
 			return true;
 		return false;
 	}

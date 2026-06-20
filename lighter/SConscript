@@ -2,7 +2,7 @@ Import('env')
 
 env = env.Clone()
 env.Append(LIBS = Split("""
-	renderLoaders omfgutil loadpng""")
+	renderLoaders omfgutil""")
 	)
 
 # SDL3/Allegro replacement handled in SConstruct or eventually removed
@@ -12,4 +12,5 @@ SConscript([
 	'./loaders/SConscript'
 	], exports = ['env'])
 
-env.Program(env.getBinName('lighter'), env.getObjects())
+env.Program(env.getBinName('lighter'),
+    env.getObjects() + [env.Object('../Goop/allegro_compat.cpp')])

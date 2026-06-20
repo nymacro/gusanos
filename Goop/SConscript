@@ -3,7 +3,7 @@ Import('env')
 env = env.Clone()
 env.Append(LIBS = Split("""
 	omfggui omfghttp omfgconsole 
-	omfgscript glua loadpng omfgutil""")
+	omfgscript glua omfgutil""")
 	)
 
 # Platform specific additions can go here if needed
@@ -13,7 +13,7 @@ exename = 'gusanos'
 if env['MY_BUILD'] in ['dedserv', 'dedserv-debug']:
 	exename += '-ded'
 env.Program(env.getBinName(exename),
-	env.getObjects() +
-	env.getObjects('lua') +
+    env.getObjects() +
+    env.getObjects('lua') +
 	env.getObjects('blitters') +
 	env.getObjects('loaders'))

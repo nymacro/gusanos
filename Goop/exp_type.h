@@ -8,7 +8,7 @@
 #include "blitters/context.h"
 #endif
 
-#include <allegro.h>
+#include "allegro_compat.h"
 #include <string>
 #include <vector>
 #include <boost/cstdint.hpp>

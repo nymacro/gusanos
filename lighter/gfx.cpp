@@ -4,9 +4,15 @@
 #include <boost/assign/list_inserter.hpp>
 using namespace boost::assign;
 
-#include <allegro.h>
+#include "allegro_compat.h"
 
-#include <loadpng.h>
+// load_png and load_bmp wrappers — delegated to load_bitmap (SDL3_image via allegro_compat.h)
+BITMAP *load_png(const char *filename, void *pal) {
+    return load_bitmap(filename, (RGB*)pal);
+}
+BITMAP *load_bmp(const char *filename, void *pal) {
+    return load_bitmap(filename, (RGB*)pal);
+}
 
 #include <string>
 #include <algorithm>
@@ -28,10 +34,6 @@ Gfx::~Gfx()
 
 void Gfx::init()
 {
-	register_png_file_type();
-
-	loadpng_init();
-
 	set_color_depth(32);
 }
 

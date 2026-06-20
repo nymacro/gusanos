@@ -5,7 +5,7 @@
 #error "Can't use this in dedicated server"
 #endif //DEDSERV
 
-#include <allegro.h>
+#include "allegro_compat.h"
 #include "types.h"
 //#include "mmx.h"
 

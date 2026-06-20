@@ -17,7 +17,7 @@
 #include "game.h"
 
 
-#include <allegro.h>
+#include "allegro_compat.h"
 #include <string>
 #include <vector>
 

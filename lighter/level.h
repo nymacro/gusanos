@@ -4,7 +4,7 @@
 #include "material.h"
 #include "util/vec.h"
 
-#include <allegro.h>
+#include "allegro_compat.h"
 #include <string>
 #include <vector>
 #include <cmath>

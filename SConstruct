@@ -7,7 +7,6 @@ sconscript = [
     'GUI',
     'Utility/util',
     'Console',
-    'loadpng',
     'Goop',
     'OmfgScript',
     'liero2gus',
@@ -75,9 +74,10 @@ if os.path.exists(brew_prefix):
         env['ENV']['PATH'] = brew_bin + os.pathsep + env['ENV']['PATH']
 
 env.Append(
-    CPPPATH=Split('. #http #loadpng #lua51 #Console #GUI #Utility #OmfgScript'),
+    CPPPATH=Split('. #http #lua51 #Console #GUI #Utility #OmfgScript #Goop'),
     LIBPATH=[os.path.join('#lib', env['MY_SUBFOLDER']), os.path.join('#lib', env['MY_CONF'])],
-    CPPFLAGS=Split('-pipe -Wall -Wno-reorder -std=c++17')
+    CPPFLAGS=Split('-pipe -Wall -Wno-reorder -std=c++17'),
+    CPPDEFINES=['_GNU_SOURCE', 'DISABLE_ZOIDCOM', 'BOOST_TIMER_ENABLE_DEPRECATED']
 )
 
 if env['MY_BUILD'] == 'release':
@@ -90,7 +90,7 @@ elif env['MY_BUILD'] == 'dedserv-debug':
     env.Append(CPPFLAGS=Split('-O0 -g -DDEBUG -DDEDSERV -DLOG_RUNTIME'))
 
 # Dependency Detection
-libs = ['sdl3', 'sdl3-mixer', 'sdl3-ttf', 'libenet', 'libpng', 'zlib']
+libs = ['sdl3', 'sdl3-mixer', 'sdl3-image', 'sdl3-ttf', 'libenet', 'libpng', 'zlib']
 for lib in libs:
     try:
         env.ParseConfig(f'pkg-config --cflags --libs {lib}')

@@ -7,7 +7,7 @@
 #include "util/angle.h"
 #include "timer_event.h"
 #include <vector>
-#include <zoidcom.h>
+#include "network_compat.h"
 
 #ifndef DEDSERV
 class Sprite;

@@ -28,7 +28,7 @@ ResourceLocator<GSSFile> gssLocator;
 namespace OmfgGUI
 {
 
-AllegroRenderer renderer;
+SDLRenderer renderer;
 GContext menu(&renderer);
 
 std::string cmdLoadXML(std::list<std::string> const& args)
@@ -425,7 +425,7 @@ int allegroColor(RGB const& rgb)
 }
 
 // Draws a box
-void AllegroRenderer::drawBox(
+void SDLRenderer::drawBox(
 	Rect const& rect,
 	RGB const& color,
 	RGB const& borderLeftColor,
@@ -441,7 +441,7 @@ void AllegroRenderer::drawBox(
 	hline(gfx.buffer, rect.x1, rect.y1, rect.x2, allegroColor(borderTopColor));
 }
 
-void AllegroRenderer::drawFrame(
+void SDLRenderer::drawFrame(
 	Rect const& rect,
 	RGB const& color)
 {
@@ -453,7 +453,7 @@ void AllegroRenderer::drawFrame(
 }
 
 // Draws a box
-void AllegroRenderer::drawBox(
+void SDLRenderer::drawBox(
 	Rect const& rect,
 	RGB const& color)
 {
@@ -462,13 +462,13 @@ void AllegroRenderer::drawBox(
 	//rectfill(gfx.buffer, rect.x1, rect.y1, rect.x2, rect.y2, allegroColor(color));
 }
 
-void AllegroRenderer::drawVLine(ulong x, ulong y1, ulong y2, RGB const& color)
+void SDLRenderer::drawVLine(ulong x, ulong y1, ulong y2, RGB const& color)
 {
 	vline(gfx.buffer, x, y1, y2, allegroColor(color));
 }
 
 // Draws text
-void AllegroRenderer::drawText(BaseFont const& font, std::string const& str, ulong flags, ulong x, ulong y, RGB const& aColor)
+void SDLRenderer::drawText(BaseFont const& font, std::string const& str, ulong flags, ulong x, ulong y, RGB const& aColor)
 {
 	const int spacing = 0;
 
@@ -488,7 +488,7 @@ void AllegroRenderer::drawText(BaseFont const& font, std::string const& str, ulo
 	}
 }
 
-std::pair<int, int> AllegroRenderer::getTextDimensions(BaseFont const& font, std::string::const_iterator b, std::string::const_iterator e)
+std::pair<int, int> SDLRenderer::getTextDimensions(BaseFont const& font, std::string::const_iterator b, std::string::const_iterator e)
 {
 	if(GusanosFont const* f = dynamic_cast<GusanosFont const*>(&font))
 	{
@@ -497,7 +497,7 @@ std::pair<int, int> AllegroRenderer::getTextDimensions(BaseFont const& font, std
 	return std::make_pair(0, 0);
 }
 
-int AllegroRenderer::getTextCoordToIndex(BaseFont const& font, std::string::const_iterator b, std::string::const_iterator e, int x)
+int SDLRenderer::getTextCoordToIndex(BaseFont const& font, std::string::const_iterator b, std::string::const_iterator e, int x)
 {
 	if(GusanosFont const* f = dynamic_cast<GusanosFont const*>(&font))
 	{
@@ -506,7 +506,7 @@ int AllegroRenderer::getTextCoordToIndex(BaseFont const& font, std::string::cons
 	return 0;
 }
 
-void AllegroRenderer::drawSprite(BaseSpriteSet const& spriteSet, int frame, ulong x, ulong y)
+void SDLRenderer::drawSprite(BaseSpriteSet const& spriteSet, int frame, ulong x, ulong y)
 {
 	if(GusanosSpriteSet const* s = dynamic_cast<GusanosSpriteSet const*>(&spriteSet))
 	{
@@ -515,7 +515,7 @@ void AllegroRenderer::drawSprite(BaseSpriteSet const& spriteSet, int frame, ulon
 	}
 }
 
-void AllegroRenderer::drawSprite(BaseSpriteSet const& spriteSet, int frame, ulong x, ulong y, ulong left, ulong top, ulong bottom, ulong right)
+void SDLRenderer::drawSprite(BaseSpriteSet const& spriteSet, int frame, ulong x, ulong y, ulong left, ulong top, ulong bottom, ulong right)
 {
 	if(GusanosSpriteSet const* s = dynamic_cast<GusanosSpriteSet const*>(&spriteSet))
 	{
@@ -523,39 +523,39 @@ void AllegroRenderer::drawSprite(BaseSpriteSet const& spriteSet, int frame, ulon
 	}
 }
 
-void AllegroRenderer::setClip(Rect const& rect)
+void SDLRenderer::setClip(Rect const& rect)
 {
 	set_clip_rect(gfx.buffer, rect.x1, rect.y1, rect.x2, rect.y2);
 }
 
-Rect const& AllegroRenderer::getClip()
+Rect const& SDLRenderer::getClip()
 {
 	get_clip_rect(gfx.buffer, &clipRect.x1, &clipRect.y1, &clipRect.x2, &clipRect.y2);
 	return clipRect;
 }
 
-Rect const& AllegroRenderer::getViewportRect()
+Rect const& SDLRenderer::getViewportRect()
 {
 	screenRect = Rect(0, 0, SCREEN_W - 1, SCREEN_H - 1);
 	return screenRect;
 }
 
-void AllegroRenderer::setAddBlender(int alpha)
+void SDLRenderer::setAddBlender(int alpha)
 {
 	blitter.set(BlitterContext::Add, alpha);
 }
 
-void AllegroRenderer::setAlphaBlender(int alpha)
+void SDLRenderer::setAlphaBlender(int alpha)
 {
 	blitter.set(BlitterContext::Alpha, alpha);
 }
 
-void AllegroRenderer::resetBlending()
+void SDLRenderer::resetBlending()
 {
 	blitter.set(BlitterContext::none());
 }
 
-void AllegroRenderer::drawSkinnedBox(BaseSpriteSet const& skin, Rect const& rect, RGB const& backgroundColor)
+void SDLRenderer::drawSkinnedBox(BaseSpriteSet const& skin, Rect const& rect, RGB const& backgroundColor)
 {
 	if(GusanosSpriteSet const* s = dynamic_cast<GusanosSpriteSet const*>(&skin))
 	{

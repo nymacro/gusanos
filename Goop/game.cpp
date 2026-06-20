@@ -46,7 +46,7 @@
 #include "glua.h"
 #include "lua/bindings.h"
 
-#include <allegro.h>
+#include "allegro_compat.h"
 #include <string>
 #include <algorithm>
 #include <list>
@@ -54,7 +54,6 @@
 #include <sstream> //TEMP
 
 #include <boost/filesystem/operations.hpp>
-#include <boost/filesystem/convenience.hpp>
 #include <boost/filesystem/path.hpp>
 
 namespace fs = boost::filesystem;
@@ -687,7 +686,7 @@ void Game::loadWeapons()
 		{
 			if( !is_directory(*iter) )
 			{
-				if ( fs::extension(*iter) == ".wpn")
+				if ( iter->path().extension().string() == ".wpn")
 				{
 					WeaponType* weapon = new WeaponType;
 					weapon->load(*iter);
@@ -937,7 +936,7 @@ void Game::refreshMods()
 		{
 			if ( fs::exists(*i / "weapons"))
 			{
-				modList.insert(i->string());
+				modList.insert(i->path().string());
 			}
 		}
 	}
@@ -1042,6 +1041,7 @@ bool Game::changeLevel(const std::string& levelName, bool refresh )
 	return true;
 }
 
+#ifndef DISABLE_ZOIDCOM
 void Game::assignNetworkRole( bool authority )
 {
 	m_node = new ZCom_Node;
@@ -1083,6 +1083,7 @@ void Game::removeNode()
 	m_node = NULL;
 }
 
+#endif // DISABLE_ZOIDCOM
 bool Game::setMod( const string& modname )
 {
 	if( fs::exists(modname) )

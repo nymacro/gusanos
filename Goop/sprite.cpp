@@ -6,7 +6,7 @@
 #endif
 
 
-#include <allegro.h>
+#include "allegro_compat.h"
 #include <iostream>
 #include <algorithm>
 

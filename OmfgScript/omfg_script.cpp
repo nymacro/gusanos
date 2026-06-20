@@ -8,7 +8,7 @@
 #include <iostream>
 #include "util/stringbuild.h"
 #include "util/text.h"
-#include <allegro.h>
+#include "allegro_compat.h"
 #include <boost/crc.hpp>
 using std::auto_ptr;
 using std::cout;

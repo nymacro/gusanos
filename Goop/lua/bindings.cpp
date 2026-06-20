@@ -35,13 +35,12 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <allegro.h>
+#include "allegro_compat.h"
 using std::cerr;
 using std::endl;
 #include <boost/lexical_cast.hpp>
 #include <boost/bind.hpp>
 #include <boost/filesystem/path.hpp>
-#include <boost/filesystem/convenience.hpp>
 #include <boost/filesystem/fstream.hpp>
 using boost::lexical_cast;
 namespace fs = boost::filesystem;
@@ -383,7 +382,7 @@ int l_dump(lua_State* L)
 	try
 	{	
 		fs::path dumpPath(fs::path("persistance") / (std::string(s) + ".lpr"));
-		fs::create_directories( dumpPath.branch_path() );
+		fs::create_directories( dumpPath.parent_path() );
 		fs::ofstream f(dumpPath, std::ios::binary);
 		
 		if(!f.is_open())

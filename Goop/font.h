@@ -9,7 +9,7 @@
 #include "resource_locator.h"
 #include <omfggui.h> // For Rect
 
-#include <allegro.h>
+#include "allegro_compat.h"
 #include <string>
 #include <vector>
 #include <utility>
