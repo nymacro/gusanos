@@ -12,8 +12,9 @@
 #include <boost/filesystem/path.hpp>
 namespace fs = boost::filesystem;
 
+#include "fmod_compat.h"
+
 class BaseObject;
-struct FSOUND_SAMPLE;
 
 class Sound : public LuaObject
 {
