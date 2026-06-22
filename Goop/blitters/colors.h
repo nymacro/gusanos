@@ -34,7 +34,7 @@ inline Pixel scaleColor_32(Pixel color, int fact)
 	temp1 = ((temp1 * fact) >> 8) & 0xFF00FF;
 	temp2 = ((temp2 * fact) >> 8) & 0x00FF00;
 	
-	return temp1 | temp2;
+	return temp1 | temp2 | (color & 0xFF000000);
 }
 
 inline Pixel scaleColorHalf_32(Pixel color)
@@ -97,7 +97,7 @@ inline Pixel32 addColorsCrude_32(Pixel color1, Pixel color2)
 	color1 = (color1 & 0xFEFEFF) + (color2 & 0xFEFEFF);
 	Pixel32 temp1 = (color1 & 0x01010100) >> 7;
 	color1 |= 0x010101 - temp1;
-	return color1 & 0xFFFFFF;
+	return (color1 & 0xFFFFFF) | (color2 & 0xFF000000);
 }
 
 inline Pixel addColorsCrude_8_4(Pixel color1, Pixel color2)

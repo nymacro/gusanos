@@ -379,11 +379,13 @@ bool Level::applyEffect(LevelEffect* effect, int drawX, int drawY )
 		drawX -= tmpMask->m_xPivot;
 		drawY -= tmpMask->m_yPivot;
 		unsigned int colour = 0;
+		int maskDepth = tmpMask->m_bitmap->format;
 		for( int y = 0; y < tmpMask->m_bitmap->h; ++y )
 		for( int x = 0; x < tmpMask->m_bitmap->w; ++x )
 		{
 			colour = getpixel( tmpMask->m_bitmap, x, y);
-			if( ( colour == 0 ) && getMaterial( drawX+x, drawY+y ).destroyable )
+			bool isBlack = (maskDepth == 32) ? ((colour & 0x00FFFFFF) == 0) : (colour == 0);
+			if( isBlack && getMaterial( drawX+x, drawY+y ).destroyable )
 			{
 				returnValue = true;
 				putMaterial( 1, drawX+x, drawY+y );

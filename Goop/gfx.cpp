@@ -118,6 +118,11 @@ void Gfx::init()
 	
 	buffer = create_bitmap(320, 240);
 	screen = buffer;
+
+	// Detect CPU capabilities for SIMD blitter dispatch (MMX/SSE paths)
+	cpu_capabilities = 0;
+	if (SDL_HasMMX()) cpu_capabilities |= CPU_MMX;
+	if (SDL_HasSSE()) cpu_capabilities |= CPU_SSE;
 #endif
 
 	m_initialized = true; 
