@@ -8,7 +8,8 @@ BITMAP* screen = NULL;
 char allegro_error[1024] = {0};
 int cpu_capabilities = 0;
 
-static int current_color_depth = 32;
+int current_color_depth = 32;
+int current_color_conversion = 0;
 
 void draw_sprite(BITMAP* dest, BITMAP* src, int x, int y) {
     if (!dest || !src) return;
@@ -39,6 +40,82 @@ void draw_sprite(BITMAP* dest, BITMAP* src, int x, int y) {
 BITMAP* load_bitmap(const char* filename, RGB* pal) {
     SDL_Surface* surf = IMG_Load(filename);
     if (!surf) return NULL;
+    
+    // Convert to current color depth if needed (Allegro behavior)
+    int target_depth = current_color_depth;
+    int src_bpp = SDL_BITSPERPIXEL(surf->format);
+    if (src_bpp != target_depth && target_depth != 0) {
+        if (target_depth == 8) {
+            // Manual conversion to INDEX8. The font system uses pixel index values
+            // as alpha factors: 0 = transparent, 255 = fully opaque.
+            // Map standard transparent magenta (255,0,255) to index 0.
+            SDL_Surface* idx8 = SDL_CreateSurface(surf->w, surf->h, SDL_PIXELFORMAT_INDEX8);
+            if (idx8) {
+                // Create palette: index 0 = magenta (transparent), rest = white
+                SDL_Color palette_colors[256];
+                for (int i = 0; i < 256; ++i) {
+                    palette_colors[i] = (SDL_Color){255, 255, 255, 255};
+                }
+                palette_colors[0] = (SDL_Color){255, 0, 255, 255};
+                SDL_SetPaletteColors(SDL_GetSurfacePalette(idx8), palette_colors, 0, 256);
+                
+                // Lock both surfaces for pixel access
+                SDL_LockSurface(surf);
+                SDL_LockSurface(idx8);
+                
+                const SDL_PixelFormatDetails* src_fmt = SDL_GetPixelFormatDetails(surf->format);
+                const SDL_PixelFormatDetails* dst_fmt = SDL_GetPixelFormatDetails(idx8->format);
+                
+                for (int y = 0; y < surf->h; ++y) {
+                    Uint8* src_row = (Uint8*)surf->pixels + y * surf->pitch;
+                    Uint8* dst_row = (Uint8*)idx8->pixels + y * idx8->pitch;
+                    Uint8 src_bpp = SDL_BYTESPERPIXEL(surf->format);
+                    
+                    for (int x = 0; x < surf->w; ++x) {
+                        Uint8 r, g, b, a = 255;
+                        // Read pixel components directly from source row
+                        if (src_bpp == 4) {
+                            Uint32 pixel = *(Uint32*)(src_row + x * 4);
+                            SDL_GetRGBA(pixel, src_fmt, NULL, &r, &g, &b, &a);
+                        } else if (src_bpp == 3) {
+                            r = src_row[x * 3 + 0];
+                            g = src_row[x * 3 + 1];
+                            b = src_row[x * 3 + 2];
+                        } else if (src_bpp == 2) {
+                            Uint16 pixel = *(Uint16*)(src_row + x * 2);
+                            SDL_GetRGBA(pixel, src_fmt, NULL, &r, &g, &b, &a);
+                        } else {
+                            // 1 byte: palette index
+                            Uint8 pixel = src_row[x];
+                            SDL_GetRGBA(pixel, src_fmt, SDL_GetSurfacePalette(surf), &r, &g, &b, &a);
+                        }
+                        // Magenta (255,0,255) or fully transparent pixels map to index 0
+                        if ((r == 255 && g == 0 && b == 255 && a >= 128) || (a < 128)) {
+                            dst_row[x] = 0;
+                        } else {
+                            dst_row[x] = 255;
+                        }
+                    }
+                }
+                
+                SDL_UnlockSurface(idx8);
+                SDL_UnlockSurface(surf);
+                SDL_DestroySurface(surf);
+                surf = idx8;
+            }
+        } else {
+            // Use SDL_ConvertSurface for 16 or 32 bit targets
+            SDL_PixelFormat target_format;
+            if (target_depth == 32) target_format = SDL_PIXELFORMAT_ARGB8888;
+            else target_format = SDL_PIXELFORMAT_RGB565;
+            
+            SDL_Surface* converted = SDL_ConvertSurface(surf, target_format);
+            if (converted) {
+                SDL_DestroySurface(surf);
+                surf = converted;
+            }
+        }
+    }
     
     BITMAP* bmp = new BITMAP();
     bmp->w = surf->w;
@@ -194,7 +271,17 @@ void hline(BITMAP* bmp, int x1, int y1, int x2, int color) {
 }
 
 void line(BITMAP* bmp, int x1, int y1, int x2, int y2, int color) {
-    // Basic line drawing if needed, but Gusanos uses its own linewu_blend most of the time
+    if (!bmp) return;
+    int dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
+    int dy = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
+    int err = dx + dy, e2;
+    while (true) {
+        putpixel(bmp, x1, y1, color);
+        if (x1 == x2 && y1 == y2) break;
+        e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x1 += sx; }
+        if (e2 <= dx) { err += dx; y1 += sy; }
+    }
 }
 
 // Allegro compatibility bootstrap

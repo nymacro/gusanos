@@ -25,7 +25,7 @@ typedef struct BITMAP {
 
 // Color depth functions
 inline int bitmap_color_depth(BITMAP* bmp) { return bmp->format; }
-inline int get_color_depth() { return 32; } // Defaulting to 32
+inline int get_color_depth() { extern int current_color_depth; return current_color_depth; } // Defaulting to 32
 
 // 16-bit color functions (5-6-5 RGB format)
 inline int getr16(int c) { return ((c >> 11) & 0x1F) * 255 / 31; }
@@ -42,9 +42,9 @@ BITMAP* load_bitmap(const char* filename, RGB* pal);
 int save_bitmap(const char* filename, BITMAP* bmp, RGB* pal);
 
 // Color conversion and depth
-inline void set_color_depth(int depth) {}
-inline int get_color_conversion() { return 0; }
-inline void set_color_conversion(int flags) {}
+inline void set_color_depth(int depth) { extern int current_color_depth; current_color_depth = depth; }
+inline int get_color_conversion() { extern int current_color_conversion; return current_color_conversion; }
+inline void set_color_conversion(int flags) { extern int current_color_conversion; current_color_conversion = flags; }
 
 #define COLORCONV_NONE 0
 #define COLORCONV_TOTAL 0
@@ -116,7 +116,7 @@ inline int getpixel(BITMAP* bmp, int x, int y) {
     unsigned char* p = bmp->line[y] + x * bpp;
     if (bpp == 1) return p[0];
     if (bpp == 2) return *(unsigned short*)p;
-    return (p[3] << 24) | (p[0] << 16) | (p[1] << 8) | p[2];
+    return (p[3] << 24) | (p[2] << 16) | (p[1] << 8) | p[0];
 }
 inline void putpixel(BITMAP* bmp, int x, int y, int color) {
     if (x < 0 || x >= bmp->w || y < 0 || y >= bmp->h) return;
@@ -124,9 +124,11 @@ inline void putpixel(BITMAP* bmp, int x, int y, int color) {
     unsigned char* p = bmp->line[y] + x * bpp;
     if (bpp == 1) { p[0] = color & 0xFF; return; }
     if (bpp == 2) { *(unsigned short*)p = (unsigned short)color; return; }
-    p[0] = (color >> 16) & 0xFF;
+    // SDL_PIXELFORMAT_ARGB8888 on little-endian: byte order B, G, R, A
+    // makecol() returns 0xAARRGGBB, so byte[0]=B, byte[1]=G, byte[2]=R, byte[3]=A
+    p[0] = color & 0xFF;
     p[1] = (color >> 8) & 0xFF;
-    p[2] = color & 0xFF;
+    p[2] = (color >> 16) & 0xFF;
     p[3] = (color >> 24) & 0xFF;
 }
 
