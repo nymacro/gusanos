@@ -133,7 +133,6 @@ int main(int argc, char **argv)
 		}
 	}*/
 	allegro_init();
-	install_keyboard();
 	
 	gfx.init();
 	

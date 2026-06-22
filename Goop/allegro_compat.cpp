@@ -6,16 +6,31 @@
 
 BITMAP* screen = NULL;
 char allegro_error[1024] = {0};
-bool key[KEY_MAX] = {0};
 int cpu_capabilities = 0;
 
 static int current_color_depth = 32;
 
 void draw_sprite(BITMAP* dest, BITMAP* src, int x, int y) {
     if (!dest || !src) return;
-    SDL_Rect src_rect = {0, 0, src->w, src->h};
-    SDL_Rect dest_rect = {x, y, src->w, src->h};
-    SDL_BlitSurface(src->sdl_surface, &src_rect, dest->sdl_surface, &dest_rect);
+    // For 32-bit sources, do pixel-by-pixel masked blit skipping maskcolor_32
+    if (src->format == 32 && dest->format == 32) {
+        int d_x = x, d_y = y;
+        for (int row = 0; row < src->h; ++row) {
+            if (d_y + row >= dest->h) break;
+            unsigned int* s = (unsigned int*)(src->line[row]);
+            unsigned int* d = (unsigned int*)(dest->line[d_y + row]) + d_x;
+            for (int col = 0; col < src->w; ++col) {
+                if (d_x + col >= dest->w) break;
+                if (*s != 0xFFFF00FF)  // Skip magenta (maskcolor_32)
+                    *d = *s;
+                ++s; ++d;
+            }
+        }
+    } else {
+        SDL_Rect src_rect = {0, 0, src->w, src->h};
+        SDL_Rect dest_rect = {x, y, src->w, src->h};
+        SDL_BlitSurface(src->sdl_surface, &src_rect, dest->sdl_surface, &dest_rect);
+    }
 }
 
 BITMAP* load_bitmap(const char* filename, RGB* pal) {
@@ -126,9 +141,24 @@ void blit(BITMAP* src, BITMAP* dest, int s_x, int s_y, int d_x, int d_y, int w, 
 }
 
 void masked_blit(BITMAP* src, BITMAP* dest, int s_x, int s_y, int d_x, int d_y, int w, int h) {
-    // In SDL, masked blit is just blit with a colorkey or alpha
-    // For simplicity, we'll just use SDL_BlitSurface for now
-    blit(src, dest, s_x, s_y, d_x, d_y, w, h);
+    if (!src || !dest) return;
+    // For 32-bit ARGB sources, do pixel-by-pixel masked blit skipping maskcolor_32
+    if (src->format == 32 && dest->format == 32) {
+        for (int row = 0; row < h; ++row) {
+            if (s_y + row >= src->h || d_y + row >= dest->h) break;
+            unsigned int* s = (unsigned int*)(src->line[s_y + row]) + s_x;
+            unsigned int* d = (unsigned int*)(dest->line[d_y + row]) + d_x;
+            for (int col = 0; col < w; ++col) {
+                if (s_x + col >= src->w || d_x + col >= dest->w) break;
+                if (*s != 0xFFFF00FF)  // Skip magenta (maskcolor_32)
+                    *d = *s;
+                ++s; ++d;
+            }
+        }
+    } else {
+        // Fallback to plain blit for other formats
+        blit(src, dest, s_x, s_y, d_x, d_y, w, h);
+    }
 }
 
 void stretch_blit(BITMAP* src, BITMAP* dest, int s_x, int s_y, int s_w, int s_h, int d_x, int d_y, int d_w, int d_h) {
@@ -172,23 +202,6 @@ void vsync() {}
 // Screen dimensions
 int SCREEN_W = 320;
 int SCREEN_H = 240;
-
-// Keyboard stubs (real SDL3 port pending)
-int install_keyboard() { return 0; }
-void remove_keyboard() {}
-int keypressed() { return 0; }
-int readkey() { return 0; }
-
-// Mouse globals + stubs (real SDL3 port pending)
-void (*mouse_callback)(int flags) = nullptr;
-volatile int mouse_b = 0;
-volatile int mouse_x = 0;
-volatile int mouse_y = 0;
-volatile int mouse_z = 0;
-
-int install_mouse() { return 0; }
-void remove_mouse() {}
-void poll_mouse() {}
 
 // Timer stubs (real SDL3 port pending)
 int install_timer() { return 0; }

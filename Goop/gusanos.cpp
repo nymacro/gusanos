@@ -146,6 +146,11 @@ namespace {
         raise(sig);
     }
 
+    void sigintHandler(int)
+    {
+        quit = true;
+    }
+
     struct CrashHandlerSetup {
         CrashHandlerSetup() {
             signal(SIGSEGV, crashHandler);
@@ -153,6 +158,7 @@ namespace {
             signal(SIGFPE,  crashHandler);
             signal(SIGILL,  crashHandler);
             signal(SIGBUS,  crashHandler);
+            signal(SIGINT,  sigintHandler);
         }
     } crashSetup;
 }
@@ -180,16 +186,12 @@ try
 	//game.loadMod();
 	game.reloadModWithoutMap();
 	//game.runInitScripts();
-	
-	//install millisecond timer
-	LOCK_VARIABLE(timer);
-	LOCK_FUNCTION(timerUpdate);
-	install_int_ex(timerUpdate, BPS_TO_TIMER(100));
-
-	unsigned int fpsLast = 0;
+// SDL3 timing: replaced Allegro interrupt timer with SDL_GetTicks()
+	const unsigned int LOGIC_DELTA = 10; // 10ms per logic tick = 100Hz
+	unsigned int fpsLast = SDL_GetTicks();
 	int fpsCount = 0;
 	int fps = 0;
-	unsigned int logicLast = 0;
+	unsigned int logicLast = SDL_GetTicks();
 	
 #ifndef DEDSERV
 	console.executeConfig("autoexec.cfg");
@@ -201,7 +203,7 @@ try
 	while (!quit || !network.isDisconnected())
 	{
 
-		while ( logicLast + 1 <= timer )
+		while ( logicLast + LOGIC_DELTA <= SDL_GetTicks() )
 		{
 			
 #ifdef USE_GRID
@@ -326,11 +328,11 @@ try
 
 #ifndef DEDSERV
 		//Update FPS
-		if (fpsLast + 100 <= timer)
+		if (fpsLast + 1000 <= SDL_GetTicks())
 		{
 			fps = fpsCount;
 			fpsCount = 0;
-			fpsLast = timer;
+			fpsLast = SDL_GetTicks();
 			
 			//console.addLogMsg(cast<string>(fps));
 		}
@@ -428,18 +430,19 @@ try
 			clear_bitmap(gfx.buffer);
 		}
 
-		//show fps
+
+		OmfgGUI::menu.render();
+		console.render(gfx.buffer);
+
+		//show fps (on top of menu)
 		if (showFps)
 		{
 			game.infoFont->draw(gfx.buffer, "FPS: \01303" + cast<string>(fps), 5, 5, 0, 255, 255, 255, 255, Font::Formatting);
 		}
 		fpsCount++;
-		
+
 		if(quit)
 			game.infoFont->draw(gfx.buffer, "Quitting...", 15, 110, 0, 255, 255, 255, 255);
-
-		OmfgGUI::menu.render();
-		console.render(gfx.buffer);
 
 		EACH_CALLBACK(i, afterRender)
 		{

@@ -160,21 +160,6 @@ extern char allegro_error[];
 // Allegro bootstrap
 int allegro_init();
 
-// Keyboard
-int install_keyboard();
-void remove_keyboard();
-int keypressed();
-int readkey();
-
-// Mouse
-int install_mouse();
-void remove_mouse();
-void poll_mouse();
-extern volatile int mouse_b;
-extern volatile int mouse_x;
-extern volatile int mouse_y;
-extern volatile int mouse_z;
-
 // Timer
 int install_timer();
 void remove_timer();
@@ -223,31 +208,7 @@ enum {
     KEY_SCRLOCK, KEY_NUMLOCK, KEY_CAPSLOCK
 };
 
-extern bool key[KEY_MAX];
-
-// Keyboard functions
-int install_keyboard();
-void remove_keyboard();
-int keypressed();
-int readkey();
 void clear_keybuf();
-
-// Mouse globals (real SDL3 port pending)
-extern void (*mouse_callback)(int flags);
-extern volatile int mouse_x, mouse_y, mouse_z, mouse_b;
-
-#define MOUSE_FLAG_LEFT_DOWN    1
-#define MOUSE_FLAG_LEFT_UP      2
-#define MOUSE_FLAG_RIGHT_DOWN   4
-#define MOUSE_FLAG_RIGHT_UP     8
-#define MOUSE_FLAG_MIDDLE_DOWN  16
-#define MOUSE_FLAG_MIDDLE_UP    32
-#define MOUSE_FLAG_MOVE         64
-
-int install_mouse();
-void remove_mouse();
-void poll_mouse();
-int mouse_needs_poll();
 
 void vsync();
 
