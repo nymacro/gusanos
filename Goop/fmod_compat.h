@@ -1,16 +1,19 @@
-// FMOD compatibility stubs for Gusanos SDL3 migration
-// Replaces the missing FMOD 3.74 library with no-op stubs so the code compiles.
-// Full SDL3_mixer migration will happen in a later step.
+// SDL3_mixer compatibility layer for Gusanos
+// Replaces FMOD 3.74 API with SDL3_mixer v3 backend.
 
 #ifndef FMOD_COMPAT_H
 #define FMOD_COMPAT_H
+
+#include <SDL3_mixer/SDL_mixer.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// Basic types
-typedef struct FSOUND_SAMPLE {} FSOUND_SAMPLE;
+// FMOD-style sample handle wrapping MIX_Audio
+typedef struct FSOUND_SAMPLE {
+	MIX_Audio *audio;
+} FSOUND_SAMPLE;
 
 // Constants
 #define FSOUND_FREE       (-1)
@@ -23,7 +26,7 @@ typedef struct FSOUND_SAMPLE {} FSOUND_SAMPLE;
 #define FSOUND_FORCEMONO   (1 << 8)
 #define FSOUND_ALLPCM      0
 
-// Output types
+// Output type constants (kept for compatibility; no-op in SDL3_mixer)
 #define FSOUND_OUTPUT_NOSOUND 0
 #define FSOUND_OUTPUT_WINMM   1
 #define FSOUND_OUTPUT_DSOUND  2
@@ -37,7 +40,7 @@ typedef struct FSOUND_SAMPLE {} FSOUND_SAMPLE;
 #define FSOUND_OUTPUT_MAC     10
 #define FSOUND_OUTPUT_GC      11
 
-// Function stubs — all return 0 or similar no-op values
+// System
 int FSOUND_Init(int mixrate, int maxsoftwarechannels, unsigned int flags);
 int FSOUND_Close();
 int FSOUND_SetOutput(int output);
