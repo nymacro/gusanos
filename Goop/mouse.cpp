@@ -16,11 +16,18 @@ namespace
 void MouseHandler::init()
 {
 	// SDL3 initializes mouse with SDL_Init; nothing extra needed.
-	// Initialize positions from current SDL state.
+	// Initialize positions from current SDL state, converting to logical coords.
 	float fx, fy;
 	SDL_GetMouseState(&fx, &fy);
+	if (gfx.renderer) {
+		SDL_RenderCoordinatesFromWindow(gfx.renderer, fx, fy, &fx, &fy);
+	}
 	posX = static_cast<int>(fx);
 	posY = static_cast<int>(fy);
+	if (posX < 0) posX = 0;
+	if (posX >= 320) posX = 319;
+	if (posY < 0) posY = 0;
+	if (posY >= 240) posY = 239;
 	posZ = 0;
 	for (int i = 0; i < 3; ++i)
 		buttonStates[i] = false;
@@ -41,9 +48,12 @@ void MouseHandler::poll()
 		posZ += static_cast<int>(event.wheel.y);
 	}
 
-	// Read current button state and position
+	// Read current button state and position, convert to logical coords
 	float fx, fy;
 	Uint32 buttons = SDL_GetMouseState(&fx, &fy);
+	if (gfx.renderer) {
+		SDL_RenderCoordinatesFromWindow(gfx.renderer, fx, fy, &fx, &fy);
+	}
 
 	// Button state diff
 	for (int i = 0; i < 3; ++i)
@@ -64,8 +74,10 @@ void MouseHandler::poll()
 	int newPosX = static_cast<int>(fx);
 	int newPosY = static_cast<int>(fy);
 
-	newPosX /= gfx.getScalingFactor();
-	newPosY /= gfx.getScalingFactor();
+	if (newPosX < 0) newPosX = 0;
+	if (newPosX >= 320) newPosX = 319;
+	if (newPosY < 0) newPosY = 0;
+	if (newPosY >= 240) newPosY = 239;
 
 	if (newPosX != posX || newPosY != posY)
 	{

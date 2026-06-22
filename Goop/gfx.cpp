@@ -81,6 +81,15 @@ namespace
 			gfx.doubleResChange();
 		}
 	}
+	
+	void filter_callback(int /*newValue*/)
+	{
+		if (gfx && gfx.screenTexture) {
+			SDL_ScaleMode mode = (m_filter == NO_FILTER || m_filter == NO_FILTER2 || m_filter == PIXELATE)
+				? SDL_SCALEMODE_NEAREST : SDL_SCALEMODE_LINEAR;
+			SDL_SetTextureScaleMode(gfx.screenTexture, mode);
+		}
+	}
 #endif
 }
 
@@ -156,7 +165,7 @@ void Gfx::registerInConsole()
 			("PIXELATE", PIXELATE)
 		;
 
-		console.registerVariable(new EnumVariable("VID_FILTER", &m_filter, NO_FILTER, videoFilters));
+		console.registerVariable(new EnumVariable("VID_FILTER", &m_filter, NO_FILTER, videoFilters, filter_callback));
 	}
 #endif
 }
@@ -179,6 +188,13 @@ void Gfx::updateScreen()
 		mouseCursor->getSprite()->draw(buffer, x, y);
 	}
 	
+    // Apply current filter so runtime VID_FILTER changes take effect
+    if (screenTexture) {
+        SDL_ScaleMode mode = (m_filter == NO_FILTER || m_filter == NO_FILTER2 || m_filter == PIXELATE)
+            ? SDL_SCALEMODE_NEAREST : SDL_SCALEMODE_LINEAR;
+        SDL_SetTextureScaleMode(screenTexture, mode);
+    }
+
     // Upload buffer to texture
     if (buffer && screenTexture) {
         SDL_UpdateTexture(screenTexture, NULL, buffer->pixels, buffer->sdl_surface->pitch);
@@ -233,6 +249,11 @@ void Gfx::doubleResChange()
 
     if (screenTexture) SDL_DestroyTexture(screenTexture);
     screenTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 320, 240);
+
+    // Apply filter setting to newly created texture
+    SDL_ScaleMode mode = (m_filter == NO_FILTER || m_filter == NO_FILTER2 || m_filter == PIXELATE)
+        ? SDL_SCALEMODE_NEAREST : SDL_SCALEMODE_LINEAR;
+    SDL_SetTextureScaleMode(screenTexture, mode);
 }
 
 int Gfx::getScalingFactor()
