@@ -557,6 +557,27 @@ bool GConsole::eventKeyDown(int k)
 			clear_keybuf();
 			scrolling = false;
 		}
+		else if ( k == KEY_ENTER || k == KEY_ENTER_PAD )
+		{
+			clear_keybuf();
+			addLogMsg(']'+m_inputBuff);
+			console.parseLine(m_inputBuff);
+			commandsLog.push_back(m_inputBuff);
+			currentCommand = commandsLog.end();
+			m_inputBuff.clear();
+		}
+		else if ( k == KEY_BACKSPACE )
+		{
+			clear_keybuf();
+			if (!m_inputBuff.empty())
+				m_inputBuff.erase(m_inputBuff.length()-1);
+		}
+		else if ( k == KEY_TAB )
+		{
+			clear_keybuf();
+			m_inputBuff = autoComplete(m_inputBuff);
+		}
+		
 		
 		return false;
 	}
