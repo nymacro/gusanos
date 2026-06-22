@@ -313,7 +313,7 @@ try
 				(lua.call(*i))();
 			}
 			
-			++logicLast;
+			logicLast += LOGIC_DELTA;
 		}
 		
 #ifdef WINDOWS

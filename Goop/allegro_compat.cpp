@@ -17,11 +17,14 @@ void draw_sprite(BITMAP* dest, BITMAP* src, int x, int y) {
         int d_x = x, d_y = y;
         for (int row = 0; row < src->h; ++row) {
             if (d_y + row >= dest->h) break;
-            unsigned int* s = (unsigned int*)(src->line[row]);
-            unsigned int* d = (unsigned int*)(dest->line[d_y + row]) + d_x;
-            for (int col = 0; col < src->w; ++col) {
-                if (d_x + col >= dest->w) break;
-                if (*s != 0xFFFF00FF)  // Skip magenta (maskcolor_32)
+            if (d_y + row < 0) continue;
+            if (d_x >= dest->w) break;
+            int s_col = (d_x < 0) ? -d_x : 0;
+            int d_col = (d_x < 0) ? 0 : d_x;
+            unsigned int* s = (unsigned int*)(src->line[row]) + s_col;
+            unsigned int* d = (unsigned int*)(dest->line[d_y + row]) + d_col;
+            for (int col = d_col; col < dest->w && (col - d_col + s_col) < src->w; ++col) {
+                if (*s != 0xFFFF00FF)
                     *d = *s;
                 ++s; ++d;
             }
@@ -145,11 +148,13 @@ void masked_blit(BITMAP* src, BITMAP* dest, int s_x, int s_y, int d_x, int d_y, 
     // For 32-bit ARGB sources, do pixel-by-pixel masked blit skipping maskcolor_32
     if (src->format == 32 && dest->format == 32) {
         for (int row = 0; row < h; ++row) {
-            if (s_y + row >= src->h || d_y + row >= dest->h) break;
+            if (s_y + row >= src->h || s_y + row < 0) continue;
+            if (d_y + row >= dest->h || d_y + row < 0) continue;
             unsigned int* s = (unsigned int*)(src->line[s_y + row]) + s_x;
             unsigned int* d = (unsigned int*)(dest->line[d_y + row]) + d_x;
             for (int col = 0; col < w; ++col) {
-                if (s_x + col >= src->w || d_x + col >= dest->w) break;
+                if (s_x + col >= src->w || s_x + col < 0) continue;
+                if (d_x + col >= dest->w || d_x + col < 0) continue;
                 if (*s != 0xFFFF00FF)  // Skip magenta (maskcolor_32)
                     *d = *s;
                 ++s; ++d;
