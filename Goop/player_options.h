@@ -4,7 +4,7 @@
 #include <string>
 #include <list>
 #include "util/angle.h"
-#include <allegro.h>
+#include "allegro_compat.h"
 
 // TODO: Move these to blitters/<somewhere>
 inline int universalColor(int r, int g, int b)
@@ -36,7 +36,7 @@ struct PlayerOptions
 	unsigned int team;
 	
 	std::string setColour(std::list<std::string> const& args);
-	std::string PlayerOptions::setTeam(std::list<std::string> const& args);
+	std::string setTeam(std::list<std::string> const& args);
 	
 	void clearChangeFlags();
 	

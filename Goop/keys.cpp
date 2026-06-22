@@ -5,13 +5,11 @@
 #include <vector>
 #include <iostream>
 
-#include <allegro.h>
+#include "allegro_compat.h"
 #include <boost/static_assert.hpp>
 
 using namespace std;
 
-BOOST_STATIC_ASSERT(KEY_MAX == 127);
-BOOST_STATIC_ASSERT(KEY_CAPSLOCK == 126);
 
 int kName2Int(const string &name)
 {
@@ -25,7 +23,7 @@ int kName2Int(const string &name)
 	return -1;
 }
 
-array<std::string, KEY_MAX+1> keyNames =
+boost::array<std::string, 128> keyNames =
 {
 	"NULL",
 	"A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z",

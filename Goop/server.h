@@ -5,7 +5,7 @@
 
 #include "base_player.h"
 
-#include <zoidcom.h>
+#include "network_compat.h"
 #include <map>
 #include <boost/shared_ptr.hpp>
 

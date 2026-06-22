@@ -15,7 +15,7 @@
 
 #ifndef DISABLE_ZOIDCOM
 
-#include <zoidcom.h>
+#include "network_compat.h"
 
 Client::Client( int _udpport )
 {

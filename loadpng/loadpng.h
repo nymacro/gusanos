@@ -1,3 +1,7 @@
+#ifndef AL_CONST
+#define AL_CONST const
+#endif
+
 /* loadpng.h */
 /* This file is hereby placed in the public domain. */
 #ifndef _included_loadpng_h_

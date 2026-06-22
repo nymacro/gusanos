@@ -17,6 +17,7 @@
 #include <string>
 #include <set>
 #include <exception>
+#include <memory>
 #include <boost/lexical_cast.hpp>
 
 #include <iostream> // TEMP
@@ -254,7 +255,7 @@ struct Grammar : public BaseT
 	
 	Rule* rulei()
 	{
-		std::auto_ptr<Rule> rule(new Rule(ident()));
+		std::unique_ptr<Rule> rule(new Rule(ident()));
 		doneLexeme();
 		
 		if(cur() == '<')
@@ -276,7 +277,7 @@ struct Grammar : public BaseT
 	
 	Element* element()
 	{
-		std::auto_ptr<Element> el(new Element);
+		std::unique_ptr<Element> el(new Element);
 
 		switch(cur())
 		{
@@ -339,11 +340,11 @@ struct Grammar : public BaseT
 	
 	Option* option()
 	{
-		std::auto_ptr<Option> op(new Option);
+		std::unique_ptr<Option> op(new Option);
 		
 		do
 		{
-			std::auto_ptr<Element> el(element());
+			std::unique_ptr<Element> el(element());
 			switch(cur())
 			{
 				case '+': el->mult = Element::Repeat1; next(); break;
@@ -358,7 +359,7 @@ struct Grammar : public BaseT
 	
 	Def* def()
 	{
-		std::auto_ptr<Def> d(new Def);
+		std::unique_ptr<Def> d(new Def);
 		
 		if(cur() == '|') // Optional first bar
 			next();
@@ -435,7 +436,7 @@ struct Grammar : public BaseT
 				
 				if(cur() == '<')
 				{
-					std::auto_ptr<Rule> rule(new Rule(id));
+					std::unique_ptr<Rule> rule(new Rule(id));
 					
 					code<'<', '>'>(rule->args);
 					doneLexeme();
@@ -454,7 +455,7 @@ struct Grammar : public BaseT
 				{
 					next();
 					
-					std::auto_ptr<Token> token(new Token(id));
+					std::unique_ptr<Token> token(new Token(id));
 					
 					bool inStr = false, ignore = false;
 	

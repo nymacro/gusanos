@@ -2,7 +2,7 @@
 
 #include "distortion.h"
 
-#include <allegro.h>
+#include "allegro_compat.h"
 #include <vector>
 #include "util/math_func.h"
 #include "gfx.h"

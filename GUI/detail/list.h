@@ -5,6 +5,7 @@
 #include "llist.h"
 
 #include <string>
+#include <cassert>
 #include <boost/lexical_cast.hpp>
 using boost::lexical_cast;
 //#include <list>

@@ -3,7 +3,7 @@
 
 #ifndef DISABLE_ZOIDCOM
 
-#include <zoidcom.h>
+#include "network_compat.h"
 //#include <string>
 
 class PlayerOptions;

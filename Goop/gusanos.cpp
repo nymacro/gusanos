@@ -1,4 +1,4 @@
-#include <allegro.h>
+#include "allegro_compat.h"
 
 #include "gconsole.h"
 #include "resource_list.h"
@@ -44,6 +44,12 @@
 
 #ifdef POSIX
 #include <unistd.h>
+#include <execinfo.h>
+#include <signal.h>
+#include <cxxabi.h>
+#include <cstdlib>
+#include <sstream>
+#include <cstdio>
 #endif
 
 using namespace std;
@@ -68,6 +74,96 @@ string exitCmd(list<string> const& args)
 	return "";
 }
 
+// --- Crash handler: print backtrace on fatal signals ---
+#ifdef POSIX
+namespace {
+    const int MAX_BT_FRAMES = 128;
+
+    void crashHandler(int sig)
+    {
+        const char* sigName = "UNKNOWN";
+        switch(sig) {
+            case SIGSEGV: sigName = "SIGSEGV"; break;
+            case SIGABRT: sigName = "SIGABRT"; break;
+            case SIGFPE:  sigName = "SIGFPE"; break;
+            case SIGILL:  sigName = "SIGILL"; break;
+            case SIGBUS:  sigName = "SIGBUS"; break;
+        }
+
+        std::cerr << "\n*** CRASH: " << sigName << " (signal " << sig << ") ***\n";
+
+        void* buffer[MAX_BT_FRAMES];
+        int frames = backtrace(buffer, MAX_BT_FRAMES);
+
+        char** symbols = backtrace_symbols(buffer, frames);
+        if (symbols) {
+            for (int i = 0; i < frames; ++i) {
+                std::string frame(symbols[i]);
+                size_t paren = frame.find('(');
+                size_t plus = frame.find('+', paren);
+                if (paren != std::string::npos && plus != std::string::npos) {
+                    std::string mangled = frame.substr(paren + 1, plus - paren - 1);
+                    int status;
+                    char* dm = abi::__cxa_demangle(mangled.c_str(), nullptr, nullptr, &status);
+                    if (dm) {
+                        frame = frame.substr(0, paren + 1) + dm + frame.substr(plus);
+                        free(dm);
+                    }
+                }
+                std::cerr << "  " << (i == 0 ? "=>" : "  ") << "  [" << i << "] " << frame << "\n";
+            }
+            free(symbols);
+        }
+
+        // Resolve source locations via addr2line
+        std::ostringstream cmd;
+        cmd << "addr2line -e /proc/self/exe -f -C -i";
+        for (int i = 0; i < frames; ++i)
+            cmd << " " << std::hex << buffer[i];
+        cmd << " 2>/dev/null";
+
+        FILE* pipe = popen(cmd.str().c_str(), "r");
+        if (pipe) {
+            std::cerr << "\n  Source locations:\n";
+            char line[512];
+            int idx = 0;
+            while (fgets(line, sizeof(line), pipe)) {
+                char* nl = line;
+                while (*nl && *nl != '\n') ++nl;
+                *nl = '\0';
+                if (idx % 2 == 0)
+                    std::cerr << "    " << (idx/2) << ": " << line << "\n";
+                else
+                    std::cerr << "       " << line << "\n";
+                ++idx;
+            }
+            pclose(pipe);
+        }
+
+        std::cerr << "\n";
+
+        signal(sig, SIG_DFL);
+        raise(sig);
+    }
+
+    void sigintHandler(int)
+    {
+        quit = true;
+    }
+
+    struct CrashHandlerSetup {
+        CrashHandlerSetup() {
+            signal(SIGSEGV, crashHandler);
+            signal(SIGABRT, crashHandler);
+            signal(SIGFPE,  crashHandler);
+            signal(SIGILL,  crashHandler);
+            signal(SIGBUS,  crashHandler);
+            signal(SIGINT,  sigintHandler);
+        }
+    } crashSetup;
+}
+#endif
+
 int main(int argc, char **argv)
 try
 {
@@ -90,16 +186,12 @@ try
 	//game.loadMod();
 	game.reloadModWithoutMap();
 	//game.runInitScripts();
-	
-	//install millisecond timer
-	LOCK_VARIABLE(timer);
-	LOCK_FUNCTION(timerUpdate);
-	install_int_ex(timerUpdate, BPS_TO_TIMER(100));
-
-	unsigned int fpsLast = 0;
+// SDL3 timing: replaced Allegro interrupt timer with SDL_GetTicks()
+	const unsigned int LOGIC_DELTA = 10; // 10ms per logic tick = 100Hz
+	unsigned int fpsLast = SDL_GetTicks();
 	int fpsCount = 0;
 	int fps = 0;
-	unsigned int logicLast = 0;
+	unsigned int logicLast = SDL_GetTicks();
 	
 #ifndef DEDSERV
 	console.executeConfig("autoexec.cfg");
@@ -111,7 +203,7 @@ try
 	while (!quit || !network.isDisconnected())
 	{
 
-		while ( logicLast + 1 <= timer )
+		while ( logicLast + LOGIC_DELTA <= SDL_GetTicks() )
 		{
 			
 #ifdef USE_GRID
@@ -166,7 +258,7 @@ try
 			updater.think(); // TODO: Move?
 			
 #ifndef DEDSERV
-			sfx.think(); // WARNING: THIS ¡MUST! BE PLACED BEFORE THE OBJECT DELETE LOOP
+			sfx.think(); // WARNING: THIS ï¿½MUST! BE PLACED BEFORE THE OBJECT DELETE LOOP
 #endif
 			
 			//for ( list<BasePlayer*>::iterator iter = game.players.begin(); iter != game.players.end();)
@@ -221,26 +313,26 @@ try
 				(lua.call(*i))();
 			}
 			
-			++logicLast;
+			logicLast += LOGIC_DELTA;
 		}
 		
 #ifdef WINDOWS
 		Sleep(0);
 #else
 #ifndef DEDSERV
-		rest(0);
+		SDL_Delay(0);
 #else
-		rest(2);
+		SDL_Delay(2);
 #endif
 #endif
 
 #ifndef DEDSERV
 		//Update FPS
-		if (fpsLast + 100 <= timer)
+		if (fpsLast + 1000 <= SDL_GetTicks())
 		{
 			fps = fpsCount;
 			fpsCount = 0;
-			fpsLast = timer;
+			fpsLast = SDL_GetTicks();
 			
 			//console.addLogMsg(cast<string>(fps));
 		}
@@ -293,7 +385,7 @@ try
 				while(b != e);
 			}
 			
-			//rectfill_blend(gfx.buffer, 3, y-2, 3+w+5, 237, 0, 130);
+			//rectfill_blend(gfx.buffer, 3, y-2, 3+w+5, 0, 130);
 			
 			for(std::list<ScreenMessage>::iterator msgiter = rmsgiter.base();
 			    msgiter != game.messages.end();
@@ -338,18 +430,19 @@ try
 			clear_bitmap(gfx.buffer);
 		}
 
-		//show fps
+
+		OmfgGUI::menu.render();
+		console.render(gfx.buffer);
+
+		//show fps (on top of menu)
 		if (showFps)
 		{
 			game.infoFont->draw(gfx.buffer, "FPS: \01303" + cast<string>(fps), 5, 5, 0, 255, 255, 255, 255, Font::Formatting);
 		}
 		fpsCount++;
-		
+
 		if(quit)
 			game.infoFont->draw(gfx.buffer, "Quitting...", 15, 110, 0, 255, 255, 255, 255);
-
-		OmfgGUI::menu.render();
-		console.render(gfx.buffer);
 
 		EACH_CALLBACK(i, afterRender)
 		{
@@ -374,7 +467,7 @@ try
 	gfx.shutDown();
 	lua.close();
 
-	allegro_exit();
+	SDL_Quit();
 
 	return(0);
 }
@@ -386,5 +479,3 @@ catch(...)
 {
 	std::cerr << "Unknown unhandled exception\n";
 }
-END_OF_MAIN();
-

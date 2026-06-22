@@ -19,7 +19,7 @@
 #include <cmath>
 #include <iostream>
 #include <list>
-#include <allegro.h>
+#include "allegro_compat.h"
 using std::cerr;
 using std::endl;
 #include <boost/lexical_cast.hpp>

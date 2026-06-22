@@ -1,4 +1,5 @@
 #include "sockets.h"
+#include <cstring>
 
 namespace TCP
 {

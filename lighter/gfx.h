@@ -1,7 +1,7 @@
 #ifndef GFX_H
 #define GFX_H
 
-#include <allegro.h>
+#include "allegro_compat.h"
 
 #include <string>
 #include <list>

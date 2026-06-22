@@ -10,7 +10,6 @@ using namespace std;
 #include <boost/filesystem/path.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/fstream.hpp>
-#include <boost/filesystem/convenience.hpp>
 namespace fs = boost::filesystem;
 
 #define READ_W(x_) {for(size_t i = 0; i < sizeof(w)/sizeof(*w); ++i) f.read((char *)&w[i].x_, sizeof(w[i].x_)); }
@@ -58,7 +57,7 @@ static unsigned char const waveHeader[] = {82,73,70,70,2,236,0,0,87,65,86,69,102
 
 void createFolders(fs::path const& path)
 {
-	fs::create_directories(path.branch_path());
+	fs::create_directories(path.parent_path());
 }
 
 void TC::read(std::istream& f, std::istream& soundStream)

@@ -6,7 +6,7 @@
 #include "resource_locator.h"
 #include "blitters/blitters.h"
 
-#include <allegro.h>
+#include "allegro_compat.h"
 #include <string>
 #include <vector>
 #include <utility>
@@ -14,7 +14,7 @@
 
 using namespace std;
 
-array<Font::Color, 16> Font::palette =
+boost::array<Font::Color, 16> Font::palette =
 {
 	Color(255, 255, 255), //0
 	Color(0, 0, 0),       //1

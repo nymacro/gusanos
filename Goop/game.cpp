@@ -46,7 +46,7 @@
 #include "glua.h"
 #include "lua/bindings.h"
 
-#include <allegro.h>
+#include "allegro_compat.h"
 #include <string>
 #include <algorithm>
 #include <list>
@@ -54,7 +54,6 @@
 #include <sstream> //TEMP
 
 #include <boost/filesystem/operations.hpp>
-#include <boost/filesystem/convenience.hpp>
 #include <boost/filesystem/path.hpp>
 
 namespace fs = boost::filesystem;
@@ -687,7 +686,7 @@ void Game::loadWeapons()
 		{
 			if( !is_directory(*iter) )
 			{
-				if ( fs::extension(*iter) == ".wpn")
+				if ( iter->path().extension().string() == ".wpn")
 				{
 					WeaponType* weapon = new WeaponType;
 					weapon->load(*iter);
@@ -870,7 +869,8 @@ bool Game::isLoaded()
 void Game::refreshResources(fs::path const& levelPath)
 {
 #ifndef DEDSERV
-	fontLocator.addPath(levelPath / "fonts");
+	if (fs::is_directory(levelPath / "fonts"))
+		fontLocator.addPath(levelPath / "fonts");
 	fontLocator.addPath(m_defaultPath / "fonts");
 	fontLocator.addPath(fs::path(nextMod) / "fonts");
 	fontLocator.refresh();
@@ -884,36 +884,43 @@ void Game::refreshResources(fs::path const& levelPath)
 	gssLocator.refresh();
 #endif
 	
-	scriptLocator.addPath(levelPath / "scripts");
+	if (fs::is_directory(levelPath / "scripts"))
+		scriptLocator.addPath(levelPath / "scripts");
 	scriptLocator.addPath(m_defaultPath / "scripts");
 	scriptLocator.addPath(fs::path(nextMod) / "scripts");
 	scriptLocator.refresh();
 	
 	// These are added in reverse order compared to
 	// the resource locator paths! Fix maybe?
-	partTypeList.addPath(levelPath / "objects");
+	if (fs::is_directory(levelPath / "objects"))
+		partTypeList.addPath(levelPath / "objects");
 	partTypeList.addPath(fs::path(nextMod) / "objects");
 	partTypeList.addPath(m_defaultPath / "objects");
 	
-	expTypeList.addPath(levelPath / "objects");
+	if (fs::is_directory(levelPath / "objects"))
+		expTypeList.addPath(levelPath / "objects");
 	expTypeList.addPath(fs::path(nextMod) / "objects");
 	expTypeList.addPath(m_defaultPath / "objects");
 	
 #ifndef DEDSERV
-	soundList.addPath(levelPath / "sounds");
+	if (fs::is_directory(levelPath / "sounds"))
+		soundList.addPath(levelPath / "sounds");
 	soundList.addPath(fs::path(nextMod) / "sounds");
 	soundList.addPath(m_defaultPath / "sounds");
 	
-	sound1DList.addPath(levelPath / "sounds");
+	if (fs::is_directory(levelPath / "sounds"))
+		sound1DList.addPath(levelPath / "sounds");
 	sound1DList.addPath(fs::path(nextMod) / "sounds");
 	sound1DList.addPath(m_defaultPath / "sounds");
 #endif
 	
-	spriteList.addPath(levelPath / "sprites");
+	if (fs::is_directory(levelPath / "sprites"))
+		spriteList.addPath(levelPath / "sprites");
 	spriteList.addPath(fs::path(nextMod) / "sprites");
 	spriteList.addPath(m_defaultPath / "sprites");
 	
-	levelEffectList.addPath(levelPath / "mapeffects");
+	if (fs::is_directory(levelPath / "mapeffects"))
+		levelEffectList.addPath(levelPath / "mapeffects");
 	levelEffectList.addPath(fs::path(nextMod) / "mapeffects");
 	levelEffectList.addPath(m_defaultPath / "mapeffects");
 	
@@ -937,7 +944,7 @@ void Game::refreshMods()
 		{
 			if ( fs::exists(*i / "weapons"))
 			{
-				modList.insert(i->string());
+				modList.insert(i->path().string());
 			}
 		}
 	}
@@ -1042,6 +1049,7 @@ bool Game::changeLevel(const std::string& levelName, bool refresh )
 	return true;
 }
 
+#ifndef DISABLE_ZOIDCOM
 void Game::assignNetworkRole( bool authority )
 {
 	m_node = new ZCom_Node;
@@ -1083,6 +1091,7 @@ void Game::removeNode()
 	m_node = NULL;
 }
 
+#endif // DISABLE_ZOIDCOM
 bool Game::setMod( const string& modname )
 {
 	if( fs::exists(modname) )

@@ -6,7 +6,7 @@
 #include "util/cache.h"
 #include "util/rect.h"
 #include "glua.h"
-#include <allegro.h>
+#include "allegro_compat.h"
 #include <string>
 #include <vector>
 #include <utility>

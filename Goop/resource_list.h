@@ -6,9 +6,10 @@
 #include <string>
 #include <list>
 #include <iostream>
+#include <algorithm>
 #include "util/macros.h"
 #include <boost/cstdint.hpp>
-#include <boost/filesystem/path.hpp>
+#include <boost/filesystem.hpp>
 namespace fs = boost::filesystem;
 
 using std::cerr;
@@ -85,7 +86,7 @@ public:
 				item = m_resItems.find(filename);
 				m_resItems.erase(item);
 				if(!suppressError)
-					cerr << "ERROR: Could not load " << filename.native_file_string() << endl;
+					cerr << "ERROR: Could not load " << filename.string() << endl;
 				return NULL;
 			}
 		}

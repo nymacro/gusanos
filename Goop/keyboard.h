@@ -5,8 +5,8 @@
 #error "Can't use this in dedicated server"
 #endif //DEDSERV
 
-#include <allegro.h>
-#include <boost/signal.hpp>
+#include "allegro_compat.h"
+#include <boost/signals2/signal.hpp>
 
 /*
 #include <list>
@@ -62,9 +62,9 @@ public:
 	//static void setAltGrCharacter(int key, int character);
 	//static void setCharacter(int key, int character);
 	
-	boost::signal<bool (int), StopEarly> keyDown;
-	boost::signal<bool (int), StopEarly> keyUp;
-	boost::signal<bool (char, int), StopEarly> printableChar;
+	boost::signals2::signal<bool (int), StopEarly> keyDown;
+	boost::signals2::signal<bool (int), StopEarly> keyUp;
+	boost::signals2::signal<bool (char, int), StopEarly> printableChar;
 	
 private:
 	

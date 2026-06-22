@@ -14,8 +14,8 @@
 
 #ifndef DISABLE_ZOIDCOM
 
-#include <zoidcom.h>
-#include <allegro.h>
+#include "network_compat.h"
+#include "allegro_compat.h"
 #include <list>
 
 

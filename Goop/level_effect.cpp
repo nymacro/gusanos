@@ -10,7 +10,7 @@
 #include "omfg_script.h"
 #include "game_actions.h"
 
-#include <allegro.h>
+#include "allegro_compat.h"
 #include <string>
 //#include <vector>
 #include <fstream>
@@ -41,7 +41,7 @@ bool LevelEffect::load(fs::path const& filename)
 	if (!fileStream )
 		return false;
 	
-	OmfgScript::Parser parser(fileStream, gameActions, filename.native_file_string());
+	OmfgScript::Parser parser(fileStream, gameActions, filename.string());
 	
 	if(!parser.run())
 	{

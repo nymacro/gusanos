@@ -5,7 +5,7 @@
 //#include "font.h"
 
 #ifndef DEDSERV
-#include <allegro.h>
+#include "allegro_compat.h"
 #endif
 
 #include <list>

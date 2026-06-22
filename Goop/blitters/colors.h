@@ -5,13 +5,13 @@
 #error "Can't use this in dedicated server"
 #endif //DEDSERV
 
-#include <allegro.h>
+#include "allegro_compat.h"
 #include "types.h"
 
 namespace Blitters
 {
 
-const Pixel maskcolor_32 = 0xFF00FF;
+const Pixel maskcolor_32 = 0xFFFF00FF;
 const Pixel maskcolor_16 = 0xF81F;
 
 /*
@@ -199,6 +199,7 @@ inline Pixel32 blendColorsHalfCrude_32_prepared(Pixel color1, Pixel color2halved
 
 inline Pixel blendColorsFact_32(Pixel color1, Pixel color2, int fact)
 {
+	Pixel alpha = color2 & 0xFF000000;  // Preserve alpha from color2
 	Pixel res = (((color2 & 0xFF00FF) - (color1 & 0xFF00FF)) * fact >> 8) + color1;
 	color1 &= 0xFF00;
 	color2 &= 0xFF00;
@@ -207,7 +208,7 @@ inline Pixel blendColorsFact_32(Pixel color1, Pixel color2, int fact)
 	res &= 0xFF00FF;
 	g &= 0xFF00;
 
-	return res | g;
+	return (res | g) | alpha;
 }
 
 // Does precomputation for a color in preparation for

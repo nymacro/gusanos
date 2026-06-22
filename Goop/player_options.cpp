@@ -4,7 +4,7 @@
 #include "util/text.h"
 #include <cmath>
 #include <list>
-#include <allegro.h>
+#include "allegro_compat.h"
 
 using namespace std;
 

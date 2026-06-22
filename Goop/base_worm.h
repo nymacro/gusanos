@@ -1,7 +1,7 @@
 #ifndef BASE_WORM_H
 #define BASE_WORM_H
 
-#include "zoidcom.h"
+#include "network_compat.h"
 #include "util/vec.h"
 #include "util/angle.h"
 #include "base_object.h"

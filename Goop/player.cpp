@@ -6,11 +6,11 @@
 #endif
 #include "ninjarope.h"
 
-//#include <allegro.h>
+//#include "allegro_compat.h"
 
 using namespace std;
 
-Player::Player(shared_ptr<PlayerOptions> options, BaseWorm* worm)
+Player::Player(boost::shared_ptr<PlayerOptions> options, BaseWorm* worm)
 : BasePlayer(options, worm)
 , aimingUp(false)
 , aimingDown(false)

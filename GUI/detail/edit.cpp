@@ -1,5 +1,5 @@
 #include "edit.h"
-#include <allegro.h> //TEMP!!!!!!!!!!!
+#include "allegro_compat.h" //TEMP!!!!!!!!!!!
 
 #include <algorithm>
 

@@ -7,6 +7,7 @@
 #include <string>
 #include <map>
 #include "util/macros.h"
+#include <cstring>
 #include <boost/preprocessor/cat.hpp>
 
 struct Location

@@ -2,7 +2,7 @@
 #define SPRITE_H
 
 #include "gfx.h"
-//#include <allegro.h>
+//#include "allegro_compat.h"
 
 struct BITMAP;
 class BlitterContext;
