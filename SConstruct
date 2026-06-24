@@ -8,6 +8,7 @@ sconscript = [
     'Utility/util',
     'Console',
     'Goop',
+    'Net',
     'OmfgScript',
     'liero2gus',
     'lua51',
@@ -74,11 +75,11 @@ if os.path.exists(brew_prefix):
         env['ENV']['PATH'] = brew_bin + os.pathsep + env['ENV']['PATH']
 
 env.Append(
-    CPPPATH=Split('. #http #lua51 #Console #GUI #Utility #OmfgScript #Goop'),
+    CPPPATH=Split('. #http #lua51 #Console #GUI #Utility #OmfgScript #Goop #Net'),
     LIBPATH=[os.path.join('#lib', env['MY_SUBFOLDER']), os.path.join('#lib', env['MY_CONF'])],
     CCFLAGS=Split('-pipe -Wall -Wno-reorder'),
     CXXFLAGS=Split('-std=c++17'),
-    CPPDEFINES=['_GNU_SOURCE', 'DISABLE_ZOIDCOM', 'BOOST_TIMER_ENABLE_DEPRECATED']
+    CPPDEFINES=['_GNU_SOURCE', 'BOOST_TIMER_ENABLE_DEPRECATED']
 )
 
 if env['MY_BUILD'] == 'release':

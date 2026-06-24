@@ -16,7 +16,6 @@
 #include "util/text.h"
 #include "lua/bindings-network.h"
 
-#ifndef DISABLE_ZOIDCOM
 
 #include <string>
 #include <iostream>
@@ -181,7 +180,6 @@ namespace
 	int reconnectTimer = 0;
 	int connCount = 0;
 	
-	ZoidCom* m_zcom = 0;
 	ZCom_Control* m_control = 0;
 	ZCom_ConnID m_serverID = ZCom_Invalid_ID;
 	LuaEventList luaEvents[Network::LuaEventGroup::Max];
@@ -350,28 +348,19 @@ void Network::log(char const* msg)
 
 void Network::init()
 {
-	if(logZoidcom)
+	if (enet_initialize() != 0)
 	{
-		m_zcom = new ZoidCom(log);
-		m_zcom->setLogLevel(2);
+		console.addLogMsg("* ERROR: UNABLE TO INITIALIZE ENET");
+		return;
 	}
-	else
-		m_zcom = new ZoidCom();
-	
-	if ( !m_zcom->Init() )
-	{
-		console.addLogMsg("* ERROR: UNABLE TO INITIALIZE ZOIDCOM NETWORK LIB");
-	}else
-	{
-		console.addLogMsg("* ZOIDCOM NETWORK LIB INITIALIZED");
-		console.addLogMsg("* FOR MORE INFO VISIT WWW.ZOIDCOM.COM");
-	}
+	atexit(enet_deinitialize);
+	console.addLogMsg("* ENet initialized successfully");
+	console.addLogMsg("* NETWORK LIB INITIALIZED");
 }
 
 void Network::shutDown()
 {
 	delete m_control; m_control = 0;
-	delete m_zcom; m_zcom = 0;
 }
 
 void Network::registerInConsole()
@@ -430,7 +419,7 @@ void Network::update()
 					m_control = new Client( 0 );
 					registerClasses();
 					ZCom_Address address;
-					address.setAddress( eZCom_AddressUDP, 0, ( data.addr + ":" + cast<string>(m_serverPort) ).c_str() );
+					address.setAddress( 0, 0, ( data.addr + ":" + cast<string>(m_serverPort) ).c_str() );
 					m_control->ZCom_Connect( address, NULL );
 					//m_client = true; // We wait with setting this until we've connected
 					m_lastServerAddr = data.addr;
@@ -727,7 +716,6 @@ void Network::setClient(bool v)
 	m_client = v;
 }
 
-#endif
 
 
 

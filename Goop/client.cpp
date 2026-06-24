@@ -13,7 +13,6 @@
 #include <memory>
 #include "util/log.h"
 
-#ifndef DISABLE_ZOIDCOM
 
 #include "network_compat.h"
 
@@ -23,7 +22,7 @@ Client::Client( int _udpport )
 		ZCom_simulateLag(0, network.simLag);
 	if(network.simLoss > 0.f)
 		ZCom_simulateLoss(0, network.simLoss);
-	if ( !ZCom_initSockets( true,_udpport, 1, 0 ) )
+	if ( !ZCom_initSockets( false,_udpport, 1, 0 ) )
 	{
 		console.addLogMsg("* ERROR: FAILED TO INITIALIZE SOCKETS");
 	}
@@ -94,6 +93,9 @@ void Client::ZCom_cbConnectResult( ZCom_ConnID _id, eZCom_ConnectResult _result,
 		std::string map = _reply.getStringStatic();
 		game.refreshLevels();
 		game.refreshMods();
+		DLOG("Client received mod='" << mod << "' map='" << map << "'");
+		DLOG("    modList contains " << game.modList.size() << " entries");
+		for (auto const& m : game.modList) DLOG("    modList entry: '" << m << "'");
 		bool hasLevel = game.hasLevel(map);
 		bool hasMod = game.hasMod(mod);
 		
@@ -293,7 +295,37 @@ void Client::ZCom_cbNodeRequest_Dynamic( ZCom_ConnID _id, ZCom_ClassID _requeste
 	
 }
 
-#endif
+void Client::ZCom_cbPlayerCreated(uint32_t id, const char* name, int colour, int team, uint32_t wormNodeID, uint32_t playerNodeID)
+{
+	// Create the client-side worm
+	BaseWorm* worm = game.addWorm(false);
+	if (!worm) return;
+	
+	// Set the worm's node ID to match server's
+	if (NetWorm* netWorm = dynamic_cast<NetWorm*>(worm)) {
+		netWorm->setNodeID(wormNodeID);
+	}
+	
+	// Create the local player with a viewport
+	BasePlayer* player = game.addPlayer(Game::OWNER, team, worm);
+	if (!player) return;
+	
+	// Set the player's node ID to match server's
+	player->setNodeID(playerNodeID);
+	
+	// Set player properties
+	if (name[0]) {
+		player->localChangeName(std::string(name));
+	}
+	player->colour = colour;
+	player->team = team;
+	
+	// Assign player as owner of the worm
+	worm->assignOwner(player);
+	
+	DLOG("Created client player '" << name << "' on team " << team);
+}
+
 
 
 

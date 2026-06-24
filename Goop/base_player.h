@@ -121,6 +121,7 @@ public:
 	void addDeath();
 
 	ZCom_NodeID getNodeID();
+	void setNodeID(uint32_t id) { if (m_node) m_node->setNetworkID(id); }
 	ZCom_ConnID getConnectionID();
 	void sendLuaEvent(LuaEventDef* event, eZCom_SendMode mode, zU8 rules, ZCom_BitStream* userdata, ZCom_ConnID connID);
 	shared_ptr<PlayerOptions> getOptions();

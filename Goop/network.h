@@ -23,15 +23,9 @@ struct LuaEventDef
 	{
 	}
 	
-#ifdef DISABLE_ZOIDCOM
-	~LuaEventDef() {}
-	void call(ZCom_BitStream*) {}
-	void call(LuaReference, ZCom_BitStream*) {}
-#else
 	~LuaEventDef();
 	void call(ZCom_BitStream*);
 	void call(LuaReference, ZCom_BitStream*);
-#endif
 	
 	void* operator new(size_t count);
 	
@@ -116,64 +110,7 @@ public:
 		};
 	};
 	
-#ifdef DISABLE_ZOIDCOM
-	Network() {}
-	~Network() {}
-	
-	static void log(char const* msg) {}
-	
-	static void init() {}
-	static void shutDown() {}
-	static void registerInConsole() {}
-	static void update() {}
-	
-	static void host() {}
-	static void connect( const std::string &address) {}
-	static void disconnect( DConnEvents event = Quit ) {}
-	static void disconnect( ZCom_ConnID id, DConnEvents event ) {}
-	static void reconnect(int delay = 1) {}
-	static void clear() {}
-	
-	static void kick( ZCom_ConnID connID ) {}
-	static void ban( ZCom_ConnID connID ) {}
-	
-	static void setServerID( ZCom_ConnID serverID ) {}
-	static ZCom_ConnID getServerID() { return 0; }
-	
-	static bool isHost() { return false; }
-	static bool isClient() { return false; }
-	
-	static HTTP::Request* fetchServerList() { return nullptr; }
-	static void addHttpRequest(HTTP::Request*, HttpRequestCallback) {}
-	
-	static LuaEventDef* addLuaEvent(LuaEventGroup::type, char const* name, LuaEventDef* event) { return nullptr; }
-	static void indexLuaEvent(LuaEventGroup::type, char const* name) {}
-	static LuaEventDef* indexToLuaEvent(LuaEventGroup::type type, int idx) { return nullptr; }
-	static void encodeLuaEvents(ZCom_BitStream* data) {}
-	
-	static ZCom_Control* getZControl() { return nullptr; }
-	static int getServerPing() { return 0; }
-
-	static void incConnCount() {}
-	static void decConnCount() {}
-	
-	static bool isDisconnected() { return true; }
-	static bool isDisconnecting() { return false; }
-	
-	static bool isBanned(ZCom_ConnID connID) { return false; }
-	
-	int simLag;
-	float simLoss;
-	int upLimit;
-	int downBPP;
-	int downPPS;
-	int checkCRC;
-	bool clientRetry;
-	bool autoDownloads;
-	
-private:
-	static void setClient(bool v) {}
-#else
+public:
 	Network();
 	~Network();
 	
@@ -228,9 +165,9 @@ private:
 	bool clientRetry;
 	bool autoDownloads;
 	
-private:
+public:
 	static void setClient(bool v);
-#endif
+private:
 };
 
 extern Network network;

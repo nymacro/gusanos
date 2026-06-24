@@ -55,7 +55,7 @@ public:
 	{
 		if ( m_node )
 		{
-			return m_node->getRole();
+			return (eZCom_NodeRole)m_node->getRole();
 		}else
 			return eZCom_RoleUndefined;
 	}
@@ -63,6 +63,7 @@ public:
 	virtual void sendLuaEvent(LuaEventDef* event, eZCom_SendMode mode, zU8 rules, ZCom_BitStream* userdata, ZCom_ConnID connID);
 	
 	ZCom_NodeID getNodeID();
+	void setNodeID(uint32_t id) { if (m_node) m_node->setNetworkID(id); }
 	
 	void respawn();
 	void dig();

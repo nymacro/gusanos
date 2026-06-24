@@ -4,7 +4,7 @@
 #include "luaapi/macros.h"
 #include "luaapi/classes.h"
 
-#include "../network.h"
+#include "network.h"
 #include "../game.h"
 #include "../base_player.h"
 #include "../base_worm.h"

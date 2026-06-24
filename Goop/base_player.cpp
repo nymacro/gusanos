@@ -137,8 +137,8 @@ void BasePlayer::think()
 		while ( m_node->checkEventWaiting() )
 		{
 			eZCom_Event type;
-			eZCom_NodeRole    remote_role;
-			ZCom_ConnID       conn_id;
+			eZCom_NodeRole remote_role;
+			uint32_t conn_id;
 			
 			ZCom_BitStream *data = m_node->getNextEvent(&type, &remote_role, &conn_id);
 			switch ( type )

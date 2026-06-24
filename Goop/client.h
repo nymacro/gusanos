@@ -1,8 +1,6 @@
 #ifndef CLIENT_H
 #define CLIENT_H
 
-#ifndef DISABLE_ZOIDCOM
-
 #include "network_compat.h"
 //#include <string>
 
@@ -37,6 +35,9 @@ protected:
 	// zoidlevel transition finished
 	void ZCom_cbZoidResult(ZCom_ConnID _id, eZCom_ZoidResult _result, zU8 _new_level, ZCom_BitStream &_reason);
 	
+	// server sent us our player/worm data
+	void ZCom_cbPlayerCreated(uint32_t id, const char* name, int colour, int team, uint32_t wormNodeID, uint32_t playerNodeID);
+	
 	// server wants to tell us about new node
 	void ZCom_cbNodeRequest_Dynamic( ZCom_ConnID _id, ZCom_ClassID _requested_class, ZCom_BitStream *_announcedata, eZCom_NodeRole _role, ZCom_NodeID _net_id );
 	
@@ -49,6 +50,5 @@ protected:
 	virtual void ZCom_cbDiscovered( const ZCom_Address & _addr, ZCom_BitStream &_reply )  {}
 };
 
-#endif
 
 #endif // _CLIENT_H_

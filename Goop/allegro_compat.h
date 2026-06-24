@@ -226,4 +226,9 @@ inline bool exists(const char* filename) {
 
 void show_mouse(BITMAP* bmp);
 
+/// Allegro rest() — sleep for specified milliseconds.
+inline void rest(unsigned int ms) {
+	SDL_Delay(ms);
+}
+
 #endif // ALLEGRO_COMPAT_H

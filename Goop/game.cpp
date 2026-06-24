@@ -210,9 +210,7 @@ string connectCmd(const list<string> &args)
 {
 	if ( !args.empty() )
 	{
-#ifndef DISABLE_ZOIDCOM
 		network.connect( *args.begin() );
-#endif
 		return "";
 	}
 	return "CONNECT <HOST_ADDRESS> : JOIN A NETWORK SERVER";
@@ -442,9 +440,7 @@ void Game::init(int argc, char** argv)
 #endif
 	gfx.registerInConsole();
 	options.registerInConsole();
-#ifndef DISABLE_ZOIDCOM
 	network.registerInConsole();
-#endif
 	
 	for ( size_t i = 0; i< MAX_LOCAL_PLAYERS; ++i)
 	{
@@ -469,9 +465,7 @@ void Game::init(int argc, char** argv)
 	mouseHandler.init();
 #endif
 
-#ifndef DISABLE_ZOIDCOM
 	network.init();
-#endif
 	registerGameActions();
 #ifndef DEDSERV
 	registerPlayerInput();
@@ -572,8 +566,8 @@ void Game::think()
 	while ( m_node->checkEventWaiting() )
 	{
 		eZCom_Event type;
-		eZCom_NodeRole    remote_role;
-		ZCom_ConnID       conn_id;
+		eZCom_NodeRole remote_role;
+		uint32_t conn_id;
 		
 		ZCom_BitStream* data = m_node->getNextEvent(&type, &remote_role, &conn_id);
 		switch(type)
@@ -944,7 +938,7 @@ void Game::refreshMods()
 		{
 			if ( fs::exists(*i / "weapons"))
 			{
-				modList.insert(i->path().string());
+				modList.insert(i->path().filename().string());
 			}
 		}
 	}
@@ -1049,7 +1043,6 @@ bool Game::changeLevel(const std::string& levelName, bool refresh )
 	return true;
 }
 
-#ifndef DISABLE_ZOIDCOM
 void Game::assignNetworkRole( bool authority )
 {
 	m_node = new ZCom_Node;
@@ -1091,7 +1084,6 @@ void Game::removeNode()
 	m_node = NULL;
 }
 
-#endif // DISABLE_ZOIDCOM
 bool Game::setMod( const string& modname )
 {
 	if( fs::exists(modname) )

@@ -12,7 +12,6 @@
 #include "util/log.h"
 #include "encoding.h"
 
-#ifndef DISABLE_ZOIDCOM
 
 #include "network_compat.h"
 #include "allegro_compat.h"
@@ -100,6 +99,37 @@ void Server::ZCom_cbDataReceived( ZCom_ConnID  _id, ZCom_BitStream &_data)
 			player->assignNetworkRole(true);
 			player->setOwnerId(_id);
 			player->assignWorm(worm);
+			
+			// Send player created info back to client
+			{
+				uint32_t wormNodeID = 0, playerNodeID = 0;
+				NetWorm* netWorm = dynamic_cast<NetWorm*>(worm);
+				if (netWorm) {
+					wormNodeID = netWorm->getNodeID();
+				}
+				playerNodeID = player->getNodeID();
+				
+				ZCom_BitStream pkt;
+				pkt.addInt(MSG_PLAYER_CREATED, 8);
+				pkt.addInt(wormNodeID, 16);
+				pkt.addInt(playerNodeID, 16);
+				pkt.addString(name.c_str());
+				pkt.addInt(colour, 24);
+				pkt.addSignedInt(team, 8);
+				
+				ENetPeer* peer = network.getZControl()->findPeer(_id);
+				if (peer) {
+					ENetPacket* epkt = enet_packet_create(
+						pkt.getData(), pkt.getDataLength(),
+						ENET_PACKET_FLAG_RELIABLE);
+					enet_peer_send(peer, 0, epkt);
+				}
+				
+				// Send initial sync to the client's worm
+				if (netWorm) {
+					netWorm->sendSyncMessage(_id);
+				}
+			}
 		}
 		break;
 		case Network::RConMsg:
@@ -145,10 +175,11 @@ bool Server::ZCom_cbConnectionRequest( ZCom_ConnID id, ZCom_BitStream &_request,
 	{
 		console.addLogMsg("* CONNECTION REQUESTED");
 		//_reply.addInt(Network::ConnectionReply::Ok, 8);
-		reply.addString( game.getMod().c_str() );
-		reply.addString( game.level.getName().c_str() );
+	reply.addString( game.getMod().c_str() );
+	reply.addString( game.level.getName().c_str() );
 
-		return true;
+	DLOG("Server sending mod='" << game.getMod() << "' map='" << game.level.getName() << "' in connection reply");
+	return true;
 	}
 	else
 	{
@@ -204,5 +235,4 @@ void Server::ZCom_cbZoidResult(ZCom_ConnID _id, eZCom_ZoidResult _result, zU8 _n
 	console.addLogMsg("* NEW CONNECTION JOINED ZOIDMODE");
 }
 
-#endif
 
