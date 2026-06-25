@@ -2,6 +2,11 @@
 Import('env')
 
 env = env.Clone()
+# parsergen is a build tool — strip sanitizer flags so ASan/UBSan don't
+# interfere at runtime (parsergen leaks memory by design as a code generator).
+for _var in ('CCFLAGS', 'LINKFLAGS', 'CXXFLAGS'):
+    env[_var] = [f for f in env.get(_var, []) if '-fsanitize=' not in f]
+
 env.Append(LIBS = Split("""
 		omfgutil""")
 	)

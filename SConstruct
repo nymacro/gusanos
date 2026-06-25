@@ -9,6 +9,7 @@ sconscript = [
     'Console',
     'Goop',
     'Net',
+    'Net/tests',
     'OmfgScript',
     'liero2gus',
     'lua51',
@@ -58,6 +59,20 @@ env['MY_BUILD'] = ARGUMENTS.get('build', 'release')
 env['MY_SUBFOLDER'] = os.path.join(env['MY_CONF'], env['MY_BUILD'])
 env['NO_PARSERS'] = ARGUMENTS.get('no-parsers', False)
 
+# Sanitizer support: sanitize=address,undefined or sanitize=thread, etc.
+# Debug builds default to address,undefined; pass sanitize=none to disable.
+_sanitize_arg = ARGUMENTS.get('sanitize', '')
+if _sanitize_arg == '':
+    _sanitize_list = []
+else:
+    _sanitize_list = [s.strip() for s in _sanitize_arg.split(',') if s.strip()]
+
+if _sanitize_list:
+    _san_flags = ' '.join(f'-fsanitize={s}' for s in _sanitize_list)
+    env.Append(CCFLAGS=Split(_san_flags),
+               LINKFLAGS=Split(_san_flags))
+
+
 # Add Homebrew paths for Linux
 brew_prefix = '/home/linuxbrew/.linuxbrew'
 if os.path.exists(brew_prefix):
@@ -74,10 +89,27 @@ if os.path.exists(brew_prefix):
     if brew_bin not in env['ENV']['PATH']:
         env['ENV']['PATH'] = brew_bin + os.pathsep + env['ENV']['PATH']
 
+# Pick a compiler — prefer Homebrew clang++ over system GCC for better sanitizer support
+#import shutil
+#for _candidate in ['clang++-19', 'clang++-18', 'clang++-17', 'clang++-16', 'clang++-15', 'clang++']:
+#    _cxx = shutil.which(_candidate)
+#    if _cxx:
+#        env.Replace(CXX=_cxx)
+#        _cc = _cxx.replace('++', '')  # clang++ -> clang
+#        env.Replace(CC=_cc)
+#        # Use libc++ (Homebrew's or clang's own) instead of GCC libstdc++
+#        env.Append(CXXFLAGS=['-stdlib=libc++'])
+#        env.Append(LINKFLAGS=['-stdlib=libc++'])
+#        print(f"Using compiler: {_cxx}")
+#        break
+
+env.Replace(CC='gcc-16')
+env.Replace(CXX='g++-16')
+
 env.Append(
     CPPPATH=Split('. #http #lua51 #Console #GUI #Utility #OmfgScript #Goop #Net'),
     LIBPATH=[os.path.join('#lib', env['MY_SUBFOLDER']), os.path.join('#lib', env['MY_CONF'])],
-    CCFLAGS=Split('-pipe -Wall -Wno-reorder'),
+    CCFLAGS=Split('-pipe -Wall -Wno-reorder -Wno-register'),
     CXXFLAGS=Split('-std=c++17'),
     CPPDEFINES=['_GNU_SOURCE', 'BOOST_TIMER_ENABLE_DEPRECATED']
 )

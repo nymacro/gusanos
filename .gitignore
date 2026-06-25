@@ -26,4 +26,6 @@ _$*
 *.ln
 core
 default/**
+bin/**
+.*
 # CVS default ignores end

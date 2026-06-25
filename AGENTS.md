@@ -135,7 +135,7 @@ console.registerVariables()
 
 ```bash
 # Quick syntax check on a single file
-g++ -fsyntax-only -std=c++17 -I. -IUtility -IGoop -Ihttp -IConsole -I../lua51 \
+clang++ -fsyntax-only -std=c++17 -I. -IUtility -IGoop -Ihttp -IConsole -INet -I../lua51 \
     -D_GNU_SOURCE -DDISABLE_ZOIDCOM -DBOOST_TIMER_ENABLE_DEPRECATED \
     path/to/file.cpp
 

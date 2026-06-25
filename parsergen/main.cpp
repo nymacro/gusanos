@@ -249,7 +249,7 @@ struct Handler
 									if(self.code[0] == '=')
 										s << self.code.substr(1) << ".reset(curData.release());\n";
 									else	
-										s << "std::auto_ptr<" << token.name << "> " << self.code << "(static_cast<" << token.name << "*>(curData.release()));\n";
+										s << "std::unique_ptr<" << token.name << "> " << self.code << "(static_cast<" << token.name << "*>(curData.release()));\n";
 								}
 								else
 								{
@@ -368,7 +368,7 @@ struct Handler
 		{
 			s
 			<< "struct " << self.name << " : public Token {\n"
-			<< "typedef std::auto_ptr<" << self.name << "> ptr;\n"
+			<< "typedef std::unique_ptr<" << self.name << "> ptr;\n"
 			<< "#define CONSTRUCT(b_, e_) " << self.name << "(T& g, char const* b_, char const* e_)\n"
 			<< self.code
 			<<
@@ -386,7 +386,7 @@ struct Handler
 		"#include <cstdlib>\n"
 		"#include <cstring>\n"
 		"#include <iostream>\n"
-		"using std::auto_ptr;\n"
+		"using std::unique_ptr;\n"
 		;
 		
 		s << prolog << '\n';
@@ -405,7 +405,7 @@ struct Handler
 			s << " : public " << tokenbase << ' ';
 		
 		s <<
-		"{ typedef std::auto_ptr<Token> ptr;\n"
+		"{ typedef std::unique_ptr<Token> ptr;\n"
 		<< tokencontent <<
 		"\nvirtual ~Token() {}\n"
 		"};\n\n"
@@ -649,7 +649,7 @@ struct Handler
 		
 		s <<
 		"int cur;\n"
-		"std::auto_ptr<Token> curData;\n"
+		"std::unique_ptr<Token> curData;\n"
 		"char* curp;\n"
 		"char* limit;\n"
 		"char* marker;\n"
