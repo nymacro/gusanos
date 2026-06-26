@@ -116,7 +116,7 @@ protected:
 	void processENetEvent(ENetEvent& event);
 	void dispatchNodeEvent(uint32_t nodeID, int type, int role, uint32_t connID, ZCom_BitStream* data);
 	uint32_t allocateConnID();
-	void sendConnectionReply(ENetPeer* peer, ZCom_BitStream& reply);
+	void sendConnectionReply(ENetPeer* peer, ZCom_BitStream& reply, bool accepted);
 };
 
 // Global ZoidCom functions

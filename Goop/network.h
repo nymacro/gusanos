@@ -55,7 +55,7 @@ public:
 		
 	enum NetEvents
 	{
-		PLAYER_REQUEST,
+		PLAYER_REQUEST = 10,
 		RConMsg,
 		ConsistencyInfo,
 	};

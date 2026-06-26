@@ -244,12 +244,12 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 			
 			if (ZCom_cbConnectionRequest(connID, request, reply)) {
 				// Send reply data back to client as MSG_CONNECTION_REPLY
-				sendConnectionReply(event.peer, reply);
+				sendConnectionReply(event.peer, reply, true);
 				// Fire connection spawned after reply is sent
 				ZCom_cbConnectionSpawned(connID);
 			} else {
 				// Send rejection reply, flush, then disconnect
-				sendConnectionReply(event.peer, reply);
+				sendConnectionReply(event.peer, reply, false);
 				enet_host_flush(m_host);
 				enet_peer_disconnect(event.peer, 0);
 				m_peerMap.erase(connID);
@@ -277,6 +277,7 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 			// Handle connection reply (sent by server after ENet connect)
 			if (msgType == MSG_CONNECTION_REPLY && m_waitingForReply.count(connID)) {
 				streamData.getInt(8); // consume msgType
+				eZCom_ConnectResult result = static_cast<eZCom_ConnectResult>(streamData.getInt(8));
 				int byteLen = streamData.getInt(16);
 				std::vector<uint8_t> buf(byteLen);
 				for (int i = 0; i < byteLen; ++i)
@@ -286,7 +287,7 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 				reply.assign(buf.data(), byteLen);
 				m_waitingForReply.erase(connID);
 				
-				ZCom_cbConnectResult(connID, eZCom_ConnAccepted, reply);
+				ZCom_cbConnectResult(connID, result, reply);
 				enet_packet_destroy(event.packet);
 				break;
 			}
@@ -379,15 +380,16 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 	}
 }
 
-void ZCom_Control::sendConnectionReply(ENetPeer* peer, ZCom_BitStream& reply)
+void ZCom_Control::sendConnectionReply(ENetPeer* peer, ZCom_BitStream& reply, bool accepted)
 {
-	// Serialize: MSG_CONNECTION_REPLY (8 bits) + byteLen (16 bits) + raw reply bytes
+	// Serialize: MSG_CONNECTION_REPLY (8 bits) + result (8 bits) + byteLen (16 bits) + raw reply bytes
 	size_t replyBits = reply.getBitLength();
 	size_t replyBytes = (replyBits + 7) / 8;
 	const uint8_t* replyData = reply.getData();
 	
 	ZCom_BitStream pkt;
 	pkt.addInt(MSG_CONNECTION_REPLY, 8);
+	pkt.addInt(accepted ? static_cast<int>(eZCom_ConnAccepted) : static_cast<int>(eZCom_ConnDenied), 8);
 	pkt.addInt(static_cast<int>(replyBytes), 16);
 	for (size_t i = 0; i < replyBytes; ++i) {
 		pkt.addInt(replyData[i], 8);

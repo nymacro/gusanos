@@ -28,4 +28,6 @@ core
 default/**
 bin/**
 .*
+OmfgScript/omfg_script_parser.h
+GUI/detail/gss-grammar.h
 # CVS default ignores end

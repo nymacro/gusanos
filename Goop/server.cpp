@@ -117,13 +117,7 @@ void Server::ZCom_cbDataReceived( ZCom_ConnID  _id, ZCom_BitStream &_data)
 				pkt.addInt(colour, 24);
 				pkt.addSignedInt(team, 8);
 				
-				ENetPeer* peer = network.getZControl()->findPeer(_id);
-				if (peer) {
-					ENetPacket* epkt = enet_packet_create(
-						pkt.getData(), pkt.getDataLength(),
-						ENET_PACKET_FLAG_RELIABLE);
-					enet_peer_send(peer, 0, epkt);
-				}
+				ZCom_sendData(_id, &pkt, eZCom_ReliableOrdered);
 				
 				// Send initial sync to the client's worm
 				if (netWorm) {

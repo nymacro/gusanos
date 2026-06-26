@@ -34,9 +34,6 @@ multiplayer. The project is in active SDL3 migration.
   server builds (`build=dedserv` / `build=dedserv-debug`). Every graphics call,
   sound call, input poll, font draw, and GUI operation must be wrapped in
   `#ifndef DEDSERV` / `#endif`.
-- **`DISABLE_ZOIDCOM`** — always defined. Activates stub implementations of
-  ZoidCom types in `network_compat.h`. The `Network` class becomes a static
-  no-op facade.
 - **`DEBUG`** — debug build only. Enables extra logging and assertions.
 - **`NDEBUG`** — release/dedicated server builds. Disables assertions.
 
@@ -157,11 +154,6 @@ scons -c
   the very first include in a translation unit.
 - **Don't use standard mutexes** — the engine is single-threaded. Adding
   threading requires careful audit of global state.
-- **Don't assume networking works** — the `DISABLE_ZOIDCOM` stub makes
-  everything compile but nothing actually send/receive data.
-- **Don't modify `network_compat.h` stubs** without understanding that they
-  are placeholders for the future ENet migration. Changing their API surface
-  breaks the assumption that they match ZoidCom's interface.
 - **Don't remove `#ifndef DEDSERV` guards** — dedicated server builds depend on
   them to omit all rendering code.
 

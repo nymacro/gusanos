@@ -59,8 +59,10 @@ enum {
 // ---- Connection result ----
 enum eZCom_ConnectResult {
 	eZCom_ConnAccepted,
-	eZCom_ConnRejected,
-	eZCom_ConnRefused
+	eZCom_ConnDenied,
+	eZCom_ConnTimeout,
+	eZCom_ConnHostnameFailed,
+	eZCom_ConnWrongVersion
 };
 
 // ---- Close reason ----
