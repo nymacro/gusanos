@@ -137,20 +137,20 @@ console.registerVariables()
 ### Adding a new Lua binding
 
 1. Add the binding function in `Goop/lua/bindings-*.cpp` (or create a new file)
-2. Register it in `Goop/lua/bindings.cpp` `registerLuaBindings()`
+2. Call `LuaBindings::init()` in the binding function — each binding file's init is called from `game.cpp` startup.
 
 ### Adding a new Lua callback
 
 1. Add an entry to the `LuaCallbacks` enum in `Goop/glua.h`
 2. Fire it with `EACH_CALLBACK(i, MyNewCallback) { ... }`
-3. Expose it in Lua bindings so scripts can `addEventHandler("myNewCallback", fn)`
+3. Expose it in Lua bindings via `luaCallbacks.bind("myNewCallback", ref)` in the bindings init code.
 
 ## Build Verification
 
 ```bash
 # Quick syntax check on a single file
-clang++ -fsyntax-only -std=c++17 -I. -IUtility -IGoop -Ihttp -IConsole -INet -I../lua51 \
-    -D_GNU_SOURCE -DDISABLE_ZOIDCOM -DBOOST_TIMER_ENABLE_DEPRECATED \
+g++ -fsyntax-only -std=c++17 -I. -IUtility -IGoop -Ihttp -IConsole -INet -I../lua51 \
+    -D_GNU_SOURCE -DBOOST_TIMER_ENABLE_DEPRECATED \
     path/to/file.cpp
 
 # Full debug build

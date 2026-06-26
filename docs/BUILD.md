@@ -87,7 +87,7 @@ lib/posix/debug/
 | `dedserv-debug` | `-Og -g -fno-omit-frame-pointer` | `DEBUG`, `DEDSERV`, `LOG_RUNTIME` |
 
 All builds use `-std=c++17`, `-Wall -Wno-reorder`, and define `_GNU_SOURCE`,
-`DISABLE_ZOIDCOM`, `BOOST_TIMER_ENABLE_DEPRECATED`.
+`BOOST_TIMER_ENABLE_DEPRECATED`.
 
 ### Library Detection
 

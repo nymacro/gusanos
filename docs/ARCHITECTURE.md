@@ -138,9 +138,9 @@ The `DEDSERV` preprocessor define gates all GUI code. Key pattern:
 This is used in nearly every component — graphics (`gfx.cpp`), sound (`sfx.cpp`),
 input (`keyboard.cpp`, `mouse.cpp`), fonts, menus, and viewports.
 
-## Network Architecture (DISABLE_ZOIDCOM)
+## Network Architecture
 
-The build defines `DISABLE_ZOIDCOM`, which selects the ENet-backed ZoidCom
+Network synchronization uses an ENet-backed ZoidCom
 compatibility layer implemented in `Net/`. The `Network` class is a full
 implementation — not stubs. Game code in `Goop/` uses the ZoidCom API types
 (`ZCom_Control`, `ZCom_Node`, `ZCom_BitStream`, `ZCom_Replicator`) transparently.
@@ -159,16 +159,6 @@ implementation — not stubs. Game code in `Goop/` uses the ZoidCom API types
 `Client` and `Server` in `Goop/` inherit from `ZCom_Control` and implement the
 virtual callback methods (`ZCom_cbDataReceived`, `ZCom_cbConnectionRequest`,
 `ZCom_cbZoidResult`, etc.) with game-specific logic.
-
-### `DISABLE_ZOIDCOM` ifdef gates
-
-The `DISABLE_ZOIDCOM` define gates the following game-level code to use the
-ENet-backed implementation (not stubs):
-
-- `Game::assignNetworkRole()` / `removeNode()` in `game.cpp`
-- `Updater::assignNetworkRole()` / `removeNode()` in `updater.cpp`
-- `Particle::assignNetworkRole()` in `particle.cpp`
-- `LuaEventDef::call()` / destructor in `network.h`
 
 ### Remaining work
 

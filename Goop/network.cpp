@@ -470,7 +470,7 @@ void Network::update()
 			}
 		}
 		break;
-		
+
 		case StateDisconnecting:
 		{
 			if(requests.size() == 0 && (connCount == 0 || stateTimeOut <= 0))
@@ -479,28 +479,31 @@ void Network::update()
 					WLOG(connCount << " connection(s) might not have disconnected properly.");
 				setLuaState(StateDisconnected);
 				SET_STATE(Disconnected);
-				
+
+				// Remove nodes BEFORE destroying control — node destructors need
+				// a valid m_control to call removeNode(this).
+				game.removeNode();
+				updater.removeNode();
+
 				if(m_control)
 				{
 					m_control->Shutdown();
 					network.clientRetry = false;
-					
+
 					delete m_control;
 					m_control = 0;
 				}
-				
+
 				connCount = 0;
 				m_client = false;
 				m_host = false;
 				m_serverID = ZCom_Invalid_ID;
-				
-				game.removeNode();
-				updater.removeNode();
 			}
 			else
 				--stateTimeOut;
 		}
 		break;
+
 	}
 	
 	if( reconnectTimer > 0 )

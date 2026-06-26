@@ -921,6 +921,7 @@ void BaseWorm::respawn( const Vec& newPos)
 		if ( m_weapons[i] )
 			m_weapons[i]->reset();
 	}
+	//DBGOUT("Respawn", ...);
 }
 
 void BaseWorm::dig()
@@ -971,11 +972,14 @@ void BaseWorm::changeWeaponTo( unsigned int weapIndex )
 
 void BaseWorm::damage( float amount, BasePlayer* damager )
 {
-	// TODO: maybe we could implement an armor system? ;O
 	m_lastHurt = damager;
 	health -= amount;
 	if ( health < 0 )
 		health = 0;
+
+	//DBGOUT("Damage", ...);
+	(void)damager;
+	(void)amount;
 }
 
 void BaseWorm::addAimSpeed( AngleDiff speed )

@@ -211,8 +211,17 @@ bool ZCom_Control::registerNode(ZCom_Node* node)
 {
 	if (!node) return false;
 	node->setNodeID(m_nextNodeID++);
+	node->setControl(this);
 	m_nodes.push_back(node);
 	return true;
+}
+
+void ZCom_Control::removeNode(ZCom_Node* node)
+{
+	if (!node) return;
+	auto it = std::find(m_nodes.begin(), m_nodes.end(), node);
+	if (it != m_nodes.end())
+		m_nodes.erase(it);
 }
 
 ZCom_Address const* ZCom_Control::ZCom_getPeer(uint32_t id)

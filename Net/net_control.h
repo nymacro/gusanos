@@ -72,6 +72,7 @@ public:
 
 	// Node management
 	bool registerNode(ZCom_Node* node);
+	void removeNode(ZCom_Node* node);
 
 	// Enum types (re-exported from network_compat.h)
 	using eZCom_SendMode = int;

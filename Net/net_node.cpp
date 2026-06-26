@@ -15,6 +15,8 @@ ZCom_Node::ZCom_Node()
 
 ZCom_Node::~ZCom_Node()
 {
+	if (m_control)
+		m_control->removeNode(this);
 	delete m_announceData;
 	for (auto* r : m_replicators)
 		delete r;
