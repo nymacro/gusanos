@@ -362,6 +362,20 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 				break;
 			}
 			
+			// Handle server nodes info (server -> client)
+			if (msgType == MSG_SERVER_NODES) {
+				streamData.getInt(8); // consume msgType
+				uint32_t wormNodeID = streamData.getInt(16);
+				uint32_t playerNodeID = streamData.getInt(16);
+				const char* name = streamData.getStringStatic();
+				if (!name) name = "";
+				int colour = streamData.getInt(24);
+				int team = streamData.getSignedInt(8);
+				ZCom_cbServerNodes(connID, name, colour, team, wormNodeID, playerNodeID);
+				enet_packet_destroy(event.packet);
+				break;
+			}
+			
 			// Normal data received — forward full stream to data callback
 			ZCom_cbDataReceived(connID, streamData);
 			enet_packet_destroy(event.packet);

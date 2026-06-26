@@ -123,6 +123,27 @@ void Server::ZCom_cbDataReceived( ZCom_ConnID  _id, ZCom_BitStream &_data)
 				if (netWorm) {
 					netWorm->sendSyncMessage(_id);
 				}
+				
+				// Send server's own player/worm node IDs to the client
+				for ( std::list<BasePlayer*>::iterator iter = game.players.begin(); iter != game.players.end(); iter++) {
+					if ( (*iter)->local ) {
+						BasePlayer* serverPlayer = *iter;
+						NetWorm* serverWorm = dynamic_cast<NetWorm*>(serverPlayer->getWorm());
+						if (serverWorm) {
+							ZCom_BitStream pkt2;
+							pkt2.addInt(MSG_SERVER_NODES, 8);
+							pkt2.addInt(serverWorm->getNodeID(), 16);
+							pkt2.addInt(serverPlayer->getNodeID(), 16);
+							pkt2.addString(serverPlayer->m_name.c_str());
+							pkt2.addInt(serverPlayer->colour, 24);
+							pkt2.addSignedInt(serverPlayer->team, 8);
+							ZCom_sendData(_id, &pkt2, eZCom_ReliableOrdered);
+							
+							DLOG("Sent MSG_SERVER_NODES to client: playerNodeID=" << serverPlayer->getNodeID() << " wormNodeID=" << serverWorm->getNodeID());
+						}
+						break;
+					}
+				}
 			}
 		}
 		break;

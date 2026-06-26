@@ -297,16 +297,12 @@ void Client::ZCom_cbNodeRequest_Dynamic( ZCom_ConnID _id, ZCom_ClassID _requeste
 
 void Client::ZCom_cbPlayerCreated(uint32_t id, const char* name, int colour, int team, uint32_t wormNodeID, uint32_t playerNodeID)
 {
-	// Create the client-side worm
 	BaseWorm* worm = game.addWorm(false);
 	if (!worm) return;
 	
-	// Create the local player with a viewport
 	BasePlayer* player = game.addPlayer(Game::OWNER, team, worm);
 	if (!player) return;
 	
-	// Register proxy nodes so the client can receive replication events
-	// Note: worm node is already registered by NetWorm constructor
 	player->assignNetworkRole(false);
 	player->setNodeID(playerNodeID);
 	player->setOwnerId(id);
@@ -318,10 +314,8 @@ void Client::ZCom_cbPlayerCreated(uint32_t id, const char* name, int colour, int
 		}
 	}
 	
-	// Re-assign worm to update m_wormID with the now-correct node ID
 	player->assignWorm(worm);
 	
-	// Set player properties
 	if (name[0]) {
 		player->localChangeName(std::string(name));
 	}
@@ -329,6 +323,36 @@ void Client::ZCom_cbPlayerCreated(uint32_t id, const char* name, int colour, int
 	player->team = team;
 	
 	DLOG("Created client player '" << name << "' on team " << team);
+}
+
+void Client::ZCom_cbServerNodes(uint32_t id, const char* name, int colour, int team, uint32_t wormNodeID, uint32_t playerNodeID)
+{
+	BaseWorm* worm = game.addWorm(false);
+	if (!worm) return;
+	
+	BasePlayer* player = game.addPlayer(Game::PROXY, team, worm);
+	if (!player) return;
+	
+	player->assignNetworkRole(false);
+	player->setNodeID(playerNodeID);
+	player->setOwnerId(id);
+	
+	{
+		NetWorm* netWorm = dynamic_cast<NetWorm*>(worm);
+		if (netWorm) {
+			netWorm->setNodeID(wormNodeID);
+		}
+	}
+	
+	player->assignWorm(worm);
+	
+	if (name[0]) {
+		player->localChangeName(std::string(name));
+	}
+	player->colour = colour;
+	player->team = team;
+	
+	DLOG("Created proxy player '" << name << "' (server player) on team " << team);
 }
 
 

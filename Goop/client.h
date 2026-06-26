@@ -38,6 +38,9 @@ protected:
 	// server sent us our player/worm data
 	void ZCom_cbPlayerCreated(uint32_t id, const char* name, int colour, int team, uint32_t wormNodeID, uint32_t playerNodeID);
 	
+	// server sent us the server player's node info
+	void ZCom_cbServerNodes(uint32_t id, const char* name, int colour, int team, uint32_t wormNodeID, uint32_t playerNodeID);
+	
 	// server wants to tell us about new node
 	void ZCom_cbNodeRequest_Dynamic( ZCom_ConnID _id, ZCom_ClassID _requested_class, ZCom_BitStream *_announcedata, eZCom_NodeRole _role, ZCom_NodeID _net_id );
 	

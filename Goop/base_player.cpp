@@ -668,7 +668,7 @@ bool BasePlayerInterceptor::inPreUpdateItem (ZCom_Node *_node, ZCom_ConnID _from
 void BasePlayer::baseActionStart ( BaseActions action )
 {
 	ZCom_Node* savedNode = m_node;
-	if (m_processingNetworkEvent && !m_isAuthority) m_node = nullptr;
+	if (m_processingNetworkEvent) m_node = nullptr;
 	switch (action)
 	{
 		case LEFT:
@@ -788,7 +788,7 @@ void BasePlayer::baseActionStart ( BaseActions action )
 void BasePlayer::baseActionStop ( BaseActions action )
 {
 	ZCom_Node* savedNode = m_node;
-	if (m_processingNetworkEvent && !m_isAuthority) m_node = nullptr;
+	if (m_processingNetworkEvent) m_node = nullptr;
 	switch (action)
 	{
 		case LEFT:
