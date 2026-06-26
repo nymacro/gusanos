@@ -180,6 +180,7 @@ protected:
 	shared_ptr<PlayerOptions> m_options;
 
 	bool m_isAuthority;
+	bool m_processingNetworkEvent;
 	ZCom_Node *m_node;
 	BasePlayerInterceptor* m_interceptor;
 	ZCom_NodeID m_wormID;

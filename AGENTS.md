@@ -8,7 +8,7 @@ tools) that need to understand and work with the Gusanos codebase.
 Gusanos is a C++17 game engine (SDL3 + ENet + SDL3_mixer) ported from the
 original Allegro 4 / ZoidCom / FMOD codebase. The engine features destructible
 terrain, pixel-level software blitters, Lua 5.1 scripting, and networked
-multiplayer. The project is in active SDL3 migration.
+multiplayer.
 
 ## Documentation Index
 
@@ -91,12 +91,10 @@ the main thread in `Network::update()`.
   with path scanning.
 - Boost `shared_ptr` is used for `PlayerOptions` only.
 
-### Network System (Stub)
+### Network System
 
-The current build has `DISABLE_ZOIDCOM` defined, which makes all networking
-code compile to no-ops. The `Network` class exposes a `static` interface that
-returns default values. `ZCom_BitStream`, `ZCom_Node`, `ZCom_Control`, and
-other ZoidCom types are stubs in `network_compat.h`.
+All network synchronization is performed through a Zoidcom-replacement library
+which is built on top of ENet for reliable UDP transport.
 
 ## Common Tasks
 

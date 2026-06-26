@@ -100,15 +100,15 @@ void Server::ZCom_cbDataReceived( ZCom_ConnID  _id, ZCom_BitStream &_data)
 			player->setOwnerId(_id);
 			player->assignWorm(worm);
 			
+			uint32_t wormNodeID = 0, playerNodeID = 0;
+			NetWorm* netWorm = dynamic_cast<NetWorm*>(worm);
+			if (netWorm) {
+				wormNodeID = netWorm->getNodeID();
+			}
+			playerNodeID = player->getNodeID();
+			
 			// Send player created info back to client
 			{
-				uint32_t wormNodeID = 0, playerNodeID = 0;
-				NetWorm* netWorm = dynamic_cast<NetWorm*>(worm);
-				if (netWorm) {
-					wormNodeID = netWorm->getNodeID();
-				}
-				playerNodeID = player->getNodeID();
-				
 				ZCom_BitStream pkt;
 				pkt.addInt(MSG_PLAYER_CREATED, 8);
 				pkt.addInt(wormNodeID, 16);

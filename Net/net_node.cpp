@@ -2,6 +2,7 @@
 #include "net_bitstream.h"
 #include "net_control.h"
 #include <algorithm>
+#include <iostream>
 #include <stdexcept>
 
 ZCom_Node::ZCom_Node()
@@ -135,6 +136,7 @@ void ZCom_Node::sendEvent(int mode, uint32_t rules, ZCom_BitStream* stream)
 {
 	(void)rules;
 	if (!m_control || !stream) return;
+	std::cout << "[DEBUG] ZCom_Node::sendEvent nodeID=" << m_nodeID << " control=" << (void*)m_control << " mode=" << mode << std::endl;
 	// Prefix the event with an "event" tag so the receiver knows it's a node event
 	ZCom_BitStream pkt;
 	pkt.addInt(0, 8); // 0 = node event

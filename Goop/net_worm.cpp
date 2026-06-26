@@ -115,6 +115,7 @@ void NetWorm::think()
 	
 	while ( m_node->checkEventWaiting() )
 	{
+		std::cout << "[DEBUG] NetWorm::think processing event, isAuthority=" << m_isAuthority << std::endl;
 		eZCom_Event type;
 		eZCom_NodeRole    remote_role;
 		ZCom_ConnID       conn_id;
@@ -146,6 +147,7 @@ void NetWorm::think()
 					break;
 					case Respawn:
 					{
+						std::cout << "[DEBUG] NetWorm::think Respawn received, calling BaseWorm::respawn" << std::endl;
 						Vec newpos = game.level.vectorEncoding.decode<Vec>(*data);
 						//newpos.x = data->getFloat(32);
 						//newpos.y = data->getFloat(32);

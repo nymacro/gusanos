@@ -2,6 +2,7 @@
 #include "net_bitstream.h"
 #include "net_address.h"
 #include <cstring>
+#include <iostream>
 #include <algorithm>
 
 // Current control for global function dispatch
@@ -39,6 +40,7 @@ uint32_t ZCom_Control::ZCom_registerClass(const char* name, uint32_t flags)
 void ZCom_Control::ZCom_processOutput()
 {
 	if (!m_host) return;
+	g_currentControl = this;
 	// ENet uses service for both input and output
 	// Nothing extra needed - enet_host_flush can be called
 	enet_host_flush(m_host);
@@ -47,6 +49,7 @@ void ZCom_Control::ZCom_processOutput()
 void ZCom_Control::ZCom_processInput(int flags)
 {
 	if (!m_host) return;
+	g_currentControl = this;
 
 	ENetEvent event;
 	int timeout = (flags == eZCom_NoBlock) ? 0 : 10;
@@ -336,7 +339,9 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 			if (msgType == MSG_NODE_EVENT) {
 				streamData.getInt(8); // consume msgType
 				int nodeID = streamData.getInt(16);
-				// Remaining data is the event payload
+				int eventDataLen = streamData.getInt(16); // consume addBitStream length prefix
+				std::cout << "[DEBUG] processENetEvent: MSG_NODE_EVENT from connID=" << connID << " nodeID=" << nodeID << " eventDataLen=" << eventDataLen << std::endl;
+				// Remaining data is the event payload (without the addBitStream length prefix)
 				// For now dispatch as eZCom_EventUser with eZCom_RoleProxy
 				dispatchNodeEvent(nodeID, eZCom_EventUser, eZCom_RoleProxy, connID, &streamData);
 				enet_packet_destroy(event.packet);
@@ -402,13 +407,16 @@ void ZCom_Control::sendConnectionReply(ENetPeer* peer, ZCom_BitStream& reply, bo
 
 void ZCom_Control::dispatchNodeEvent(uint32_t nodeID, int type, int role, uint32_t connID, ZCom_BitStream* data)
 {
+	bool found = false;
 	for (auto* node : m_nodes) {
 		if (node->getNetworkID() == nodeID) {
 			node->pushEvent(static_cast<eZCom_Event>(type),
 				static_cast<eZCom_NodeRole>(role), connID, data);
+			found = true;
 			break;
 		}
 	}
+	std::cout << "[DEBUG] dispatchNodeEvent: nodeID=" << nodeID << " found=" << found << " totalNodes=" << m_nodes.size() << std::endl;
 }
 
 // ---- Global ZoidCom functions ----
