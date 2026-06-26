@@ -54,6 +54,10 @@ Remove legacy engine directories that are not built by the current SConstruct:
 
 ## Step 2: Graphics & Input (Allegro 4 → SDL3)
 
+**Status: Complete.** SDL3 backend is implemented. Hybrid software/hardware
+rendering pipeline is functional. Blitters operate on raw pixel data with SIMD
+optimizations.
+
 ### Rendering Strategy: Hybrid Software/Hardware
 Gusanos relies on destructible terrain and custom pixel blitters.
 - **Master Buffer:** Maintain a CPU-side `SDL_Surface` (or raw memory buffer) for the game world.
@@ -89,6 +93,12 @@ Gusanos relies on destructible terrain and custom pixel blitters.
 
 ## Step 3: Networking (ZoidCom → ENet)
 
+**Status: Largely complete.** The ENet-backed ZoidCom compatibility layer is
+implemented in `Net/`. `ZCom_BitStream`, `ZCom_Node`, `ZCom_Control`,
+`ZCom_Replicator`, and `ZCom_Address` are all functional. The remaining work
+is game-level networking logic (snapshot interpolation, client prediction,
+movement replication, file transfer).
+
 ### Transition to Authoritative Server
 ZoidCom's high-level replication must be replaced by a manual snapshot-based system.
 
@@ -111,6 +121,9 @@ ZoidCom's high-level replication must be replaced by a manual snapshot-based sys
 | `Goop/posspd_replicator.h` | Rewrite as a simple struct with `serialize/deserialize` methods. |
 
 ## Step 4: Audio (FMOD 3.74 → SDL3_mixer)
+
+**Status: Complete.** FMOD → SDL3_mixer adapter is implemented in
+`fmod_compat.h/cpp`.
 
 ### Mapping
 

@@ -40,6 +40,8 @@ static const int MSG_SERVER_NODES = 104;
 // Node event prefix (8 bits = 0, followed by 16-bit nodeID + payload)
 static const int MSG_NODE_EVENT = 0;
 
+static const int MSG_REPLICATORS = 105;
+
 class ZCom_Control {
 
 public:

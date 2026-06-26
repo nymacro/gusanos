@@ -16,7 +16,7 @@ The central orchestrator. Singleton `game`.
 | Game options | `options` (struct with physics/balance variables) |
 | Messaging | `messages` (screen messages), `displayKillMsg()`, `displayChatMsg()` |
 | Lua callback dispatch | `think()` fires `afterUpdate` callbacks |
-| Network role assignment | `assignNetworkRole()`, `removeNode()` (gated by DISABLE_ZOIDCOM) |
+| Network role assignment | `assignNetworkRole()`, `removeNode()` (via ZoidCom API) |
 
 **Message queue:** `Game::msg` (MessageQueue) uses the `mq_define_message` macros
 for deferred operations like `ChangeLevel`.
@@ -304,7 +304,7 @@ Game-specific menu integration. Provides:
 
 ### Network (`Goop/network.cpp` + `network.h`)
 
-Singleton `network`. Currently stub-only via `DISABLE_ZOIDCOM`.
+Singleton `network`. Full ENet-backed implementation via `Net/` compatibility layer.
 
 | Method | Role |
 |---|---|
@@ -315,18 +315,26 @@ Singleton `network`. Currently stub-only via `DISABLE_ZOIDCOM`.
 | `kick()` / `ban()` | Player management |
 | `fetchServerList()` | HTTP-based server discovery |
 
-### network_compat.h
+### network_compat.h / `Net/`
 
-ZoidCom type stubs for the `DISABLE_ZOIDCOM` build:
-- `ZCom_BitStream` — bit-level read/write (no-ops)
-- `ZCom_Node` — network node (no-ops)
-- `ZCom_Control` — connection control (no-ops)
-- `ZCom_Replicator` — data replication (no-ops)
-- `eZCom_*` enums — send modes, roles, events
+ZoidCom API compatibility layer backed by ENet. All types and enums are preserved
+from the original ZoidCom API so game code requires no rewriting.
+
+| Component | File | Purpose |
+|---|---|---|
+| `ZCom_BitStream` | `Net/net_bitstream.h/cpp` | Bit-level read/write (int, float, string, bool, nested streams) |
+| `ZCom_Address` | `Net/net_address.h/cpp` | ENet address wrapper |
+| `ZCom_Control` | `Net/net_control.h/cpp` | Connection management, ENet event dispatch, peer/address maps |
+| `ZCom_Node` | `Net/net_node.h/cpp` | Networked object registration, replication setup, event queue |
+| `ZCom_Replicator` | `Net/net_replicator.h` | Base class; numeric, boolean, string replicators with change-detection |
+| `eZCom_*` enums | `Net/net_types.h` | Send modes, node roles, event types, connection results, close reasons |
+| Type aliases | `Net/net_types.h` | `ZCom_ConnID`, `ZCom_NodeID`, `ZCom_ClassID`, `zU8`, `zU32`, etc. |
 
 ### Client / Server (`Goop/client.cpp` + `client.h`, `server.cpp` + `server.h`)
 
-Client and server role implementations. Currently stub-only.
+`Client` and `Server` inherit from `ZCom_Control` (implemented in `Net/`) and
+override virtual callback methods with game-specific logic: connection requests,
+data delivery, Zoid level transitions, player creation, and node announcements.
 
 ### Encoding (`Goop/encoding.h`)
 
@@ -338,7 +346,9 @@ Bit-level serialization utilities for network streaming:
 
 ### Replicators (`Goop/*replicator*`)
 
-Data replication helpers for networked objects:
+Data replication helpers for networked objects. Work with the `ZCom_Replicator`
+base class from `Net/net_replicator.h`, which provides change-detection and
+rule-based broadcasting (AUTH_2_ALL, OWNER_2_AUTH, etc.).
 
 | File | Purpose |
 |---|---|
@@ -347,6 +357,23 @@ Data replication helpers for networked objects:
 | `stl_str_replicator.h/cpp` | String replication |
 | `net_bitstream.h/cpp` | Bit-level network I/O |
 | `net_worm.h/cpp` | Worm network state |
+
+### `Net/` — ENet Implementation
+
+The `Net/` directory contains the ENet-backed ZoidCom API compatibility layer.
+This is a separate build target (`libomfgnet.a`) linked by the main game binary.
+
+| File | Purpose |
+|---|---|
+| `SConscript` | Build target — `libomfgnet.a` |
+| `network_compat.h` | Umbrella header — includes all `net_*.h` files |
+| `net_types.h` | Standalone type definitions (`ZCom_ConnID`, `eZCom_*` enums, replication constants) — no Boost or ENet dependency |
+| `net_bitstream.h/cpp` | `ZCom_BitStream` — bit-level serialization with variable-length int encoding |
+| `net_address.h/cpp` | `ZCom_Address` — wraps `ENetAddress` |
+| `net_replicator.h` | `ZCom_Replicator` base class with `pack()`/`unpack()` virtuals; derived classes for bool, numeric, string, and memblock replication |
+| `net_node.h/cpp` | `ZCom_Node` — per-object network state; manages replicators, auto-replication entries, and event queue; handles `beginReplicationSetup`/`endReplicationSetup`/`packAllReplicators`/`unpackAllReplicators` |
+| `net_control.h/cpp` | `ZCom_Control` — connection manager; owns `ENetHost`; handles peer map, address map, class registration, node registration; dispatches ENet events to virtual callbacks overridden by `Client`/`Server` |
+| `tests/` | Unit tests for bitstream, replication, broadcast, events, file transfer, movement, and zoid level |
 
 ### Updater (`Goop/updater.cpp` + `updater.h`)
 

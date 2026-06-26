@@ -41,8 +41,26 @@ void ZCom_Control::ZCom_processOutput()
 {
 	if (!m_host) return;
 	g_currentControl = this;
-	// ENet uses service for both input and output
-	// Nothing extra needed - enet_host_flush can be called
+
+	// Broadcast replicator state for all nodes
+	for (auto* node : m_nodes) {
+		ZCom_BitStream repPacked;
+		node->packAllReplicators(&repPacked);
+
+		if (repPacked.getDataLength() > 0) {
+			ZCom_BitStream pkt;
+			pkt.addInt(MSG_REPLICATORS, 8);
+			pkt.addInt(node->getNetworkID(), 16);
+			// Add replicator data as raw bytes (no addBitStream wrapper)
+			for (size_t i = 0; i < repPacked.getDataLength(); ++i)
+				pkt.addInt(repPacked.getData()[i], 8);
+
+			ENetPacket* packet = enet_packet_create(
+				pkt.getData(), pkt.getDataLength(), 0);
+			enet_host_broadcast(m_host, 0, packet);
+		}
+	}
+
 	enet_host_flush(m_host);
 }
 
@@ -340,10 +358,49 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 				streamData.getInt(8); // consume msgType
 				int nodeID = streamData.getInt(16);
 				int eventDataLen = streamData.getInt(16); // consume addBitStream length prefix
-				std::cout << "[DEBUG] processENetEvent: MSG_NODE_EVENT from connID=" << connID << " nodeID=" << nodeID << " eventDataLen=" << eventDataLen << std::endl;
 				// Remaining data is the event payload (without the addBitStream length prefix)
-				// For now dispatch as eZCom_EventUser with eZCom_RoleProxy
 				dispatchNodeEvent(nodeID, eZCom_EventUser, eZCom_RoleProxy, connID, &streamData);
+
+				// Server forwarding: re-broadcast to all other connected peers
+				if (m_peerMap.size() > 1) {
+					for (auto it = m_peerMap.begin(); it != m_peerMap.end(); ++it) {
+						if (it->first != connID) {
+							ENetPacket* fwdPkt = enet_packet_create(
+								event.packet->data, event.packet->dataLength,
+								ENET_PACKET_FLAG_RELIABLE);
+							enet_peer_send(it->second, 0, fwdPkt);
+						}
+					}
+				}
+
+				enet_packet_destroy(event.packet);
+				break;
+			}
+
+			// Handle replicator state updates
+			if (msgType == MSG_REPLICATORS) {
+				streamData.getInt(8); // consume msgType
+				uint32_t repNodeID = streamData.getInt(16);
+
+				// Find the matching local node by networkID
+				ZCom_Node* repNode = nullptr;
+				for (auto* node : m_nodes) {
+					if (node->getNetworkID() == repNodeID) {
+						repNode = node;
+						break;
+					}
+				}
+
+				if (repNode) {
+					// Replicator data starts at byte offset 3 (msgType=1 + nodeID=2)
+					size_t offset = 3;
+					ZCom_BitStream repData(
+						event.packet->data + offset,
+						event.packet->dataLength - offset
+					);
+					repNode->unpackAllReplicators(&repData, true, 0);
+				}
+
 				enet_packet_destroy(event.packet);
 				break;
 			}

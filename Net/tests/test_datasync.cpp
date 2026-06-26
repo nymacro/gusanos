@@ -142,4 +142,101 @@ BOOST_AUTO_TEST_CASE(node_id_unique)
 	}
 }
 
+
+
+BOOST_AUTO_TEST_CASE(replicator_pack_unpack_cycle)
+{
+	static int portOffset = 0;
+	g_currentControl = nullptr;
+	int port = 19120 + (portOffset++);
+
+	{
+	SyncServer srv(port);
+
+	ZCom_Node* source = new ZCom_Node();
+	float sourceVal = 0.0f;
+
+	g_currentControl = &srv;
+	source->registerNodeDynamic(srv.m_syncClass, &srv);
+	source->addReplicationFloat(&sourceVal, 16, 0, 0);
+	sourceVal = 0.42f;
+	g_currentControl = nullptr;
+
+	ZCom_BitStream packed;
+	source->packAllReplicators(&packed);
+	BOOST_REQUIRE_MESSAGE(packed.getDataLength() > 0,
+	                       "packAllReplicators should produce data");
+
+	ZCom_Node* target = new ZCom_Node();
+	float targetVal = 0.0f;
+
+	g_currentControl = &srv;
+	target->registerNodeDynamic(srv.m_syncClass, &srv);
+	target->addReplicationFloat(&targetVal, 16, 0, 0);
+	g_currentControl = nullptr;
+
+	ZCom_BitStream packedCopy(packed.getData(), packed.getDataLength());
+	target->unpackAllReplicators(&packedCopy, true, 0);
+
+	BOOST_CHECK_CLOSE(targetVal, sourceVal, 0.1f);
+
+	delete target;
+	delete source;
+	srv.Shutdown();
+	}
+}
+
+BOOST_AUTO_TEST_CASE(replicator_multiple_values)
+{
+	static int portOffset = 0;
+	g_currentControl = nullptr;
+	int port = 19130 + (portOffset++);
+
+	{
+	SyncServer srv(port);
+
+	ZCom_Node* source = new ZCom_Node();
+	float x = 0.0f, y = 0.0f, z = 0.0f;
+	int32_t ammo = 0;
+
+	g_currentControl = &srv;
+	source->registerNodeDynamic(srv.m_syncClass, &srv);
+	source->addReplicationFloat(&x, 16, 0, 0);
+	source->addReplicationFloat(&y, 16, 0, 0);
+	source->addReplicationFloat(&z, 16, 0, 0);
+	source->addReplicationInt(&ammo, 16, true, 0, 0);
+	x = 0.15f; y = 0.25f; z = 0.35f; ammo = 100;
+	g_currentControl = nullptr;
+
+	ZCom_BitStream packed;
+	source->packAllReplicators(&packed);
+	BOOST_REQUIRE_MESSAGE(packed.getDataLength() > 0,
+	                       "packAllReplicators should produce data");
+
+	ZCom_Node* target = new ZCom_Node();
+	float rx = 0, ry = 0, rz = 0;
+	int32_t rammo = 0;
+
+	g_currentControl = &srv;
+	target->registerNodeDynamic(srv.m_syncClass, &srv);
+	target->addReplicationFloat(&rx, 16, 0, 0);
+	target->addReplicationFloat(&ry, 16, 0, 0);
+	target->addReplicationFloat(&rz, 16, 0, 0);
+	target->addReplicationInt(&rammo, 16, true, 0, 0);
+	g_currentControl = nullptr;
+
+	ZCom_BitStream packedCopy(packed.getData(), packed.getDataLength());
+	target->unpackAllReplicators(&packedCopy, true, 0);
+
+	BOOST_CHECK_CLOSE(rx, x, 0.1f);
+	BOOST_CHECK_CLOSE(ry, y, 0.1f);
+	BOOST_CHECK_CLOSE(rz, z, 0.1f);
+	BOOST_CHECK_EQUAL(rammo, ammo);
+
+	delete target;
+	delete source;
+	srv.Shutdown();
+	}
+}
+
 BOOST_AUTO_TEST_SUITE_END()

@@ -15,7 +15,7 @@ multiplayer.
 | File | Contents | Read first if... |
 |---|---|---|
 | [README.md](docs/README.md) | Project overview, quick reference, architecture diagram | You need one-paragraph context |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layer diagram, dependency graph, singleton ownership, main loop, build targets, DEDSERV guards, network stubs | You need to understand how subsystems connect |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layer diagram, dependency graph, singleton ownership, main loop, build targets, DEDSERV guards, network architecture | You need to understand how subsystems connect |
 | [COMPONENTS.md](docs/COMPONENTS.md) | Per-file/per-class breakdown by subsystem: Core, Entities, Graphics, UI, Network, Audio, Scripting, Input, Utility, Tools | You need to find where something lives |
 | [BUILD.md](docs/BUILD.md) | Build commands, output layout, SConscript targets, compiler flags, parser generation pipeline | You need to build, configure, or add dependencies |
 
@@ -93,8 +93,27 @@ the main thread in `Network::update()`.
 
 ### Network System
 
-All network synchronization is performed through a Zoidcom-replacement library
-which is built on top of ENet for reliable UDP transport.
+All network synchronization uses a ZoidCom API compatibility layer built on top
+of ENet for reliable UDP transport. The layer lives in the `Net/` directory and
+preserves the original ZoidCom type names (`ZCom_Control`, `ZCom_Node`,
+`ZCom_BitStream`, `ZCom_Replicator`) so game code in `Goop/` requires no
+rewriting.
+
+Key files in `Net/`:
+
+| File | Purpose |
+|---|---|
+| `network_compat.h` | Umbrella header — includes all ZoidCom API types |
+| `net_types.h` | Type aliases and enums (`ZCom_ConnID`, `eZCom_SendMode`, etc.) |
+| `net_bitstream.h/cpp` | `ZCom_BitStream` — bit-level serialization |
+| `net_address.h/cpp` | `ZCom_Address` — ENet address wrapper |
+| `net_replicator.h` | `ZCom_Replicator` base class + numeric/bool/string replicators |
+| `net_node.h/cpp` | `ZCom_Node` — networked object registration and replication |
+| `net_control.h/cpp` | `ZCom_Control` — ENet server/peer connection management |
+| `tests/` | Unit tests for the networking layer |
+
+The `Goop/network.cpp/h` facade sits on top of this layer, managing game-level
+state (session lifecycle, Lua events, server list, player management).
 
 ## Common Tasks
 
@@ -146,8 +165,10 @@ scons -c
 
 ## Pitfalls to Avoid
 
-- **Don't add features, refactor, or clean up unrelated code** — the migration
-  is in progress; touching working code risks breaking fragile compat shims.
+- **Don't refactor or clean up unrelated code** — the SDL3/ENet migration is
+  complete; touching working code risks breaking fragile compat shims. The
+  remaining work is completing the networked gameplay features (snapshot
+  interpolation, client prediction, movement replication).
 - **Don't add `#include "allegro_compat.h"` after other headers** — it must be
   the very first include in a translation unit.
 - **Don't use standard mutexes** — the engine is single-threaded. Adding

@@ -30,4 +30,6 @@ bin/**
 .*
 OmfgScript/omfg_script_parser.h
 GUI/detail/gss-grammar.h
+Net/Reference/**
+docs/zoidcom/**
 # CVS default ignores end
