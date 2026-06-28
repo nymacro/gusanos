@@ -265,23 +265,55 @@ void Client::ZCom_cbZoidResult(ZCom_ConnID _id, eZCom_ZoidResult _result, zU8 ne
 	}
 }
 
-void Client::ZCom_cbNodeRequest_Dynamic( ZCom_ConnID _id, ZCom_ClassID _requested_class, ZCom_BitStream *_announcedata, eZCom_NodeRole _role, ZCom_NodeID _net_id )
+void Client::ZCom_cbNodeRequest_Dynamic( ZCom_ConnID _id, ZCom_ClassID _requested_class, ZCom_BitStream *_announcedata, int _role, ZCom_NodeID _net_id )
 {
 	// check the requested class
 	if ( _requested_class == NetWorm::classID )
 	{
-		game.addWorm(false);
+		BaseWorm* worm = game.addWorm(false);
+		if (NetWorm* netWorm = dynamic_cast<NetWorm*>(worm)) {
+			netWorm->setNodeID(_net_id);
+		}
 	}else if ( _requested_class == BasePlayer::classID )
 	{
+		std::string name;
+		int colour = 0, team = 0;
+		uint32_t wormNodeID = 0;
+		
+		if (_announcedata) {
+			name = _announcedata->getStringStatic();
+			if (!name.empty()) {
+				colour = _announcedata->getInt(24);
+				team = _announcedata->getSignedInt(8);
+				wormNodeID = _announcedata->getInt(16);
+			}
+		}
+		
+		// Create worm and link with the server-assigned node ID
+		BaseWorm* worm = game.addWorm(false);
+		if (NetWorm* netWorm = dynamic_cast<NetWorm*>(worm)) {
+			netWorm->setNodeID(wormNodeID);
+		}
+		
 		// Creates a player class depending on the role
+		BasePlayer* player;
 		if( _role == eZCom_RoleOwner )
 		{
-			BasePlayer* player = game.addPlayer ( Game::OWNER );
-			player->assignNetworkRole(false);
+			player = game.addPlayer(Game::OWNER, team, worm);
 		}else
 		{
-			BasePlayer* player = game.addPlayer ( Game::PROXY );
-			player->assignNetworkRole(false);
+			player = game.addPlayer(Game::PROXY, team, worm);
+		}
+		if (!player) return;
+		
+		player->assignNetworkRole(false);
+		player->setNodeID(_net_id);
+		player->assignWorm(worm);
+		
+		if (!name.empty()) {
+			player->localChangeName(name);
+			player->colour = colour;
+			player->team = team;
 		}
 	}else if( _requested_class == Particle::classID )
 	{
@@ -293,66 +325,6 @@ void Client::ZCom_cbNodeRequest_Dynamic( ZCom_ConnID _id, ZCom_ClassID _requeste
 		console.addLogMsg("* ERROR: INVALID DYNAMIC NODE REQUEST");
 	}
 	
-}
-
-void Client::ZCom_cbPlayerCreated(uint32_t id, const char* name, int colour, int team, uint32_t wormNodeID, uint32_t playerNodeID)
-{
-	BaseWorm* worm = game.addWorm(false);
-	if (!worm) return;
-	
-	BasePlayer* player = game.addPlayer(Game::OWNER, team, worm);
-	if (!player) return;
-	
-	player->assignNetworkRole(false);
-	player->setNodeID(playerNodeID);
-	player->setOwnerId(id);
-	
-	{
-		NetWorm* netWorm = dynamic_cast<NetWorm*>(worm);
-		if (netWorm) {
-			netWorm->setNodeID(wormNodeID);
-		}
-	}
-	
-	player->assignWorm(worm);
-	
-	if (name[0]) {
-		player->localChangeName(std::string(name));
-	}
-	player->colour = colour;
-	player->team = team;
-	
-	DLOG("Created client player '" << name << "' on team " << team);
-}
-
-void Client::ZCom_cbServerNodes(uint32_t id, const char* name, int colour, int team, uint32_t wormNodeID, uint32_t playerNodeID)
-{
-	BaseWorm* worm = game.addWorm(false);
-	if (!worm) return;
-	
-	BasePlayer* player = game.addPlayer(Game::PROXY, team, worm);
-	if (!player) return;
-	
-	player->assignNetworkRole(false);
-	player->setNodeID(playerNodeID);
-	player->setOwnerId(id);
-	
-	{
-		NetWorm* netWorm = dynamic_cast<NetWorm*>(worm);
-		if (netWorm) {
-			netWorm->setNodeID(wormNodeID);
-		}
-	}
-	
-	player->assignWorm(worm);
-	
-	if (name[0]) {
-		player->localChangeName(std::string(name));
-	}
-	player->colour = colour;
-	player->team = team;
-	
-	DLOG("Created proxy player '" << name << "' (server player) on team " << team);
 }
 
 

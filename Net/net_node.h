@@ -74,6 +74,7 @@ public:
 	ZCom_FileTransInfo getFileInfo(uint32_t connID, uint32_t fid) { return ZCom_FileTransInfo{}; }
 
 	// Internal
+	ZCom_BitStream* getAnnounceData() const { return m_announceData; }
 	uint32_t getOwner() const { return m_ownerID; }
 	void setNodeID(uint32_t id) { m_nodeID = id; }
 	void setRole(int role) { m_role = role; }

@@ -35,8 +35,7 @@ struct NodeRegistration {
 static const int MSG_CONNECTION_REPLY = 100;
 static const int MSG_ZOID_REQUEST = 101;
 static const int MSG_ZOID_RESULT = 102;
-static const int MSG_PLAYER_CREATED = 103;
-static const int MSG_SERVER_NODES = 104;
+static const int MSG_NODE_ANNOUNCE = 103;
 // Node event prefix (8 bits = 0, followed by 16-bit nodeID + payload)
 static const int MSG_NODE_EVENT = 0;
 
@@ -73,6 +72,8 @@ public:
 	// Node management
 	bool registerNode(ZCom_Node* node);
 	void removeNode(ZCom_Node* node);
+	void sendNodeAnnouncement(uint32_t connID, ZCom_Node* node, int role);
+	void syncNodesToPeer(ENetPeer* peer);
 
 	// Enum types (re-exported from network_compat.h)
 	using eZCom_SendMode = int;
@@ -95,8 +96,6 @@ public:
 	virtual bool ZCom_cbZoidRequest(uint32_t id, uint8_t requested_level, ZCom_BitStream& reason) { return false; }
 	virtual void ZCom_cbZoidResult(uint32_t id, eZCom_ZoidResult result, uint8_t new_level, ZCom_BitStream& reason) {}
 	virtual void ZCom_cbConnectResult(uint32_t id, eZCom_ConnectResult result, ZCom_BitStream& reply) {}
-	virtual void ZCom_cbPlayerCreated(uint32_t id, const char* name, int colour, int team, uint32_t wormNodeID, uint32_t playerNodeID) {}
-	virtual void ZCom_cbServerNodes(uint32_t id, const char* name, int colour, int team, uint32_t wormNodeID, uint32_t playerNodeID) {}
 	virtual void ZCom_cbNodeRequest_Dynamic(uint32_t id, uint32_t requested_class, ZCom_BitStream* announcedata, int role, uint32_t net_id) {}
 	virtual void ZCom_cbNodeRequest_Tag(uint32_t id, uint32_t requested_class, ZCom_BitStream* announcedata, int role, uint32_t tag) {}
 	virtual void ZCom_cbDiscovered(const ZCom_Address& addr, ZCom_BitStream& reply) {}

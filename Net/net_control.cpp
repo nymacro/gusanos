@@ -56,7 +56,7 @@ void ZCom_Control::ZCom_processOutput()
 				pkt.addInt(repPacked.getData()[i], 8);
 
 			ENetPacket* packet = enet_packet_create(
-				pkt.getData(), pkt.getDataLength(), 0);
+				pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
 			enet_host_broadcast(m_host, 0, packet);
 		}
 	}
@@ -216,6 +216,63 @@ bool ZCom_Control::registerNode(ZCom_Node* node)
 	return true;
 }
 
+void ZCom_Control::sendNodeAnnouncement(uint32_t connID, ZCom_Node* node, int role)
+{
+	if (!m_host || !node) return;
+	
+	ZCom_BitStream pkt;
+	pkt.addInt(MSG_NODE_ANNOUNCE, 8);
+	pkt.addInt(node->getClassID(), 8);
+	pkt.addInt(node->getNetworkID(), 16);
+	pkt.addInt(role, 8);
+	
+	// Attach announce data if present
+	ZCom_BitStream* ad = node->getAnnounceData();
+	if (ad && ad->getDataLength() > 0) {
+		pkt.addInt(static_cast<int>(ad->getDataLength()), 16);
+		for (size_t i = 0; i < ad->getDataLength(); ++i)
+			pkt.addInt(ad->getData()[i], 8);
+	} else {
+		pkt.addInt(0, 16);
+	}
+	
+	ENetPacket* packet = enet_packet_create(
+		pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
+	
+	ENetPeer* peer = findPeer(connID);
+	if (peer)
+		enet_peer_send(peer, 0, packet);
+	else
+		enet_packet_destroy(packet);
+}
+
+void ZCom_Control::syncNodesToPeer(ENetPeer* peer)
+{
+	if (!m_host || !peer) return;
+	
+	for (auto* node : m_nodes) {
+		ZCom_BitStream pkt;
+		pkt.addInt(MSG_NODE_ANNOUNCE, 8);
+		pkt.addInt(node->getClassID(), 8);
+		pkt.addInt(node->getNetworkID(), 16);
+		pkt.addInt(node->getRole(), 8);
+		
+		ZCom_BitStream* ad = node->getAnnounceData();
+		if (ad && ad->getDataLength() > 0) {
+			pkt.addInt(static_cast<int>(ad->getDataLength()), 16);
+			for (size_t i = 0; i < ad->getDataLength(); ++i)
+				pkt.addInt(ad->getData()[i], 8);
+		} else {
+			pkt.addInt(0, 16);
+		}
+		
+		ENetPacket* packet = enet_packet_create(
+			pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
+		enet_peer_send(peer, 0, packet);
+	}
+	enet_host_flush(m_host);
+}
+
 void ZCom_Control::removeNode(ZCom_Node* node)
 {
 	if (!node) return;
@@ -275,6 +332,27 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 			if (ZCom_cbConnectionRequest(connID, request, reply)) {
 				// Send reply data back to client as MSG_CONNECTION_REPLY
 				sendConnectionReply(event.peer, reply, true);
+				// Sync existing nodes to the new client
+				for (auto* node : m_nodes) {
+					ZCom_BitStream pkt;
+					pkt.addInt(MSG_NODE_ANNOUNCE, 8);
+					pkt.addInt(node->getNetworkID(), 16);
+					pkt.addInt(node->getClassID(), 8);
+					pkt.addInt(node->getRole(), 8);
+					
+					ZCom_BitStream* ad = node->getAnnounceData();
+					if (ad && ad->getDataLength() > 0) {
+						pkt.addInt(static_cast<int>(ad->getDataLength()), 16);
+						for (size_t i = 0; i < ad->getDataLength(); ++i)
+							pkt.addInt(ad->getData()[i], 8);
+					} else {
+						pkt.addInt(0, 16);
+					}
+					
+					ENetPacket* packet = enet_packet_create(
+						pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
+					enet_peer_send(event.peer, 0, packet);
+				}
 				// Fire connection spawned after reply is sent
 				ZCom_cbConnectionSpawned(connID);
 			} else {
@@ -298,7 +376,6 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 			);
 			
 			// Peek at the first byte to identify internal protocol messages
-			// (read directly without consuming from the bitstream)
 			int msgType = 0;
 			if (event.packet->dataLength > 0) {
 				msgType = static_cast<const uint8_t*>(event.packet->data)[0];
@@ -366,21 +443,9 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 			if (msgType == MSG_NODE_EVENT) {
 				streamData.getInt(8); // consume msgType
 				int nodeID = streamData.getInt(16);
-				int eventDataLen = streamData.getInt(16); // consume addBitStream length prefix
+				streamData.getInt(16); // consume addBitStream length prefix
 				// Remaining data is the event payload (without the addBitStream length prefix)
 				dispatchNodeEvent(nodeID, eZCom_EventUser, eZCom_RoleProxy, connID, &streamData);
-
-				// Server forwarding: re-broadcast to all other connected peers
-				if (m_peerMap.size() > 1) {
-					for (auto it = m_peerMap.begin(); it != m_peerMap.end(); ++it) {
-						if (it->first != connID) {
-							ENetPacket* fwdPkt = enet_packet_create(
-								event.packet->data, event.packet->dataLength,
-								ENET_PACKET_FLAG_RELIABLE);
-							enet_peer_send(it->second, 0, fwdPkt);
-						}
-					}
-				}
 
 				enet_packet_destroy(event.packet);
 				break;
@@ -414,30 +479,26 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 				break;
 			}
 			
-			// Handle player created (server -> client)
-			if (msgType == MSG_PLAYER_CREATED) {
+			// Handle node announcement — dispatch to ZCom_cbNodeRequest_Dynamic
+			if (msgType == MSG_NODE_ANNOUNCE) {
 				streamData.getInt(8); // consume msgType
-				uint32_t wormNodeID = streamData.getInt(16);
-				uint32_t playerNodeID = streamData.getInt(16);
-				const char* name = streamData.getStringStatic();
-				if (!name) name = "";
-				int colour = streamData.getInt(24);
-				int team = streamData.getSignedInt(8);
-				ZCom_cbPlayerCreated(connID, name, colour, team, wormNodeID, playerNodeID);
-				enet_packet_destroy(event.packet);
-				break;
-			}
-			
-			// Handle server nodes info (server -> client)
-			if (msgType == MSG_SERVER_NODES) {
-				streamData.getInt(8); // consume msgType
-				uint32_t wormNodeID = streamData.getInt(16);
-				uint32_t playerNodeID = streamData.getInt(16);
-				const char* name = streamData.getStringStatic();
-				if (!name) name = "";
-				int colour = streamData.getInt(24);
-				int team = streamData.getSignedInt(8);
-				ZCom_cbServerNodes(connID, name, colour, team, wormNodeID, playerNodeID);
+				uint32_t classID = streamData.getInt(8);
+				uint32_t net_id = streamData.getInt(16);
+				int role = streamData.getInt(8);
+				int announceLen = streamData.getInt(16);
+				
+				ZCom_BitStream* announceData = nullptr;
+				if (announceLen > 0) {
+					std::vector<uint8_t> buf(announceLen);
+					for (int i = 0; i < announceLen; ++i)
+						buf[i] = streamData.getInt(8);
+					announceData = new ZCom_BitStream(buf.data(), buf.size());
+				}
+				
+				ZCom_cbNodeRequest_Dynamic(connID, classID, announceData,
+					role, net_id);
+				
+				delete announceData;
 				enet_packet_destroy(event.packet);
 				break;
 			}

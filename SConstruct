@@ -53,6 +53,9 @@ env.AddMethod(getBinName)
 env.AddMethod(getLibName)
 env.AddMethod(getObjects)
 
+# Generate compile_commands.json for IDE/LSP support
+env.Tool('compilation_db')
+
 # Set custom variables
 env['MY_CONF'] = ARGUMENTS.get('conf', 'posix')
 env['MY_BUILD'] = ARGUMENTS.get('build', 'release')
@@ -166,3 +169,6 @@ env['BUILDERS']['Parser'] = parserBuilder
 # Build the rest
 for i in sconscript:
     SConscript(i + '/SConscript', exports=exp)
+
+# Generate compile_commands.json for IDE/LSP support
+env.CompilationDatabase()

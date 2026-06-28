@@ -552,7 +552,7 @@ boost::shared_ptr<PlayerOptions> BasePlayer::getOptions()
 	return m_options;
 }
 
-void BasePlayer::assignNetworkRole( bool authority )
+void BasePlayer::assignNetworkRole( bool authority, ZCom_BitStream* announceData )
 {
 	m_node = new ZCom_Node();
 	if (!m_node)
@@ -561,13 +561,15 @@ void BasePlayer::assignNetworkRole( bool authority )
 	}
 
 	m_node->beginReplicationSetup(1);
-		//m_node->addReplicationInt( (zS32*)&deaths, 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL , 0);
 		m_node->setInterceptID( static_cast<ZCom_InterceptID>(WormID) );
 		m_node->addReplicationInt( (zS32*)&m_wormID, 32, false, ZCOM_REPFLAG_MOSTRECENT | ZCOM_REPFLAG_INTERCEPT, ZCOM_REPRULE_AUTH_2_ALL , INVALID_NODE_ID);
 	m_node->endReplicationSetup();
 
 	m_interceptor = new BasePlayerInterceptor( this );
 	m_node->setReplicationInterceptor(m_interceptor);
+
+	if (announceData)
+		m_node->setAnnounceData(announceData);
 
 	m_isAuthority = authority;
 	if( m_isAuthority)
