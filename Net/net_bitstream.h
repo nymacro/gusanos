@@ -34,7 +34,7 @@ public:
 
 	// Internal helpers (used by replicators etc.)
 	const uint8_t* getData() const { return m_data.data(); }
-	size_t getDataLength() const { return m_data.size(); }
+	size_t getDataLength() const { return (m_writeBit + 7) / 8; }
 	size_t getBitLength() const { return m_writeBit; }
 	void resetRead() { m_readBit = 0; }
 	void reset() { m_data.clear(); m_writeBit = 0; m_readBit = 0; }

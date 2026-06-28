@@ -40,6 +40,7 @@ static const int MSG_NODE_ANNOUNCE = 103;
 static const int MSG_NODE_EVENT = 0;
 
 static const int MSG_REPLICATORS = 105;
+static const int MSG_DISCONNECT_DATA = 106;
 
 class ZCom_Control {
 
@@ -115,6 +116,7 @@ protected:
 	std::map<uint32_t, ENetPeer*> m_peerMap;
 	std::map<uint32_t, ZCom_Address> m_addressMap;
 	ZCom_BitStream m_disconnectData;
+	std::map<uint32_t, ZCom_BitStream> m_pendingDisconnectData; ///< Pre-disconnect reason data per connID
 	std::set<uint32_t> m_waitingForReply; ///< Client connIDs waiting for connection reply
 
 	void processENetEvent(ENetEvent& event);

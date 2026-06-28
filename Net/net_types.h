@@ -6,19 +6,18 @@
 
 #include <cstdint>
 #include <string>
-#include <boost/cstdint.hpp>
 
 // ---- Basic ZoidCom type aliases ----
-typedef boost::uint32_t ZCom_ClassID;
-typedef boost::uint32_t ZCom_ConnID;
-typedef boost::uint32_t ZCom_NodeID;
-typedef boost::uint32_t ZCom_InterceptID;
-typedef boost::uint32_t ZCom_FileTransID;
-typedef boost::int32_t  zS32;
-typedef boost::uint8_t  zU8;
-typedef boost::uint16_t zU16;
-typedef boost::uint32_t zU32;
-typedef float           zFloat;
+typedef uint32_t ZCom_ClassID;
+typedef uint32_t ZCom_ConnID;
+typedef uint32_t ZCom_NodeID;
+typedef uint32_t ZCom_InterceptID;
+typedef uint32_t ZCom_FileTransID;
+typedef int32_t   zS32;
+typedef uint8_t   zU8;
+typedef uint16_t  zU16;
+typedef uint32_t  zU32;
+typedef float     zFloat;
 
 #define INVALID_CONN_ID 0
 #define ZCom_Invalid_ID 0
@@ -80,10 +79,10 @@ enum eZCom_ZoidResult {
 };
 
 // ---- Replication constants ----
-#define ZCOM_REPRULE_AUTH_2_ALL 1
-#define ZCOM_REPRULE_OWNER_2_AUTH 2
-#define ZCOM_REPRULE_AUTH_2_PROXY 3
-#define ZCOM_REPRULE_AUTH_2_OWNER 4
+#define ZCOM_REPRULE_AUTH_2_PROXY (1<<0)
+#define ZCOM_REPRULE_AUTH_2_OWNER (1<<1)
+#define ZCOM_REPRULE_AUTH_2_ALL (ZCOM_REPRULE_AUTH_2_PROXY|ZCOM_REPRULE_AUTH_2_OWNER)
+#define ZCOM_REPRULE_OWNER_2_AUTH (1<<2)
 #define ZCOM_REPRULE_NONE 0
 
 #define ZCOM_REPFLAG_MOSTRECENT 1

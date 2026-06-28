@@ -103,7 +103,20 @@ uint32_t ZCom_Control::ZCom_Connect(ZCom_Address& addr, ZCom_BitStream* data)
 void ZCom_Control::ZCom_disconnectAll(ZCom_BitStream* data)
 {
 	if (!m_host) return;
-	
+
+	// Send disconnect reason data to peers before disconnecting
+	if (data) {
+		ZCom_BitStream pkt;
+		pkt.addInt(MSG_DISCONNECT_DATA, 8);
+		for (size_t i = 0; i < data->getDataLength(); ++i)
+			pkt.addInt(data->getData()[i], 8);
+
+		ENetPacket* packet = enet_packet_create(
+			pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
+		enet_host_broadcast(m_host, 0, packet);
+		enet_host_flush(m_host);
+	}
+
 	for (auto& pair : m_peerMap) {
 		if (pair.second) {
 			enet_peer_disconnect(pair.second, 0);
@@ -111,19 +124,30 @@ void ZCom_Control::ZCom_disconnectAll(ZCom_BitStream* data)
 	}
 	m_peerMap.clear();
 	m_addressMap.clear();
-	
-	(void)data;
 }
 
 void ZCom_Control::ZCom_Disconnect(uint32_t id, ZCom_BitStream* data)
 {
 	ENetPeer* peer = findPeer(id);
+
+	// Send disconnect reason data before disconnecting
+	if (peer && data && data->getDataLength() > 0) {
+		ZCom_BitStream pkt;
+		pkt.addInt(MSG_DISCONNECT_DATA, 8);
+		for (size_t i = 0; i < data->getDataLength(); ++i)
+			pkt.addInt(data->getData()[i], 8);
+
+		ENetPacket* packet = enet_packet_create(
+			pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
+		enet_peer_send(peer, 0, packet);
+		enet_host_flush(m_host);
+	}
+
 	if (peer) {
 		enet_peer_disconnect(peer, 0);
 		m_peerMap.erase(id);
 		m_addressMap.erase(id);
 	}
-	(void)data;
 }
 
 void ZCom_Control::Shutdown()
@@ -503,7 +527,15 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 				break;
 			}
 			
-			// Normal data received — forward full stream to data callback
+			// Handle disconnect reason data (sent before disconnect)
+		if (msgType == MSG_DISCONNECT_DATA) {
+			streamData.getInt(8); // consume msgType
+			m_pendingDisconnectData[connID] = streamData;
+			enet_packet_destroy(event.packet);
+			break;
+		}
+
+		// Normal data received — forward full stream to data callback
 			ZCom_cbDataReceived(connID, streamData);
 			enet_packet_destroy(event.packet);
 			break;
@@ -515,8 +547,14 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 			m_peerMap.erase(connID);
 			m_addressMap.erase(connID);
 			m_waitingForReply.erase(connID);
-			
+
+			// Use pending disconnect data if available, otherwise empty
 			ZCom_BitStream reasonData;
+			auto it = m_pendingDisconnectData.find(connID);
+			if (it != m_pendingDisconnectData.end()) {
+				reasonData = it->second;
+				m_pendingDisconnectData.erase(it);
+			}
 			ZCom_cbConnectionClosed(connID, eZCom_ClosedDisconnect, reasonData);
 			break;
 		}

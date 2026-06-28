@@ -136,14 +136,22 @@ void ZCom_Node::pushEvent(eZCom_Event type, eZCom_NodeRole role, uint32_t connID
 
 void ZCom_Node::sendEvent(int mode, uint32_t rules, ZCom_BitStream* stream)
 {
-	(void)rules;
 	if (!m_control || !stream) return;
-	std::cout << "[DEBUG] ZCom_Node::sendEvent nodeID=" << m_nodeID << " control=" << (void*)m_control << " mode=" << mode << std::endl;
-	// Prefix the event with an "event" tag so the receiver knows it's a node event
+
+	// Determine if we are allowed to send based on local role
+	if ((rules & (ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_AUTH_2_OWNER)))
+		if (m_role != eZCom_RoleAuthority && m_role != ZCOM_ROLE_AUTHORITY)
+			return; // Only authority can send AUTH_* rules
+
+	if ((rules & ZCOM_REPRULE_OWNER_2_AUTH))
+		if (m_role != eZCom_RoleOwner)
+			return; // Only owner can send OWNER_2_AUTH rules
+
 	ZCom_BitStream pkt;
 	pkt.addInt(0, 8); // 0 = node event
 	pkt.addInt(m_nodeID, 16);
 	pkt.addBitStream(stream);
+
 	m_control->sendToAll(static_cast<eZCom_SendMode>(mode), &pkt);
 }
 
