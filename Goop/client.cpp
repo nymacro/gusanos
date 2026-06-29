@@ -272,7 +272,10 @@ void Client::ZCom_cbNodeRequest_Dynamic( ZCom_ConnID _id, ZCom_ClassID _requeste
 	{
 		BaseWorm* worm = game.addWorm(false);
 		if (NetWorm* netWorm = dynamic_cast<NetWorm*>(worm)) {
+			// Register first (assigns local node ID), then overwrite with server ID
 			netWorm->setNodeID(_net_id);
+			if (netWorm->getZNode())
+				network.getZControl()->registerExistingNode(netWorm->getZNode());
 		}
 	}else if ( _requested_class == BasePlayer::classID )
 	{

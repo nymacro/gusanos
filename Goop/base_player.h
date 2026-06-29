@@ -31,7 +31,7 @@ struct LuaEventDef;
 #define COMPACT_EVENTS
 #define COMPACT_ACTIONS
 
-class BasePlayer : public ZCom_Control
+class BasePlayer
 {
 public:
 	

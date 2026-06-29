@@ -11,14 +11,14 @@ BOOST_AUTO_TEST_SUITE(broadcast)
 BOOST_AUTO_TEST_CASE(address_set_port_and_parse)
 {
 	ZCom_Address addr;
-	addr.setAddress(ZCom_Control::eZCom_AddressUDP, 18999, "255.255.255.255");
+	addr.setAddress(ZCom_Control::eZCom_AddressUDP, 0, "255.255.255.255:18999");
 	BOOST_CHECK_EQUAL(addr.getPort(), 18999);
 }
 
 BOOST_AUTO_TEST_CASE(address_localhost)
 {
 	ZCom_Address addr;
-	addr.setAddress(ZCom_Control::eZCom_AddressUDP, 19000, "127.0.0.1");
+	addr.setAddress(ZCom_Control::eZCom_AddressUDP, 0, "127.0.0.1:19000");
 	BOOST_CHECK_EQUAL(addr.getPort(), 19000);
 }
 
@@ -31,7 +31,7 @@ BOOST_AUTO_TEST_CASE(address_default_constructor)
 BOOST_AUTO_TEST_CASE(address_hostname_check)
 {
 	ZCom_Address addr;
-	addr.setAddress(ZCom_Control::eZCom_AddressUDP, 19001, "localhost");
+	addr.setAddress(ZCom_Control::eZCom_AddressUDP, 0, "localhost:19001");
 	BOOST_CHECK(addr.getPort() == 19001);
 }
 

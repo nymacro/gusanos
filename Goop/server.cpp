@@ -108,6 +108,11 @@ player->assignNetworkRole(true);
 			}
 			playerNodeID = player->getNodeID();
 			
+			// Announce worm node to the client
+			if (netWorm) {
+				network.getZControl()->sendNodeAnnouncement(_id, netWorm->getZNode(), eZCom_RoleProxy);
+			}
+			
 			// Build announce data for the player node: name, colour, team, wormNodeID
 			ZCom_BitStream announce;
 			announce.addString(name.c_str());

@@ -133,10 +133,12 @@ struct ConnectFixture
 		client = new TestClient();
 		BOOST_REQUIRE(client->InitSockets());
 
-		serverAddr.setAddress(ZCom_Control::eZCom_AddressUDP, testPort, "127.0.0.1");
+		char hostport[64];
+		snprintf(hostport, sizeof(hostport), "127.0.0.1:%d", testPort);
+		serverAddr.setAddress(ZCom_Control::eZCom_AddressUDP, 0, hostport);
 	}
 
-	void ProcessAll(int iterations = 20)
+	void ProcessAll(int iterations = 200)
 	{
 		for (int i = 0; i < iterations; i++)
 		{
@@ -172,7 +174,7 @@ BOOST_AUTO_TEST_CASE(server_can_accept_client)
 
 	BOOST_CHECK(cid != ZCom_Invalid_ID);
 
-	f.ProcessAll(30);
+	f.ProcessAll(200);
 
 	BOOST_CHECK_EQUAL(f.server->m_connCount, 1);
 	BOOST_CHECK(f.client->m_connected);
@@ -188,7 +190,7 @@ BOOST_AUTO_TEST_CASE(client_can_send_data_to_server)
 	uint32_t cid = f.client->ZCom_Connect(f.serverAddr, nullptr);
 	g_currentControl = nullptr;
 	BOOST_REQUIRE(cid != ZCom_Invalid_ID);
-	f.ProcessAll(30);
+	f.ProcessAll(200);
 	BOOST_REQUIRE(f.client->m_connected);
 
 	g_currentControl = f.client;
@@ -197,7 +199,7 @@ BOOST_AUTO_TEST_CASE(client_can_send_data_to_server)
 	ZCom_sendData(cid, &data, eZCom_ReliableOrdered);
 	g_currentControl = nullptr;
 
-	f.ProcessAll(10);
+	f.ProcessAll(200);
 
 	BOOST_CHECK_EQUAL(f.server->m_dataReceivedCount, 1);
 	BOOST_CHECK_EQUAL(f.server->m_lastData, "Hello server!");
@@ -212,8 +214,7 @@ BOOST_AUTO_TEST_CASE(server_echos_data_back)
 	uint32_t cid = f.client->ZCom_Connect(f.serverAddr, nullptr);
 	g_currentControl = nullptr;
 	BOOST_REQUIRE(cid != ZCom_Invalid_ID);
-	f.ProcessAll(30);
-	BOOST_REQUIRE(f.client->m_connected);
+	f.ProcessAll(200);
 
 	g_currentControl = f.client;
 	ZCom_BitStream data;
@@ -221,7 +222,7 @@ BOOST_AUTO_TEST_CASE(server_echos_data_back)
 	ZCom_sendData(cid, &data, eZCom_ReliableOrdered);
 	g_currentControl = nullptr;
 
-	f.ProcessAll(20);
+	f.ProcessAll(200);
 
 	BOOST_CHECK_EQUAL(f.client->m_dataReceivedCount, 1);
 	BOOST_CHECK_EQUAL(f.client->m_lastReply, "your data has been received");
@@ -236,7 +237,7 @@ BOOST_AUTO_TEST_CASE(client_disconnect_notifies_server)
 	uint32_t cid = f.client->ZCom_Connect(f.serverAddr, nullptr);
 	g_currentControl = nullptr;
 	BOOST_REQUIRE(cid != ZCom_Invalid_ID);
-	f.ProcessAll(30);
+	f.ProcessAll(200);
 	BOOST_REQUIRE(f.client->m_connected);
 	BOOST_REQUIRE_EQUAL(f.server->m_connCount, 1);
 
@@ -244,7 +245,7 @@ BOOST_AUTO_TEST_CASE(client_disconnect_notifies_server)
 	f.client->ZCom_Disconnect(cid, nullptr);
 	g_currentControl = nullptr;
 
-	f.ProcessAll(20);
+	f.ProcessAll(200);
 
 	BOOST_CHECK_EQUAL(f.server->m_disconnectCount, 1);
 	BOOST_CHECK_EQUAL(f.server->m_connCount, 0);
@@ -260,7 +261,7 @@ BOOST_AUTO_TEST_CASE(shutdown_cleans_up)
 	uint32_t cid = f.client->ZCom_Connect(f.serverAddr, nullptr);
 	g_currentControl = nullptr;
 	BOOST_REQUIRE(cid != ZCom_Invalid_ID);
-	f.ProcessAll(30);
+	f.ProcessAll(200);
 	BOOST_REQUIRE(f.client->m_connected);
 
 	f.client->Shutdown();

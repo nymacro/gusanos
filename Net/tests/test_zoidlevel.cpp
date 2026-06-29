@@ -4,6 +4,7 @@
 
 #include <boost/test/unit_test.hpp>
 #include <cstring>
+#include <cstdio>
 
 #include "net_control.h"
 
@@ -67,7 +68,9 @@ public:
 	uint32_t ConnectTo(const char* host, int port)
 	{
 		ZCom_Address addr;
-		addr.setAddress(ZCom_Control::eZCom_AddressUDP, port, host);
+		char hostport[64];
+		snprintf(hostport, sizeof(hostport), "%s:%d", host, port);
+		addr.setAddress(ZCom_Control::eZCom_AddressUDP, 0, hostport);
 		return ZCom_Connect(addr, nullptr);
 	}
 

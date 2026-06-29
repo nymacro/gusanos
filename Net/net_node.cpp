@@ -1,15 +1,23 @@
 #include "net_node.h"
 #include "net_bitstream.h"
 #include "net_control.h"
+#include <thread>
+#include <chrono>
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
+
+void ZoidCom::Sleep(int ms)
+{
+	std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+}
 
 ZCom_Node::ZCom_Node()
 	: m_nodeID(0), m_classID(0), m_ownerID(0)
 	, m_role(0), m_eventNotification(false)
 	, m_authority(false), m_control(nullptr)
-	, m_announceData(nullptr)
+	, m_announceData(nullptr), m_userData(nullptr)
+	, m_eventInterceptor(nullptr)
 {
 }
 
@@ -70,6 +78,19 @@ void ZCom_Node::addReplicationFloat(float* val, int bits, uint32_t flags, uint32
 	m_autoReplications.push_back(entry);
 }
 
+void ZCom_Node::addReplicationBool(bool* val, uint32_t flags, uint32_t rule)
+{
+	ReplicationEntry entry;
+	entry.type = ReplicationEntry::TypeInt; // reuse int type for bool (1 bit)
+	entry.ptr = val;
+	entry.bits = 1;
+	entry.sign = false;
+	entry.flags = flags;
+	entry.rule = rule;
+	entry.oldInt = val ? (*val ? 1 : 0) : 0;
+	m_autoReplications.push_back(entry);
+}
+
 void ZCom_Node::setInterceptID(int id)
 {
 	(void)id;
@@ -95,6 +116,8 @@ bool ZCom_Node::registerNodeDynamic(uint32_t classID, void* control)
 {
 	m_classID = classID;
 	m_control = static_cast<ZCom_Control*>(control);
+	if (m_control && m_nodeID > 0)
+		return m_control->registerExistingNode(this);
 	return m_control ? m_control->registerNode(this) : false;
 }
 
@@ -106,11 +129,20 @@ bool ZCom_Node::registerNodeUnique(uint32_t classID, int role, void* control)
 	return m_control ? m_control->registerNode(this) : false;
 }
 
+void ZCom_Node::unregisterNode()
+{
+	if (m_control) {
+		m_control->removeNode(this);
+		m_control = nullptr;
+	}
+}
+
 bool ZCom_Node::registerRequestedNode(uint32_t classID, void* control)
 {
 	m_classID = classID;
 	m_control = static_cast<ZCom_Control*>(control);
-	return m_control ? m_control->registerNode(this) : false;
+	// Requested nodes already have a server-assigned ID — don't auto-assign
+	return m_control ? m_control->registerExistingNode(this) : false;
 }
 
 void ZCom_Node::applyForZoidLevel(int level)
@@ -148,18 +180,18 @@ void ZCom_Node::sendEvent(int mode, uint32_t rules, ZCom_BitStream* stream)
 			return; // Only owner can send OWNER_2_AUTH rules
 
 	ZCom_BitStream pkt;
-	pkt.addInt(0, 8); // 0 = node event
+	pkt.addInt(MSG_NODE_EVENT, 8);
 	pkt.addInt(m_nodeID, 16);
 	pkt.addBitStream(stream);
 
-	m_control->sendToAll(static_cast<eZCom_SendMode>(mode), &pkt);
+	m_control->sendToAll(static_cast<int>(mode), &pkt);
 }
 
 void ZCom_Node::sendEventDirect(int mode, ZCom_BitStream* stream, uint32_t id)
 {
 	if (!m_control || !stream) return;
 	ZCom_BitStream pkt;
-	pkt.addInt(0, 8); // 0 = node event
+	pkt.addInt(MSG_NODE_EVENT, 8);
 	pkt.addInt(m_nodeID, 16);
 	pkt.addBitStream(stream);
 	m_control->ZCom_sendData(id, &pkt, mode);
@@ -197,7 +229,7 @@ void ZCom_Node::packAllReplicators(ZCom_BitStream* stream)
 		bool changed = false;
 		if (entry.type == ReplicationEntry::TypeInt && entry.ptr) {
 			int32_t val = *static_cast<int32_t*>(entry.ptr);
-			if (val != entry.oldInt) {
+			if (val != static_cast<int32_t>(entry.oldInt)) {
 				changed = true;
 				entry.oldInt = val;
 			}
@@ -208,16 +240,15 @@ void ZCom_Node::packAllReplicators(ZCom_BitStream* stream)
 				entry.oldFloat = val;
 			}
 		}
-		stream->addBool(changed);
 		if (changed) {
+			stream->addInt(1, 1);
 			if (entry.type == ReplicationEntry::TypeInt) {
-				if (entry.sign)
-					stream->addSignedInt(*static_cast<int32_t*>(entry.ptr), entry.bits);
-				else
-					stream->addInt(*static_cast<int32_t*>(entry.ptr), entry.bits);
-			} else if (entry.type == ReplicationEntry::TypeFloat) {
+				stream->addInt(*static_cast<int32_t*>(entry.ptr), entry.bits);
+			} else {
 				stream->addFloat(*static_cast<float*>(entry.ptr), entry.bits);
 			}
+		} else {
+			stream->addInt(0, 1);
 		}
 	}
 }
@@ -225,21 +256,24 @@ void ZCom_Node::packAllReplicators(ZCom_BitStream* stream)
 void ZCom_Node::unpackAllReplicators(ZCom_BitStream* stream, bool store, uint32_t estimatedTimeSent)
 {
 	for (auto* rep : m_replicators) {
-		bool hasUpdate = stream->getBool();
+		bool hasUpdate = stream->getInt(1) != 0;
 		if (hasUpdate) {
 			rep->unpackData(stream, store, estimatedTimeSent);
 		}
 	}
 	for (auto& entry : m_autoReplications) {
-		bool changed = stream->getBool();
-		if (changed && entry.ptr) {
+		bool hasUpdate = stream->getInt(1) != 0;
+		if (hasUpdate && store && entry.ptr) {
 			if (entry.type == ReplicationEntry::TypeInt) {
-				if (entry.sign)
-					*static_cast<int32_t*>(entry.ptr) = stream->getSignedInt(entry.bits);
-				else
-					*static_cast<int32_t*>(entry.ptr) = stream->getInt(entry.bits);
-			} else if (entry.type == ReplicationEntry::TypeFloat) {
+				*static_cast<int32_t*>(entry.ptr) = static_cast<int32_t>(stream->getInt(entry.bits));
+			} else {
 				*static_cast<float*>(entry.ptr) = stream->getFloat(entry.bits);
+			}
+		} else if (hasUpdate) {
+			if (entry.type == ReplicationEntry::TypeInt) {
+				stream->getInt(entry.bits);
+			} else {
+				stream->getFloat(entry.bits);
 			}
 		}
 	}

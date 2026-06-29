@@ -50,6 +50,7 @@ public:
 
 	// Class registration
 	uint32_t ZCom_registerClass(const char* name, uint32_t flags);
+	uint32_t ZCom_getClassID(const char* name) const;
 
 	// Main loop
 	void ZCom_processOutput();
@@ -72,6 +73,7 @@ public:
 
 	// Node management
 	bool registerNode(ZCom_Node* node);
+	bool registerExistingNode(ZCom_Node* node); // register without reassigning node ID
 	void removeNode(ZCom_Node* node);
 	void sendNodeAnnouncement(uint32_t connID, ZCom_Node* node, int role);
 	void syncNodesToPeer(ENetPeer* peer);
@@ -106,6 +108,9 @@ public:
 	void setLogFunction(void (*logFn)(const char*)) { m_logFn = logFn; }
 	void (*m_logFn)(const char*);
 
+	// Group manager
+	ZCom_ConnGroupManager& ZCom_getGroupManager() { return m_groupManager; }
+
 protected:
 	ENetHost* m_host;
 	uint32_t m_nextConnID;
@@ -118,6 +123,8 @@ protected:
 	ZCom_BitStream m_disconnectData;
 	std::map<uint32_t, ZCom_BitStream> m_pendingDisconnectData; ///< Pre-disconnect reason data per connID
 	std::set<uint32_t> m_waitingForReply; ///< Client connIDs waiting for connection reply
+
+	ZCom_ConnGroupManager m_groupManager;
 
 	void processENetEvent(ENetEvent& event);
 	void dispatchNodeEvent(uint32_t nodeID, int type, int role, uint32_t connID, ZCom_BitStream* data);

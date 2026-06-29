@@ -66,6 +66,7 @@ public:
 	
 	ZCom_NodeID getNodeID();
 	void setNodeID(uint32_t id) { if (m_node) m_node->setNetworkID(id); }
+	ZCom_Node* getZNode() { return m_node; }
 	
 	void respawn();
 	void dig();

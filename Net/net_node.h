@@ -6,6 +6,7 @@
 #include "net_types.h"
 #include <vector>
 #include <list>
+#include <map>
 #include <string>
 #include <cstdint>
 #include <cassert>
@@ -13,7 +14,94 @@
 
 // Forward declarations
 class ZCom_Control;
+class ZCom_NodeEventInterceptor;
 
+// ---- ConnGroupManager ----
+class ZCom_ConnGroupManager {
+public:
+	ZCom_ConnGroupManager() : m_nextGroupID(1) {
+		m_groups[0xFFFFFFFF] = std::vector<uint32_t>();
+	}
+
+	uint32_t createGroup(int maxSize) {
+		(void)maxSize;
+		uint32_t id = m_nextGroupID++;
+		m_groups[id] = std::vector<uint32_t>();
+		return id;
+	}
+
+	bool destroyGroup(uint32_t gid) {
+		if (gid == 0xFFFFFFFF) return false;
+		return m_groups.erase(gid) > 0;
+	}
+
+	bool checkGroupExists(uint32_t gid) {
+		return m_groups.find(gid) != m_groups.end();
+	}
+
+	bool addConnection(uint32_t gid, uint32_t connID) {
+		auto it = m_groups.find(gid);
+		if (it == m_groups.end()) return false;
+		it->second.push_back(connID);
+		return true;
+	}
+
+	bool removeConnection(uint32_t gid, uint32_t connID) {
+		auto it = m_groups.find(gid);
+		if (it == m_groups.end()) return false;
+		auto& vec = it->second;
+		for (auto vi = vec.begin(); vi != vec.end(); ++vi) {
+			if (*vi == connID) {
+				vec.erase(vi);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	uint32_t getGroupSize(uint32_t gid) {
+		auto it = m_groups.find(gid);
+		if (it == m_groups.end()) return 0;
+		return static_cast<uint32_t>(it->second.size());
+	}
+
+	uint32_t getFirstConnection(uint32_t gid, uint32_t& iterator) {
+		auto it = m_groups.find(gid);
+		if (it == m_groups.end() || it->second.empty()) {
+			iterator = 0;
+			return 0;
+		}
+		iterator = 1;
+		return it->second[0];
+	}
+
+	uint32_t getNextConnection(uint32_t gid, uint32_t& iterator) {
+		auto it = m_groups.find(gid);
+		if (it == m_groups.end() || iterator >= it->second.size()) {
+			iterator = 0;
+			return 0;
+		}
+		uint32_t result = it->second[iterator];
+		iterator++;
+		return result;
+	}
+
+private:
+	uint32_t m_nextGroupID;
+	std::map<uint32_t, std::vector<uint32_t>> m_groups;
+};
+
+// ---- ZoidCom global class ----
+class ZoidCom {
+public:
+	ZoidCom(void (*logfunc)(const char*)) : m_logFunc(logfunc) {}
+	bool Init() { return true; }
+
+	static void Sleep(int ms);
+
+private:
+	void (*m_logFunc)(const char*);
+};
 
 // Auto replication entry
 struct ReplicationEntry {
@@ -49,12 +137,15 @@ public:
 	void addReplicator(ZCom_Replicator* replicator, bool flag);
 	void addReplicationInt(int32_t* val, int bits, bool sign, uint32_t flags, uint32_t rule, uint32_t id = 0);
 	void addReplicationFloat(float* val, int bits, uint32_t flags, uint32_t rule);
+	void addReplicationBool(bool* val, uint32_t flags, uint32_t rule);
 	void setInterceptID(int id);
 	void setReplicationInterceptor(void* interceptor);
 	void setEventNotification(bool init, bool remove);
 	void setAnnounceData(ZCom_BitStream* data);
+	void setEventInterceptor(ZCom_NodeEventInterceptor* interceptor) { m_eventInterceptor = interceptor; }
 	bool registerNodeDynamic(uint32_t classID, void* control);
 	bool registerNodeUnique(uint32_t classID, int role, void* control);
+	void unregisterNode();
 	bool registerRequestedNode(uint32_t classID, void* control);
 	void applyForZoidLevel(int level);
 	void setOwner(uint32_t id, bool auth);
@@ -66,9 +157,12 @@ public:
 	ZCom_BitStream* getNextEvent(eZCom_Event* type, eZCom_NodeRole* role, uint32_t* id);
 	int getRole() { return m_role; }
 
+	void setUserData(void* data) { m_userData = data; }
+	void* getUserData() { return m_userData; }
+
 	void removeFromZoidLevel(int) {}
 
-	// File transfer stubs (to be implemented with ENet later)
+	// File transfer stubs
 	uint32_t sendFile(const char* filename, int something, uint32_t connID, int flags, float ratio) { return 0; }
 	void acceptFile(uint32_t& connID, uint32_t& fid, int flags, bool writable) {}
 	ZCom_FileTransInfo getFileInfo(uint32_t connID, uint32_t fid) { return ZCom_FileTransInfo{}; }
@@ -98,6 +192,8 @@ private:
 	bool m_authority;
 	ZCom_Control* m_control;
 	ZCom_BitStream* m_announceData;
+	void* m_userData;
+	ZCom_NodeEventInterceptor* m_eventInterceptor;
 	
 	std::vector<ZCom_Replicator*> m_replicators;
 	std::vector<ReplicationEntry> m_autoReplications;

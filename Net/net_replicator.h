@@ -1,25 +1,205 @@
 #ifndef NET_REPLICATOR_H
 #define NET_REPLICATOR_H
 
+#include "net_types.h"
 #include <cstdint>
+#include <cstring>
+#include <string>
 
 // Forward declarations
 class ZCom_BitStream;
 class ZCom_Node;
 
+// ---- ZCom_TypeHelper ----
+template <typename T> struct ZCom_TypeHelper
+{
+	typedef T  value_type;
+	typedef T* pointer;
+};
+template <typename T> struct ZCom_TypeHelper<T*>
+{
+	typedef T  value_type;
+	typedef T* pointer;
+};
+
+// ---- ZCom_ReplicatorValue (value type) ----
+template <typename T, int SIZE>
+class ZCom_ReplicatorValue {
+	T     m_data[SIZE];
+	bool  m_changed;
+public:
+	ZCom_ReplicatorValue() : m_changed(true) {
+		for (int i = 0; i < SIZE; ++i) m_data[i] = T();
+	}
+	bool hasChanged() { bool c = m_changed; m_changed = false; return c; }
+	bool getChanged() const { return m_changed; }
+	void setChanged() { m_changed = true; }
+	T*   getData() { return m_data; }
+	void setData(T* _data) {
+		for (int i = 0; i < SIZE; ++i) m_data[i] = _data[i];
+		m_changed = true;
+	}
+	void setData(T _data, uint32_t _idx) {
+		if (_idx < static_cast<uint32_t>(SIZE)) {
+			m_data[_idx] = _data;
+			m_changed = true;
+		}
+	}
+	void updateData(T* _data) {
+		for (int i = 0; i < SIZE; ++i) m_data[i] = _data[i];
+	}
+};
+
+// ---- ZCom_ReplicatorValue (pointer type) ----
+template <typename T, int SIZE>
+class ZCom_ReplicatorValue<T*, SIZE> {
+	T*    m_data;
+	T     m_cmp[SIZE];
+public:
+	ZCom_ReplicatorValue() : m_data(nullptr) {
+		for (int i = 0; i < SIZE; ++i) m_cmp[i] = T();
+	}
+	ZCom_ReplicatorValue(T* _data) : m_data(_data) {}
+	bool hasChanged() {
+		if (!m_data) return false;
+		for (int i = 0; i < SIZE; ++i) {
+			if (m_data[i] != m_cmp[i]) {
+				for (int j = 0; j < SIZE; ++j) m_cmp[j] = m_data[j];
+				return true;
+			}
+		}
+		return false;
+	}
+	bool getChanged() const { return true; }
+	void setChanged() {
+		if (m_data) for (int i = 0; i < SIZE; ++i) m_cmp[i] = m_data[i];
+	}
+	T*   getData() { return m_data; }
+	void setData(T* _data) { m_data = _data; }
+	void setData(T _data, uint32_t _idx) {
+		if (m_data && _idx < static_cast<uint32_t>(SIZE)) {
+			m_data[_idx] = _data;
+		}
+	}
+	void updateData(T* _data) {
+		if (m_data) {
+			for (int i = 0; i < SIZE; ++i) m_data[i] = _data[i];
+		}
+	}
+};
+
 // ---- Replicator Setup ----
 class ZCom_ReplicatorSetup {
 public:
-	ZCom_ReplicatorSetup() : m_interceptID(0), m_repFlags(0), m_repRules(0) {}
-	ZCom_ReplicatorSetup(uint32_t repFlags, uint32_t repRules, int interceptID = -1, int something = -1, int timeout = 0)
-		: m_interceptID(interceptID), m_repFlags(repFlags), m_repRules(repRules) {}
+	ZCom_ReplicatorSetup() : m_interceptID(-1), m_repFlags(0), m_repRules(0), m_minDelay(0), m_maxDelay(0) {}
+	ZCom_ReplicatorSetup(uint32_t repFlags, uint32_t repRules, int interceptID = -1, int minDelay = 0, int maxDelay = 0)
+		: m_interceptID(interceptID), m_repFlags(repFlags), m_repRules(repRules), m_minDelay(minDelay), m_maxDelay(maxDelay) {}
+
+	virtual ~ZCom_ReplicatorSetup() {}
+
+	virtual ZCom_ReplicatorSetup* Duplicate() {
+		if (m_repFlags & ZCOM_REPFLAG_SETUPPERSISTS)
+			return this;
+		return new ZCom_ReplicatorSetup(m_repFlags, m_repRules, m_interceptID, m_minDelay, m_maxDelay);
+	}
 
 	int getInterceptID() { return m_interceptID; }
 	void setInterceptID(int id) { m_interceptID = id; }
 
+	int getMinDelay() { return m_minDelay; }
+	void setMinDelay(int d) { m_minDelay = d; }
+
+	int getMaxDelay() { return m_maxDelay; }
+	void setMaxDelay(int d) { m_maxDelay = d; }
+
+	uint32_t getFlags() { return m_repFlags; }
+	uint32_t getRules() { return m_repRules; }
+
 	int m_interceptID;
 	uint32_t m_repFlags;
 	uint32_t m_repRules;
+	int m_minDelay;
+	int m_maxDelay;
+};
+
+// ---- Numeric setup ----
+class ZCom_RSetupNumeric : public ZCom_ReplicatorSetup {
+public:
+	ZCom_RSetupNumeric() : m_relevantBits(8) {}
+	ZCom_RSetupNumeric(int relBits, uint32_t repFlags, uint32_t repRules, int interceptID = -1, int minDelay = 0, int maxDelay = 0)
+		: ZCom_ReplicatorSetup(repFlags, repRules, interceptID, minDelay, maxDelay), m_relevantBits(relBits) {}
+
+	int getRelevantBits() { return m_relevantBits; }
+	void setRelevantBits(int b) { m_relevantBits = b; }
+
+	ZCom_ReplicatorSetup* Duplicate() override {
+		return new ZCom_RSetupNumeric(m_relevantBits, m_repFlags, m_repRules, m_interceptID, m_minDelay, m_maxDelay);
+	}
+
+	int m_relevantBits;
+};
+
+// ---- String setup ----
+class ZCom_RSetupString : public ZCom_ReplicatorSetup {
+public:
+	ZCom_RSetupString() : maxlen(256) {}
+	ZCom_RSetupString(int maxLen, uint32_t repFlags, uint32_t repRules)
+		: ZCom_ReplicatorSetup(repFlags, repRules), maxlen(maxLen) {}
+
+	int maxlen;
+
+	ZCom_ReplicatorSetup* Duplicate() override {
+		return new ZCom_RSetupString(maxlen, m_repFlags, m_repRules);
+	}
+};
+
+// ---- Movement setup (template) ----
+template<typename T>
+class ZCom_RSetupMovement : public ZCom_ReplicatorSetup {
+public:
+	ZCom_RSetupMovement() : m_inputsizeBits(8), m_interpolationTime(100), m_constantErrorThreshold(0) {}
+	ZCom_RSetupMovement(int relBits, uint32_t repFlags, uint32_t repRules)
+		: ZCom_ReplicatorSetup(repFlags, repRules), m_relevantBits(relBits)
+		, m_inputsizeBits(8), m_interpolationTime(100), m_constantErrorThreshold(0) {}
+
+	ZCom_ReplicatorSetup* Duplicate() override {
+		return new ZCom_RSetupMovement(m_relevantBits, m_repFlags, m_repRules);
+	}
+
+	int getRelevantBits() { return m_relevantBits; }
+	int getInputsizeBits() { return m_inputsizeBits; }
+	void setInputsizeBits(int b) { m_inputsizeBits = b; }
+	int getInterpolationTime() { return m_interpolationTime; }
+	void setInterpolationTime(int t) { m_interpolationTime = t; }
+	float getConstantErrorThreshold() { return m_constantErrorThreshold; }
+	void setConstantErrorThreshold(float t) { m_constantErrorThreshold = t; }
+	uint32_t getExtendedFlags() { return 0; }
+
+	int m_relevantBits;
+	int m_inputsizeBits;
+	int m_interpolationTime;
+	float m_constantErrorThreshold;
+};
+
+// ---- Interpolate setup (template) ----
+template<typename T>
+class ZCom_RSetupInterpolate : public ZCom_ReplicatorSetup {
+public:
+	ZCom_RSetupInterpolate() : m_relevantBits(16), ipol_treshold(0), ipol_factor(0.5f) {}
+	ZCom_RSetupInterpolate(int relBits, uint32_t repFlags, uint32_t repRules,
+	                        int threshold = 0, int unused = 0, int unused2 = -1, int unused3 = -1, float factor = 0.5f)
+		: ZCom_ReplicatorSetup(repFlags, repRules), m_relevantBits(relBits)
+		, ipol_treshold(threshold), ipol_factor(factor) {}
+
+	ZCom_ReplicatorSetup* Duplicate() override {
+		return new ZCom_RSetupInterpolate(m_relevantBits, m_repFlags, m_repRules, ipol_treshold, 0, -1, -1, ipol_factor);
+	}
+
+	int getRelevantBits() { return m_relevantBits; }
+
+	int m_relevantBits;
+	int ipol_treshold;
+	float ipol_factor;
 };
 
 // ---- Base Replicator ----
@@ -56,11 +236,152 @@ public:
 	uint32_t m_flags;
 };
 
+// ---- Bool replicator (value type) ----
+class ZCom_Replicate_Bool : public ZCom_Replicator {
+public:
+	ZCom_Replicate_Bool(bool initial, uint32_t flags, uint32_t rules)
+		: m_value(initial), m_oldValue(initial) {
+		m_setup = ZCom_ReplicatorSetup(flags, rules);
+	}
+
+	bool getValue() { return m_value; }
+	void setValue(bool val) { m_value = val; }
+
+	bool checkState() override {
+		return m_value != m_oldValue;
+	}
+
+	void packData(ZCom_BitStream* stream) override;
+	void unpackData(ZCom_BitStream* stream, bool store, uint32_t estimatedTimeSent) override;
+
+private:
+	bool m_value;
+	bool m_oldValue;
+};
+
+// ---- Bool replicator (pointer type) ----
+class ZCom_Replicate_Boolp : public ZCom_Replicator {
+public:
+	ZCom_Replicate_Boolp(bool* ptr, uint32_t flags, uint32_t rules)
+		: m_ptr(ptr), m_oldValue(ptr ? *ptr : false) {
+		m_setup = ZCom_ReplicatorSetup(flags, rules);
+	}
+
+	bool checkState() override;
+	void packData(ZCom_BitStream* stream) override;
+	void unpackData(ZCom_BitStream* stream, bool store, uint32_t estimatedTimeSent) override;
+
+private:
+	bool* m_ptr;
+	bool m_oldValue;
+};
+
+// ---- Advanced replicator base ----
+class ZCom_ReplicatorAdvanced : public ZCom_Replicator {
+public:
+	virtual ~ZCom_ReplicatorAdvanced() {}
+};
+
+// ---- Interpolating replicator (template) ----
+template<typename T, int N>
+class ZCom_Interpolate : public ZCom_Replicator {
+public:
+	ZCom_Interpolate(T* val, int bits, uint32_t flags, uint32_t rules, int threshold = 0)
+		: m_val(val), m_size(N), m_threshold(threshold) {
+		m_setup = ZCom_ReplicatorSetup(flags, rules);
+	}
+
+	int getSize() { return m_size; }
+
+	void setRecVal(int idx, T val) {
+		if (idx >= 0 && idx < N) m_recv[idx] = val;
+	}
+	T getRecVal(int idx) {
+		if (idx >= 0 && idx < N) return m_recv[idx];
+		return T();
+	}
+
+	void Process(int localRole, uint32_t simulationTimePassed) override {
+		(void)localRole;
+		(void)simulationTimePassed;
+		// Interpolation processing would happen here
+	}
+
+private:
+	T* m_val;
+	T m_recv[N];
+	int m_size;
+	int m_threshold;
+};
+
+// ---- Movement replicator (template) ----
+template<typename T, int N>
+class ZCom_MoveUpdateListener;
+
+template<typename T, int N>
+class ZCom_Replicate_Movement : public ZCom_Replicator {
+public:
+	ZCom_Replicate_Movement(ZCom_RSetupMovement<T>* setup)
+		: m_timeScale(0.05f), m_listener(nullptr) {
+		if (setup) m_setup = *setup;
+	}
+
+	ZCom_Replicate_Movement(int bits, uint32_t flags, uint32_t rules)
+		: m_timeScale(0.05f), m_listener(nullptr) {
+		m_setup = ZCom_ReplicatorSetup(flags, rules);
+	}
+
+	void setTimeScale(float scale) { m_timeScale = scale; }
+	void setUpdateListener(ZCom_MoveUpdateListener<T, N>* listener) { m_listener = listener; }
+
+private:
+	float m_timeScale;
+	void* m_listener;
+};
+
+// ---- Movement update listener base (template) ----
+template<typename T, int N>
+class ZCom_MoveUpdateListener {
+public:
+	virtual ~ZCom_MoveUpdateListener() {}
+	virtual void inputUpdated(ZCom_BitStream& _inputstream, bool _inputchanged,
+	                           uint32_t _client_time, uint32_t _estimated_time_sent) {}
+	virtual void inputSent(ZCom_BitStream& _inputstream) {}
+	virtual void correctionReceived(T* _pos, T* _vel, T* _acc,
+	                                 bool _teleport, uint32_t _estimated_time_sent) {}
+	virtual void updateReceived(ZCom_BitStream& _inputstream, T* _pos,
+	                             T* _vel, T* _acc, uint32_t _estimated_time_sent) {}
+};
+
 // ---- Node Replication Interceptor (callback base) ----
 class ZCom_NodeReplicationInterceptor {
 public:
 	virtual ~ZCom_NodeReplicationInterceptor() {}
 	virtual void ZCom_cbNodeReplicationIntercept(ZCom_BitStream* stream, ZCom_Node* node, int mode, int event, int role, uint32_t connID) {}
+
+	// ZoidCom ref_tests API
+	virtual void outPreReplicateNode(ZCom_Node* node, uint32_t to, int remote_role) {}
+	virtual void outPreDereplicateNode(ZCom_Node* node, uint32_t to, int remote_role) {}
+	virtual bool outPreUpdate(ZCom_Node* node, uint32_t to, int remote_role) { return true; }
+	virtual bool outPreUpdateItem(ZCom_Node* node, uint32_t to, int remote_role, ZCom_Replicator* replicator) { return true; }
+	virtual void outPostUpdate(ZCom_Node* node, uint32_t to, int remote_role, uint32_t rep_bits, uint32_t event_bits, uint32_t meta_bits) {}
+	virtual bool inPreUpdate(ZCom_Node* node, uint32_t from, int remote_role) { return true; }
+	virtual bool inPreUpdateItem(ZCom_Node* node, uint32_t from, int remote_role, ZCom_Replicator* replicator, uint32_t estimated_time_sent) { return true; }
+	virtual void inPostUpdate(ZCom_Node* node, uint32_t from, int remote_role, uint32_t rep_bits, uint32_t event_bits, uint32_t meta_bits) {}
+};
+
+// ---- Node Event Interceptor ----
+class ZCom_NodeEventInterceptor {
+public:
+	virtual ~ZCom_NodeEventInterceptor() {}
+	virtual bool recUserEvent(ZCom_Node* node, uint32_t from, int remoterole, ZCom_BitStream& data, uint32_t estimated_time_sent) { return true; }
+	virtual bool recInit(ZCom_Node* node, uint32_t from, int remoterole) { return true; }
+	virtual bool recSyncRequest(ZCom_Node* node, uint32_t from, int remoterole) { return true; }
+	virtual bool recRemoved(ZCom_Node* node, uint32_t from, int remoterole) { return true; }
+	virtual bool recFileIncoming(ZCom_Node* node, uint32_t from, int remoterole, uint32_t fid, ZCom_BitStream& request) { return true; }
+	virtual bool recFileData(ZCom_Node* node, uint32_t from, int remoterole, uint32_t fid) { return true; }
+	virtual bool recFileAborted(ZCom_Node* node, uint32_t from, int remoterole, uint32_t fid) { return true; }
+	virtual bool recFileComplete(ZCom_Node* node, uint32_t from, int remoterole, uint32_t fid) { return true; }
 };
 
 // ---- File transfer info struct ----

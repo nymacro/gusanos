@@ -37,13 +37,26 @@ uint32_t ZCom_Control::ZCom_registerClass(const char* name, uint32_t flags)
 	return static_cast<uint32_t>(m_classes.size());
 }
 
+uint32_t ZCom_Control::ZCom_getClassID(const char* name) const
+{
+	if (!name) return 0;
+	for (size_t i = 0; i < m_classes.size(); ++i) {
+		if (m_classes[i].name == name)
+			return static_cast<uint32_t>(i + 1);
+	}
+	return 0;
+}
+
 void ZCom_Control::ZCom_processOutput()
 {
 	if (!m_host) return;
 	g_currentControl = this;
 
-	// Broadcast replicator state for all nodes
+	// Broadcast replicator state for all authority-owned nodes only
 	for (auto* node : m_nodes) {
+		// Only authority nodes broadcast — proxies receive
+		if (node->getRole() != eZCom_RoleAuthority) continue;
+
 		ZCom_BitStream repPacked;
 		node->packAllReplicators(&repPacked);
 
@@ -231,6 +244,14 @@ void ZCom_Control::sendToAll(eZCom_SendMode mode, ZCom_BitStream* stream)
 	enet_host_broadcast(m_host, 0, packet);
 }
 
+bool ZCom_Control::registerExistingNode(ZCom_Node* node)
+{
+	if (!node) return false;
+	node->setControl(this);
+	m_nodes.push_back(node);
+	return true;
+}
+
 bool ZCom_Control::registerNode(ZCom_Node* node)
 {
 	if (!node) return false;
@@ -250,7 +271,6 @@ void ZCom_Control::sendNodeAnnouncement(uint32_t connID, ZCom_Node* node, int ro
 	pkt.addInt(node->getNetworkID(), 16);
 	pkt.addInt(role, 8);
 	
-	// Attach announce data if present
 	ZCom_BitStream* ad = node->getAnnounceData();
 	if (ad && ad->getDataLength() > 0) {
 		pkt.addInt(static_cast<int>(ad->getDataLength()), 16);
@@ -360,8 +380,8 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 				for (auto* node : m_nodes) {
 					ZCom_BitStream pkt;
 					pkt.addInt(MSG_NODE_ANNOUNCE, 8);
-					pkt.addInt(node->getNetworkID(), 16);
 					pkt.addInt(node->getClassID(), 8);
+					pkt.addInt(node->getNetworkID(), 16);
 					pkt.addInt(node->getRole(), 8);
 					
 					ZCom_BitStream* ad = node->getAnnounceData();
