@@ -219,13 +219,14 @@ double ZCom_BitStream::getDouble(int bits)
 void ZCom_BitStream::addString(const char* str)
 {
 	if (!str) {
-		addInt(0, 16); // empty string
+		addInt(0, 16); // empty string (no terminator written for empty)
 		return;
 	}
 	size_t len = strlen(str);
-	addInt(static_cast<int>(len), 16); // length prefix
+	addInt(static_cast<int>(len + 1), 16); // length includes null terminator (per spec §6.7)
 	for (size_t i = 0; i < len; ++i)
 		addInt(static_cast<unsigned char>(str[i]), 8);
+	addInt(0, 8); // null terminator
 }
 
 const char* ZCom_BitStream::getStringStatic()
@@ -295,9 +296,10 @@ void ZCom_BitStream::addStringW(const wchar_t* str)
 		return;
 	}
 	size_t len = wcslen(str);
-	addInt(static_cast<int>(len), 16);
+	addInt(static_cast<int>(len + 1), 16); // length includes null terminator
 	for (size_t i = 0; i < len; ++i)
 		addInt(static_cast<int>(str[i]), 16);
+	addInt(0, 16); // null terminator
 }
 
 uint16_t ZCom_BitStream::getStringWLength()
@@ -456,6 +458,10 @@ void ZCom_BitStream::restoreWriteState(const BitPos& pos)
 {
 	m_fillPos = pos;
 	m_writeBit = static_cast<size_t>(pos.pos) * 8 + pos.bit;
+	// Truncate data beyond the restored position
+	size_t neededBytes = (m_writeBit + 7) / 8;
+	if (m_data.size() > neededBytes)
+		m_data.resize(neededBytes);
 }
 
 void ZCom_BitStream::saveReadState(BitPos& pos) const

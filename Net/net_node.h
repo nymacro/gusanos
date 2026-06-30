@@ -114,6 +114,7 @@ struct ReplicationEntry {
 	uint32_t rule;
 	uint32_t oldInt;
 	float oldFloat;
+	bool initial;
 };
 
 struct NodeEvent {
@@ -153,6 +154,7 @@ public:
 	void sendEventDirect(int mode, ZCom_BitStream* stream, uint32_t id);
 	uint32_t getNetworkID() { return m_nodeID; }
 	void setNetworkID(uint32_t id) { m_nodeID = id; }
+	int getZoidLevel() const { return m_zoidLevel; }
 	bool checkEventWaiting();
 	ZCom_BitStream* getNextEvent(eZCom_Event* type, eZCom_NodeRole* role, uint32_t* id);
 	int getRole() { return m_role; }
@@ -175,6 +177,7 @@ public:
 	ZCom_Control* getControl() { return m_control; }
 	void setControl(ZCom_Control* c) { m_control = c; }
 
+	bool isUnique() const { return m_isUnique; }
 	uint32_t getClassID() const { return m_classID; }
 	void setClassID(uint32_t id) { m_classID = id; }
 
@@ -188,7 +191,9 @@ private:
 	uint32_t m_classID;
 	uint32_t m_ownerID;
 	int m_role;
+	bool m_isUnique;
 	bool m_eventNotification;
+	bool m_eventNotificationRemove;
 	bool m_authority;
 	ZCom_Control* m_control;
 	ZCom_BitStream* m_announceData;
@@ -198,6 +203,7 @@ private:
 	std::vector<ZCom_Replicator*> m_replicators;
 	std::vector<ReplicationEntry> m_autoReplications;
 	std::list<NodeEvent> m_eventQueue;
+	int m_zoidLevel;
 };
 
 #endif // NET_NODE_H

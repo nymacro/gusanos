@@ -2,6 +2,7 @@
 #define NET_REPLICATOR_H
 
 #include "net_types.h"
+#include "net_bitstream.h"
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -274,6 +275,152 @@ public:
 private:
 	bool* m_ptr;
 	bool m_oldValue;
+};
+
+// ---- Numeric replicator (value type) ----
+template<typename T, int N = 1>
+class ZCom_Replicate_Numeric : public ZCom_Replicator {
+public:
+	ZCom_Replicate_Numeric(T initial, int bits, uint32_t flags, uint32_t rules)
+		: m_bits(bits), m_value(initial), m_oldValue(initial) {
+		m_setup = ZCom_ReplicatorSetup(flags, rules);
+	}
+
+	T getValue() const { return m_value; }
+	void setValue(T val) { m_value = val; }
+
+	bool checkState() override {
+		return m_value != m_oldValue;
+	}
+
+	void packData(ZCom_BitStream* stream) override {
+		if (std::is_signed<T>::value)
+			stream->addSignedInt(static_cast<int>(m_value), m_bits);
+		else
+			stream->addInt(static_cast<int>(m_value), m_bits);
+		m_oldValue = m_value;
+	}
+
+	void unpackData(ZCom_BitStream* stream, bool store, uint32_t estimatedTimeSent) override {
+		(void)estimatedTimeSent;
+		T val;
+		if (std::is_signed<T>::value)
+			val = static_cast<T>(stream->getSignedInt(m_bits));
+		else
+			val = static_cast<T>(stream->getInt(m_bits));
+		if (store) {
+			m_value = val;
+			m_oldValue = val;
+		}
+	}
+
+	int getRelevantBits() const { return m_bits; }
+
+private:
+	int m_bits;
+	T m_value;
+	T m_oldValue;
+};
+
+// ---- Numeric replicator (pointer type) ----
+template<typename T>
+class ZCom_Replicate_Numericp : public ZCom_Replicator {
+public:
+	ZCom_Replicate_Numericp(T* ptr, int bits, uint32_t flags, uint32_t rules)
+		: m_ptr(ptr), m_bits(bits), m_oldValue(ptr ? *ptr : T()) {
+		m_setup = ZCom_ReplicatorSetup(flags, rules);
+	}
+
+	bool checkState() override {
+		if (!m_ptr) return false;
+		return *m_ptr != m_oldValue;
+	}
+
+	void packData(ZCom_BitStream* stream) override {
+		if (!m_ptr) return;
+		if (std::is_signed<T>::value)
+			stream->addSignedInt(static_cast<int>(*m_ptr), m_bits);
+		else
+			stream->addInt(static_cast<int>(*m_ptr), m_bits);
+		m_oldValue = *m_ptr;
+	}
+
+	void unpackData(ZCom_BitStream* stream, bool store, uint32_t estimatedTimeSent) override {
+		(void)estimatedTimeSent;
+		T val;
+		if (std::is_signed<T>::value)
+			val = static_cast<T>(stream->getSignedInt(m_bits));
+		else
+			val = static_cast<T>(stream->getInt(m_bits));
+		if (store && m_ptr) {
+			*m_ptr = val;
+			m_oldValue = val;
+		}
+	}
+
+private:
+	T* m_ptr;
+	int m_bits;
+	T m_oldValue;
+};
+
+// ---- String replicator (pointer type) ----
+class ZCom_Replicate_Stringp : public ZCom_Replicator {
+public:
+	ZCom_Replicate_Stringp(const char** ptr, int maxSize, uint32_t flags, uint32_t rules)
+		: m_ptr(ptr), m_maxSize(maxSize), m_oldValue("") {
+		m_setup = ZCom_ReplicatorSetup(flags, rules);
+	}
+
+	bool checkState() override;
+	void packData(ZCom_BitStream* stream) override;
+	void unpackData(ZCom_BitStream* stream, bool store, uint32_t estimatedTimeSent) override;
+
+private:
+	const char** m_ptr;
+	int m_maxSize;
+	std::string m_oldValue;
+	std::string m_lastRead;
+};
+
+// ---- Wide string replicator (pointer type) ----
+class ZCom_Replicate_StringWp : public ZCom_Replicator {
+public:
+	ZCom_Replicate_StringWp(const wchar_t** ptr, int maxSize, uint32_t flags, uint32_t rules)
+		: m_ptr(ptr), m_maxSize(maxSize) {
+		m_setup = ZCom_ReplicatorSetup(flags, rules);
+	}
+
+	bool checkState() override;
+	void packData(ZCom_BitStream* stream) override;
+	void unpackData(ZCom_BitStream* stream, bool store, uint32_t estimatedTimeSent) override;
+
+private:
+	const wchar_t** m_ptr;
+	int m_maxSize;
+	std::wstring m_oldValue;
+	std::wstring m_lastWRead;
+};
+
+// ---- Memory block replicator ----
+class ZCom_Replicate_Memblock : public ZCom_Replicator {
+public:
+	ZCom_Replicate_Memblock(void* ptr, uint32_t blockSize, uint32_t flags, uint32_t rules)
+		: m_ptr(ptr), m_blockSize(blockSize), m_oldData(new char[blockSize]) {
+		m_setup = ZCom_ReplicatorSetup(flags, rules);
+		memcpy(m_oldData, ptr, blockSize);
+	}
+
+	~ZCom_Replicate_Memblock() override { delete[] m_oldData; }
+
+	bool checkState() override;
+	void packData(ZCom_BitStream* stream) override;
+	void unpackData(ZCom_BitStream* stream, bool store, uint32_t estimatedTimeSent) override;
+
+private:
+	void* m_ptr;
+	uint32_t m_blockSize;
+	char* m_oldData;
 };
 
 // ---- Advanced replicator base ----

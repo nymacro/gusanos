@@ -31,15 +31,22 @@ typedef double    zDouble;
 #define INVALID_CONN_ID 0
 #define ZCom_Invalid_ID 0
 
-// ---- Send mode ----
+// ---- Send mode (matches reference zoidcom.h) ----
 enum eZCom_SendMode {
-	eZCom_Reliable,
-	eZCom_Unreliable,
-	eZCom_ReliableOrdered,
-	eZCom_ReliableUnordered
+	eZCom_ReliableUnordered = 0,
+	eZCom_ReliableOrdered = 1,
+	eZCom_Unreliable = 2,
+	eZCom_UnreliableNotify = 3,
+	eZCom_Reliable = eZCom_ReliableOrdered  // alias for convenience
 };
 
 // ---- Node role ----
+// NOTE: ZCOM_ROLE_AUTHORITY=0 and ZCOM_ROLE_PROXY=1 are anonymous
+// enumerators in eZCom_NodeRole. Some game code relies on
+// eZCom_RoleAuthority being 0 (the default ZCom_Node role), which
+// differs from the ZoidCom reference (where eZCom_RoleAuthority=3).
+// We keep this layout for compatibility with the game codebase.
+
 enum eZCom_NodeRole {
 	ZCOM_ROLE_AUTHORITY,
 	ZCOM_ROLE_PROXY,
@@ -68,13 +75,12 @@ enum {
 	eZCom_EventFile_Data = 203,
 };
 
-// ---- Connection result ----
+// ---- Connection result (matches reference zoidcom.h) ----
 enum eZCom_ConnectResult {
-	eZCom_ConnAccepted,
-	eZCom_ConnDenied,
-	eZCom_ConnTimeout,
-	eZCom_ConnHostnameFailed,
-	eZCom_ConnWrongVersion
+	eZCom_ConnAccepted = 0,
+	eZCom_ConnRefused = 1,
+	eZCom_ConnTimeout = 2,
+	eZCom_ConnDenied = eZCom_ConnRefused  // alias for backward compat
 };
 
 // ---- Close reason ----

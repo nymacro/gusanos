@@ -15,9 +15,10 @@ void ZoidCom::Sleep(int ms)
 ZCom_Node::ZCom_Node()
 	: m_nodeID(0), m_classID(0), m_ownerID(0)
 	, m_role(0), m_eventNotification(false)
-	, m_authority(false), m_control(nullptr)
-	, m_announceData(nullptr), m_userData(nullptr)
-	, m_eventInterceptor(nullptr)
+	, m_eventNotificationRemove(false), m_authority(false)
+	, m_control(nullptr), m_announceData(nullptr)
+	, m_userData(nullptr), m_eventInterceptor(nullptr)
+	, m_isUnique(false), m_zoidLevel(0)
 {
 }
 
@@ -62,6 +63,7 @@ void ZCom_Node::addReplicationInt(int32_t* val, int bits, bool sign, uint32_t fl
 	entry.flags = flags;
 	entry.rule = rule;
 	entry.oldInt = val ? *val : 0;
+	entry.initial = true;
 	m_autoReplications.push_back(entry);
 }
 
@@ -75,6 +77,7 @@ void ZCom_Node::addReplicationFloat(float* val, int bits, uint32_t flags, uint32
 	entry.flags = flags;
 	entry.rule = rule;
 	entry.oldFloat = val ? *val : 0.0f;
+	entry.initial = true;
 	m_autoReplications.push_back(entry);
 }
 
@@ -88,6 +91,7 @@ void ZCom_Node::addReplicationBool(bool* val, uint32_t flags, uint32_t rule)
 	entry.flags = flags;
 	entry.rule = rule;
 	entry.oldInt = val ? (*val ? 1 : 0) : 0;
+	entry.initial = true;
 	m_autoReplications.push_back(entry);
 }
 
@@ -104,6 +108,7 @@ void ZCom_Node::setReplicationInterceptor(void* interceptor)
 void ZCom_Node::setEventNotification(bool init, bool remove)
 {
 	m_eventNotification = init;
+	m_eventNotificationRemove = remove;
 }
 
 void ZCom_Node::setAnnounceData(ZCom_BitStream* data)
@@ -126,6 +131,7 @@ bool ZCom_Node::registerNodeUnique(uint32_t classID, int role, void* control)
 	m_classID = classID;
 	m_role = role;
 	m_control = static_cast<ZCom_Control*>(control);
+	m_isUnique = true;
 	return m_control ? m_control->registerNode(this) : false;
 }
 
@@ -147,7 +153,7 @@ bool ZCom_Node::registerRequestedNode(uint32_t classID, void* control)
 
 void ZCom_Node::applyForZoidLevel(int level)
 {
-	(void)level;
+	m_zoidLevel = level;
 }
 
 void ZCom_Node::setOwner(uint32_t id, bool auth)
@@ -224,20 +230,22 @@ void ZCom_Node::packAllReplicators(ZCom_BitStream* stream)
 			stream->addInt(0, 1); // no update
 		}
 	}
-	// Auto replications
+	// Auto replications — write initial state on first pack
 	for (auto& entry : m_autoReplications) {
 		bool changed = false;
 		if (entry.type == ReplicationEntry::TypeInt && entry.ptr) {
 			int32_t val = *static_cast<int32_t*>(entry.ptr);
-			if (val != static_cast<int32_t>(entry.oldInt)) {
+			if (entry.initial || val != static_cast<int32_t>(entry.oldInt)) {
 				changed = true;
 				entry.oldInt = val;
+				entry.initial = false;
 			}
 		} else if (entry.type == ReplicationEntry::TypeFloat && entry.ptr) {
 			float val = *static_cast<float*>(entry.ptr);
-			if (val != entry.oldFloat) {
+			if (entry.initial || val != entry.oldFloat) {
 				changed = true;
 				entry.oldFloat = val;
+				entry.initial = false;
 			}
 		}
 		if (changed) {

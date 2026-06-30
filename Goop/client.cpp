@@ -16,6 +16,13 @@
 
 #include "network_compat.h"
 
+#define CLIENT_DEBUG
+#ifdef CLIENT_DEBUG
+#define CLOG(x_) do { std::cerr << "[CLIENT] " << x_ << std::endl; } while(0)
+#else
+#define CLOG(x_) (void)0
+#endif
+
 Client::Client( int _udpport )
 {
 	if(network.simLag > 0)
@@ -267,6 +274,22 @@ void Client::ZCom_cbZoidResult(ZCom_ConnID _id, eZCom_ZoidResult _result, zU8 ne
 
 void Client::ZCom_cbNodeRequest_Dynamic( ZCom_ConnID _id, ZCom_ClassID _requested_class, ZCom_BitStream *_announcedata, int _role, ZCom_NodeID _net_id )
 {
+	CLOG("cbNodeRequest_Dynamic: classID=" << _requested_class
+		<< " net_id=" << _net_id << " role=" << _role
+		<< " (NetWorm=" << (NetWorm::classID) << " BasePlayer=" << (BasePlayer::classID)
+		<< " Game=" << (Game::classID) << " Updater=" << (Updater::classID)
+		<< " Particle=" << (Particle::classID) << ")");
+
+	// Skip nodes that already exist locally (prevent duplicates from initial sync)
+	if (network.getZControl()) {
+		for (auto* node : network.getZControl()->getNodesConst()) {
+			if (node->getNetworkID() == _net_id && node->getClassID() == _requested_class) {
+				CLOG("  Skipping duplicate node: net_id=" << _net_id << " classID=" << _requested_class);
+				return;
+			}
+		}
+	}
+
 	// check the requested class
 	if ( _requested_class == NetWorm::classID )
 	{

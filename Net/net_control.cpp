@@ -2,14 +2,18 @@
 #include "net_bitstream.h"
 #include "net_address.h"
 #include <cstring>
-#include <iostream>
 #include <algorithm>
+
+// Verbose logging for network debugging
+//#define NET_DEBUG
+#ifdef NET_DEBUG
+#define NET_LOG(x_) do { std::cerr << "[NET] " << x_ << std::endl; } while(0)
+#else
+#define NET_LOG(x_) (void)0
+#endif
 
 // Current control for global function dispatch
 ZCom_Control* g_currentControl = nullptr;
-
-// Track currently bound control for server/client operations
-static ZCom_Control* s_boundControl = nullptr;
 
 ZCom_Control::ZCom_Control()
 	: m_host(nullptr)
@@ -68,6 +72,10 @@ void ZCom_Control::ZCom_processOutput()
 			for (size_t i = 0; i < repPacked.getDataLength(); ++i)
 				pkt.addInt(repPacked.getData()[i], 8);
 
+			NET_LOG("Broadcasting replicators for nodeID=" << node->getNetworkID()
+				<< " classID=" << node->getClassID() << " role=" << node->getRole()
+				<< " dataLen=" << repPacked.getDataLength());
+
 			ENetPacket* packet = enet_packet_create(
 				pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
 			enet_host_broadcast(m_host, 0, packet);
@@ -75,6 +83,23 @@ void ZCom_Control::ZCom_processOutput()
 	}
 
 	enet_host_flush(m_host);
+}
+
+void ZCom_Control::ZCom_processReplicators(uint32_t simulation_time_passed)
+{
+	(void)simulation_time_passed;
+	// Stub — advanced per-replicator Process() and time-based throttling
+	// will be implemented when per-replicator delay tracking is added.
+	// Currently replicator state checking happens in ZCom_processOutput.
+}
+
+ZCom_Node* ZCom_Control::ZCom_getNode(uint32_t nid)
+{
+	for (auto* node : m_nodes) {
+		if (node->getNetworkID() == nid)
+			return node;
+	}
+	return nullptr;
 }
 
 void ZCom_Control::ZCom_processInput(int flags)
@@ -202,12 +227,12 @@ void ZCom_Control::ZCom_sendData(uint32_t connID, ZCom_BitStream* stream, int mo
 	
 	enet_uint32 flags = 0;
 	switch (mode) {
-		case eZCom_Reliable:
 		case eZCom_ReliableOrdered:
+		case eZCom_ReliableUnordered:
 			flags = ENET_PACKET_FLAG_RELIABLE;
 			break;
 		case eZCom_Unreliable:
-		case eZCom_ReliableUnordered:
+		case eZCom_UnreliableNotify:
 		default:
 			flags = 0;
 			break;
@@ -221,14 +246,14 @@ void ZCom_Control::ZCom_sendData(uint32_t connID, ZCom_BitStream* stream, int mo
 	enet_peer_send(peer, 0, packet);
 }
 
-void ZCom_Control::sendToAll(eZCom_SendMode mode, ZCom_BitStream* stream)
+void ZCom_Control::sendToAll(int mode, ZCom_BitStream* stream)
 {
 	if (!m_host || !stream) return;
 	
 	enet_uint32 flags = 0;
 	switch (mode) {
-		case eZCom_Reliable:
 		case eZCom_ReliableOrdered:
+		case eZCom_ReliableUnordered:
 			flags = ENET_PACKET_FLAG_RELIABLE;
 			break;
 		default:
@@ -295,6 +320,7 @@ void ZCom_Control::syncNodesToPeer(ENetPeer* peer)
 	if (!m_host || !peer) return;
 	
 	for (auto* node : m_nodes) {
+		if (node->isUnique()) continue;
 		ZCom_BitStream pkt;
 		pkt.addInt(MSG_NODE_ANNOUNCE, 8);
 		pkt.addInt(node->getClassID(), 8);
@@ -333,10 +359,18 @@ ZCom_Address const* ZCom_Control::ZCom_getPeer(uint32_t id)
 
 ZCom_ConnStats ZCom_Control::ZCom_getConnectionStats(uint32_t id)
 {
-	ZCom_ConnStats stats = {0};
+	ZCom_ConnStats stats = ZCom_ConnStats();
 	ENetPeer* peer = findPeer(id);
 	if (peer) {
 		stats.avg_ping = peer->roundTripTime;
+		stats.min_ping = peer->lowestRoundTripTime;
+		stats.max_ping = peer->roundTripTime != 0 ? peer->roundTripTime + peer->roundTripTimeVariance : 0;
+		stats.last_sec_out = peer->lastSendTime;
+		stats.last_sec_in = peer->lastReceiveTime;
+		stats.total_out = peer->outgoingDataTotal;
+		stats.total_in = peer->incomingDataTotal;
+		stats.last_sec_loss_percent = peer->packetLoss;
+		stats.current_loss_count = peer->packetsLost;
 	}
 	return stats;
 }
@@ -376,8 +410,9 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 			if (ZCom_cbConnectionRequest(connID, request, reply)) {
 				// Send reply data back to client as MSG_CONNECTION_REPLY
 				sendConnectionReply(event.peer, reply, true);
-				// Sync existing nodes to the new client
+				// Sync existing nodes to the new client (skip unique nodes — registered locally)
 				for (auto* node : m_nodes) {
+					if (node->isUnique()) continue;
 					ZCom_BitStream pkt;
 					pkt.addInt(MSG_NODE_ANNOUNCE, 8);
 					pkt.addInt(node->getClassID(), 8);
@@ -501,15 +536,13 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 				uint32_t repNodeID = streamData.getInt(16);
 
 				// Find the matching local node by networkID
-				ZCom_Node* repNode = nullptr;
-				for (auto* node : m_nodes) {
-					if (node->getNetworkID() == repNodeID) {
-						repNode = node;
-						break;
-					}
-				}
+				ZCom_Node* repNode = ZCom_getNode(repNodeID);
 
 				if (repNode) {
+					NET_LOG("Received MSG_REPLICATORS for nodeID=" << repNodeID
+						<< " classID=" << repNode->getClassID() << " role=" << repNode->getRole()
+						<< " dataLen=" << (event.packet->dataLength - 3));
+
 					// Replicator data starts at byte offset 3 (msgType=1 + nodeID=2)
 					size_t offset = 3;
 					ZCom_BitStream repData(
@@ -517,6 +550,8 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 						event.packet->dataLength - offset
 					);
 					repNode->unpackAllReplicators(&repData, true, 0);
+				} else {
+					NET_LOG("MSG_REPLICATORS: nodeID=" << repNodeID << " NOT FOUND locally (" << m_nodes.size() << " nodes)");
 				}
 
 				enet_packet_destroy(event.packet);
@@ -531,6 +566,9 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 				int role = streamData.getInt(8);
 				int announceLen = streamData.getInt(16);
 				
+				NET_LOG("Received MSG_NODE_ANNOUNCE classID=" << classID
+					<< " net_id=" << net_id << " role=" << role << " announceLen=" << announceLen);
+
 				ZCom_BitStream* announceData = nullptr;
 				if (announceLen > 0) {
 					std::vector<uint8_t> buf(announceLen);
@@ -615,9 +653,8 @@ void ZCom_Control::dispatchNodeEvent(uint32_t nodeID, int type, int role, uint32
 			break;
 		}
 	}
-	std::cout << "[DEBUG] dispatchNodeEvent: nodeID=" << nodeID << " found=" << found << " totalNodes=" << m_nodes.size() << std::endl;
+	(void)found;
 }
-
 // ---- Global ZoidCom functions ----
 
 bool ZCom_initSockets(bool isServer, int port, int maxClients, int something)

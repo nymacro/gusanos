@@ -395,6 +395,7 @@ void Network::update()
 {
 	if ( m_control )
 	{
+		m_control->ZCom_processReplicators(16);
 		m_control->ZCom_processOutput();
 		m_control->ZCom_processInput(eZCom_NoBlock);
 	}

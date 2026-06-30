@@ -96,7 +96,7 @@ BOOST_AUTO_TEST_CASE(string_ops)
 	bs.resetReadState();
 
 	uint16_t strsize = bs.getStringSize();
-	BOOST_CHECK_EQUAL(strsize, strlen(test_str));
+	BOOST_CHECK_EQUAL(strsize, strlen(test_str) + 1); // length includes null terminator per spec §6.7
 
 	char buf[256];
 	bs.getString(buf, sizeof(buf));
@@ -122,7 +122,7 @@ BOOST_AUTO_TEST_CASE(widestring_ops)
 	bs.resetReadState();
 
 	uint16_t wlen = bs.getStringWLength();
-	BOOST_CHECK_EQUAL(wlen, wcslen(wtest));
+	BOOST_CHECK_EQUAL(wlen, wcslen(wtest) + 1); // length includes null terminator per spec §6.7
 
 	wchar_t wbuf[256];
 	bs.getStringW(wbuf, 256);
@@ -428,7 +428,7 @@ BOOST_AUTO_TEST_CASE(get_string_length)
 	ZCom_BitStream bs;
 	bs.addString("test123");
 
-	BOOST_CHECK_EQUAL(bs.getStringLength(), 7);
+	BOOST_CHECK_EQUAL(bs.getStringLength(), 8);
 	BOOST_CHECK_EQUAL(std::string(bs.getStringStatic()), "test123");
 }
 
@@ -437,7 +437,7 @@ BOOST_AUTO_TEST_CASE(get_string_length_empty)
 	ZCom_BitStream bs;
 	bs.addString("");
 
-	BOOST_CHECK_EQUAL(bs.getStringLength(), 0);
+	BOOST_CHECK_EQUAL(bs.getStringLength(), 1);
 }
 
 // ---- isEqual ----
@@ -538,7 +538,7 @@ BOOST_AUTO_TEST_CASE(add_get_wide_string)
 	ZCom_BitStream bs;
 	bs.addStringW(L"wide_test");
 
-	BOOST_CHECK_EQUAL(bs.getStringWLength(), 9);
+	BOOST_CHECK_EQUAL(bs.getStringWLength(), 10);
 	BOOST_CHECK(std::wcscmp(bs.getStringWStatic(), L"wide_test") == 0);
 }
 
@@ -547,7 +547,7 @@ BOOST_AUTO_TEST_CASE(add_get_empty_wide_string)
 	ZCom_BitStream bs;
 	bs.addStringW(L"");
 
-	BOOST_CHECK_EQUAL(bs.getStringWLength(), 0);
+	BOOST_CHECK_EQUAL(bs.getStringWLength(), 1);
 }
 
 // ---- AddBitStream / GetBitStream ----

@@ -14,6 +14,16 @@
 
 struct ZCom_ConnStats {
 	int avg_ping;
+	int min_ping;
+	int max_ping;
+	int last_sec_out;
+	int last_sec_in;
+	int current_out;
+	int current_in;
+	int total_out;
+	int total_in;
+	int last_sec_loss_percent;
+	int current_loss_count;
 };
 
 // Registered class info
@@ -110,6 +120,15 @@ public:
 
 	// Group manager
 	ZCom_ConnGroupManager& ZCom_getGroupManager() { return m_groupManager; }
+
+	// Access to registered nodes
+	const std::vector<ZCom_Node*>& getNodesConst() const { return m_nodes; }
+
+	// Node lookup
+	ZCom_Node* ZCom_getNode(uint32_t nid);
+
+	// Replicator processing
+	void ZCom_processReplicators(uint32_t simulation_time_passed);
 
 protected:
 	ENetHost* m_host;
