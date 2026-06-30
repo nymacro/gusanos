@@ -283,6 +283,11 @@ bool ZCom_Control::registerNode(ZCom_Node* node)
 	node->setNodeID(m_nextNodeID++);
 	node->setControl(this);
 	m_nodes.push_back(node);
+
+	// Auto-announce non-unique nodes to all connected peers
+	if (!node->isUnique()) {
+		announceNodeWithOwner(node);
+	}
 	return true;
 }
 
@@ -313,6 +318,65 @@ void ZCom_Control::sendNodeAnnouncement(uint32_t connID, ZCom_Node* node, int ro
 		enet_peer_send(peer, 0, packet);
 	else
 		enet_packet_destroy(packet);
+
+	// Push eEvent_Init for nodes with event notification enabled
+	if (node->getEventNotification()) {
+		node->pushEvent(eZCom_EventInit, static_cast<eZCom_NodeRole>(role), connID, nullptr);
+	}
+}
+
+void ZCom_Control::announceNodeToAll(ZCom_Node* node, int role)
+{
+	if (!m_host || !node) return;
+
+	ZCom_BitStream pkt;
+	pkt.addInt(MSG_NODE_ANNOUNCE, 8);
+	pkt.addInt(node->getClassID(), 8);
+	pkt.addInt(node->getNetworkID(), 16);
+	pkt.addInt(role, 8);
+
+	ZCom_BitStream* ad = node->getAnnounceData();
+	if (ad && ad->getDataLength() > 0) {
+		pkt.addInt(static_cast<int>(ad->getDataLength()), 16);
+		for (size_t i = 0; i < ad->getDataLength(); ++i)
+			pkt.addInt(ad->getData()[i], 8);
+	} else {
+		pkt.addInt(0, 16);
+	}
+
+	ENetPacket* packet = enet_packet_create(
+		pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
+	enet_host_broadcast(m_host, 0, packet);
+
+	// Push eEvent_Init for each peer if node has event notification enabled
+	if (node->getEventNotification()) {
+		for (auto& pair : m_peerMap) {
+			node->pushEvent(eZCom_EventInit, static_cast<eZCom_NodeRole>(role), pair.first, nullptr);
+		}
+	}
+}
+
+void ZCom_Control::announceNodeWithOwner(ZCom_Node* node)
+{
+	if (!m_host || !node) return;
+
+	uint32_t ownerID = node->getOwner();
+	for (auto& pair : m_peerMap) {
+		int role;
+		if (ownerID != 0 && pair.first == ownerID) {
+			role = eZCom_RoleOwner;
+		} else {
+			role = eZCom_RoleProxy;
+		}
+		sendNodeAnnouncement(pair.first, node, role);
+	}
+
+	// Also push eEvent_Init for each peer
+	if (node->getEventNotification()) {
+		for (auto& pair : m_peerMap) {
+			node->pushEvent(eZCom_EventInit, eZCom_RoleProxy, pair.first, nullptr);
+		}
+	}
 }
 
 void ZCom_Control::syncNodesToPeer(ENetPeer* peer)
@@ -431,6 +495,11 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 					ENetPacket* packet = enet_packet_create(
 						pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
 					enet_peer_send(event.peer, 0, packet);
+
+					// Push eEvent_Init for nodes with event notification enabled
+					if (node->getEventNotification()) {
+						node->pushEvent(eZCom_EventInit, static_cast<eZCom_NodeRole>(node->getRole()), connID, nullptr);
+					}
 				}
 				// Fire connection spawned after reply is sent
 				ZCom_cbConnectionSpawned(connID);
@@ -565,7 +634,14 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 				uint32_t net_id = streamData.getInt(16);
 				int role = streamData.getInt(8);
 				int announceLen = streamData.getInt(16);
-				
+
+				// Skip if a node with this ID already exists (handles re-announcements)
+				if (ZCom_getNode(net_id)) {
+					NET_LOG("Skipping duplicate MSG_NODE_ANNOUNCE for net_id=" << net_id);
+					enet_packet_destroy(event.packet);
+					break;
+				}
+
 				NET_LOG("Received MSG_NODE_ANNOUNCE classID=" << classID
 					<< " net_id=" << net_id << " role=" << role << " announceLen=" << announceLen);
 
@@ -576,10 +652,10 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 						buf[i] = streamData.getInt(8);
 					announceData = new ZCom_BitStream(buf.data(), buf.size());
 				}
-				
+
 				ZCom_cbNodeRequest_Dynamic(connID, classID, announceData,
 					role, net_id);
-				
+
 				delete announceData;
 				enet_packet_destroy(event.packet);
 				break;

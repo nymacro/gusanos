@@ -552,7 +552,7 @@ boost::shared_ptr<PlayerOptions> BasePlayer::getOptions()
 	return m_options;
 }
 
-void BasePlayer::assignNetworkRole( bool authority, ZCom_BitStream* announceData )
+void BasePlayer::assignNetworkRole( bool authority, ZCom_BitStream* announceData, ZCom_NodeID net_id )
 {
 	m_node = new ZCom_Node();
 	if (!m_node)
@@ -568,6 +568,10 @@ void BasePlayer::assignNetworkRole( bool authority, ZCom_BitStream* announceData
 	m_interceptor = new BasePlayerInterceptor( this );
 	m_node->setReplicationInterceptor(m_interceptor);
 
+	// Propagate owner if already set
+	if (m_id != 0)
+		m_node->setOwner(m_id, true);
+
 	if (announceData)
 		m_node->setAnnounceData(announceData);
 
@@ -579,6 +583,8 @@ void BasePlayer::assignNetworkRole( bool authority, ZCom_BitStream* announceData
 			allegro_message("ERROR: Unable to register player authority node.");
 	}else
 	{
+		if (net_id != 0)
+			m_node->setNetworkID(net_id);
 		m_node->setEventNotification(false, true); // Same but for the remove event.
 		if( !m_node->registerRequestedNode( classID, network.getZControl() ) )
 		allegro_message("ERROR: Unable to register player requested node.");

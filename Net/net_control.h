@@ -86,6 +86,8 @@ public:
 	bool registerExistingNode(ZCom_Node* node); // register without reassigning node ID
 	void removeNode(ZCom_Node* node);
 	void sendNodeAnnouncement(uint32_t connID, ZCom_Node* node, int role);
+	void announceNodeWithOwner(ZCom_Node* node); // announce with owner-aware roles
+	void announceNodeToAll(ZCom_Node* node, int role);
 	void syncNodesToPeer(ENetPeer* peer);
 
 	// Enum types (re-exported from network_compat.h)
@@ -123,6 +125,9 @@ public:
 
 	// Access to registered nodes
 	const std::vector<ZCom_Node*>& getNodesConst() const { return m_nodes; }
+
+	// Access to peer map for iteration
+	const std::map<uint32_t, ENetPeer*>& getPeers() const { return m_peerMap; }
 
 	// Node lookup
 	ZCom_Node* ZCom_getNode(uint32_t nid);

@@ -69,7 +69,8 @@ void Server::ZCom_cbDataReceived( ZCom_ConnID  _id, ZCom_BitStream &_data)
 			unsigned int uniqueID = static_cast<unsigned int>(_data.getInt(32));
 
 			BaseWorm* worm = game.addWorm(true);
-			if ( NetWorm* netWorm = dynamic_cast<NetWorm*>(worm) )
+			NetWorm* netWorm = dynamic_cast<NetWorm*>(worm);
+			if ( netWorm )
 			{
 				netWorm->setOwnerId(_id);
 				netWorm->registerNode();
@@ -97,76 +98,11 @@ void Server::ZCom_cbDataReceived( ZCom_ConnID  _id, ZCom_BitStream &_data)
 			player->team = team;
 			player->localChangeName( name );
 			console.addLogMsg( "* " + player->m_name + " HAS JOINED THE GAME");
-player->assignNetworkRole(true);
 			player->setOwnerId(_id);
+player->assignNetworkRole(true);
 			player->assignWorm(worm);
-			
-			uint32_t wormNodeID = 0, playerNodeID = 0;
-			NetWorm* netWorm = dynamic_cast<NetWorm*>(worm);
-			if (netWorm) {
-				wormNodeID = netWorm->getNodeID();
-			}
-			playerNodeID = player->getNodeID();
-			
-			// Announce worm node to the client
-			if (netWorm) {
-				network.getZControl()->sendNodeAnnouncement(_id, netWorm->getZNode(), eZCom_RoleProxy);
-			}
-			
-			// Build announce data for the player node: name, colour, team, wormNodeID
-			ZCom_BitStream announce;
-			announce.addString(name.c_str());
-			announce.addInt(colour, 24);
-			announce.addSignedInt(team, 8);
-			announce.addInt(wormNodeID, 16);
-			
-			// Re-setup the player node with announce data now that node IDs are known
-			// Send MSG_NODE_ANNOUNCE for the player to this client
-			if (netWorm && player) {
-				ZCom_BitStream pkt;
-				pkt.addInt(MSG_NODE_ANNOUNCE, 8);
-				pkt.addInt(BasePlayer::classID, 8);
-				pkt.addInt(playerNodeID, 16);
-				pkt.addInt(eZCom_RoleOwner, 8);
-				pkt.addInt(static_cast<int>(announce.getDataLength()), 16);
-				for (size_t i = 0; i < announce.getDataLength(); ++i)
-					pkt.addInt(announce.getData()[i], 8);
-				ZCom_sendData(_id, &pkt, eZCom_ReliableOrdered);
-			}
-			
-			// Send initial sync to the client's worm
-			if (netWorm) {
-				netWorm->sendSyncMessage(_id);
-			}
-			
-			// Send server's own player/worm info to the client
-			for ( std::list<BasePlayer*>::iterator iter = game.players.begin(); iter != game.players.end(); iter++) {
-				if ( (*iter)->local ) {
-					BasePlayer* serverPlayer = *iter;
-					NetWorm* serverWorm = dynamic_cast<NetWorm*>(serverPlayer->getWorm());
-					if (serverWorm) {
-						uint32_t srvWormID = serverWorm->getNodeID();
-						uint32_t srvPlayerID = serverPlayer->getNodeID();
-						
-						ZCom_BitStream srvAnnounce;
-						srvAnnounce.addString(serverPlayer->m_name.c_str());
-						srvAnnounce.addInt(serverPlayer->colour, 24);
-						srvAnnounce.addSignedInt(serverPlayer->team, 8);
-						srvAnnounce.addInt(srvWormID, 16);
-						
-						ZCom_BitStream pkt2;
-						pkt2.addInt(MSG_NODE_ANNOUNCE, 8);
-						pkt2.addInt(BasePlayer::classID, 8);
-						pkt2.addInt(srvPlayerID, 16);
-						pkt2.addInt(eZCom_RoleProxy, 8);
-						pkt2.addInt(static_cast<int>(srvAnnounce.getDataLength()), 16);
-						for (size_t i = 0; i < srvAnnounce.getDataLength(); ++i)
-							pkt2.addInt(srvAnnounce.getData()[i], 8);
-						ZCom_sendData(_id, &pkt2, eZCom_ReliableOrdered);
-					}
-					break;
-				}
-			}
+
+			// Auto-announce nodes handled by registerNode/setOwner in Net/ layer
 		}
 		break;
 		case Network::RConMsg:

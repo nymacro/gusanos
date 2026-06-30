@@ -103,7 +103,7 @@ public:
 	virtual void render() {}
 #endif
 
-	void assignNetworkRole( bool authority, ZCom_BitStream* announceData = nullptr );
+	void assignNetworkRole( bool authority, ZCom_BitStream* announceData = nullptr, ZCom_NodeID net_id = 0 );
 	void setOwnerId( ZCom_ConnID id );
 
 	void assignWorm(BaseWorm* worm);
@@ -122,6 +122,7 @@ public:
 
 	ZCom_NodeID getNodeID();
 	void setNodeID(uint32_t id) { if (m_node) m_node->setNetworkID(id); }
+	ZCom_Node* getNode() { return m_node; }
 	ZCom_ConnID getConnectionID();
 	void sendLuaEvent(LuaEventDef* event, eZCom_SendMode mode, zU8 rules, ZCom_BitStream* userdata, ZCom_ConnID connID);
 	shared_ptr<PlayerOptions> getOptions();

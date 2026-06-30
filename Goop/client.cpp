@@ -274,73 +274,28 @@ void Client::ZCom_cbZoidResult(ZCom_ConnID _id, eZCom_ZoidResult _result, zU8 ne
 
 void Client::ZCom_cbNodeRequest_Dynamic( ZCom_ConnID _id, ZCom_ClassID _requested_class, ZCom_BitStream *_announcedata, int _role, ZCom_NodeID _net_id )
 {
-	CLOG("cbNodeRequest_Dynamic: classID=" << _requested_class
-		<< " net_id=" << _net_id << " role=" << _role
-		<< " (NetWorm=" << (NetWorm::classID) << " BasePlayer=" << (BasePlayer::classID)
-		<< " Game=" << (Game::classID) << " Updater=" << (Updater::classID)
-		<< " Particle=" << (Particle::classID) << ")");
-
-	// Skip nodes that already exist locally (prevent duplicates from initial sync)
-	if (network.getZControl()) {
-		for (auto* node : network.getZControl()->getNodesConst()) {
-			if (node->getNetworkID() == _net_id && node->getClassID() == _requested_class) {
-				CLOG("  Skipping duplicate node: net_id=" << _net_id << " classID=" << _requested_class);
-				return;
-			}
-		}
-	}
-
 	// check the requested class
 	if ( _requested_class == NetWorm::classID )
 	{
 		BaseWorm* worm = game.addWorm(false);
 		if (NetWorm* netWorm = dynamic_cast<NetWorm*>(worm)) {
-			// Register first (assigns local node ID), then overwrite with server ID
 			netWorm->setNodeID(_net_id);
-			if (netWorm->getZNode())
-				network.getZControl()->registerExistingNode(netWorm->getZNode());
+			netWorm->registerNode();
 		}
 	}else if ( _requested_class == BasePlayer::classID )
 	{
-		std::string name;
-		int colour = 0, team = 0;
-		uint32_t wormNodeID = 0;
-		
-		if (_announcedata) {
-			name = _announcedata->getStringStatic();
-			if (!name.empty()) {
-				colour = _announcedata->getInt(24);
-				team = _announcedata->getSignedInt(8);
-				wormNodeID = _announcedata->getInt(16);
-			}
-		}
-		
-		// Create worm and link with the server-assigned node ID
-		BaseWorm* worm = game.addWorm(false);
-		if (NetWorm* netWorm = dynamic_cast<NetWorm*>(worm)) {
-			netWorm->setNodeID(wormNodeID);
-		}
-		
 		// Creates a player class depending on the role
 		BasePlayer* player;
 		if( _role == eZCom_RoleOwner )
 		{
-			player = game.addPlayer(Game::OWNER, team, worm);
+			player = game.addPlayer ( Game::OWNER );
 		}else
 		{
-			player = game.addPlayer(Game::PROXY, team, worm);
+			player = game.addPlayer ( Game::PROXY );
 		}
 		if (!player) return;
-		
-		player->assignNetworkRole(false);
-		player->setNodeID(_net_id);
-		player->assignWorm(worm);
-		
-		if (!name.empty()) {
-			player->localChangeName(name);
-			player->colour = colour;
-			player->team = team;
-		}
+
+		player->assignNetworkRole(false, nullptr, _net_id);
 	}else if( _requested_class == Particle::classID )
 	{
 		int typeIndex = Encoding::decode(*_announcedata, partTypeList.size());

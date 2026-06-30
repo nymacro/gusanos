@@ -18,7 +18,8 @@ ZCom_Node::ZCom_Node()
 	, m_eventNotificationRemove(false), m_authority(false)
 	, m_control(nullptr), m_announceData(nullptr)
 	, m_userData(nullptr), m_eventInterceptor(nullptr)
-	, m_isUnique(false), m_zoidLevel(0)
+	, m_replicationInterceptor(nullptr)
+	, m_isUnique(false), m_zoidLevel(0), m_interceptID(-1)
 {
 }
 
@@ -97,12 +98,7 @@ void ZCom_Node::addReplicationBool(bool* val, uint32_t flags, uint32_t rule)
 
 void ZCom_Node::setInterceptID(int id)
 {
-	(void)id;
-}
-
-void ZCom_Node::setReplicationInterceptor(void* interceptor)
-{
-	(void)interceptor;
+	m_interceptID = id;
 }
 
 void ZCom_Node::setEventNotification(bool init, bool remove)
@@ -160,6 +156,10 @@ void ZCom_Node::setOwner(uint32_t id, bool auth)
 {
 	m_ownerID = id;
 	m_authority = auth;
+	// If already registered, re-announce with owner-aware roles
+	if (m_control && m_nodeID > 0 && !m_isUnique) {
+		m_control->announceNodeWithOwner(this);
+	}
 }
 
 void ZCom_Node::pushEvent(eZCom_Event type, eZCom_NodeRole role, uint32_t connID, ZCom_BitStream* data)
@@ -263,15 +263,34 @@ void ZCom_Node::packAllReplicators(ZCom_BitStream* stream)
 
 void ZCom_Node::unpackAllReplicators(ZCom_BitStream* stream, bool store, uint32_t estimatedTimeSent)
 {
+	// Call inPreUpdate before processing updates
+	if (m_replicationInterceptor && !m_replicationInterceptor->inPreUpdate(this, 0, eZCom_RoleAuthority))
+		return;
+
 	for (auto* rep : m_replicators) {
 		bool hasUpdate = stream->getInt(1) != 0;
 		if (hasUpdate) {
-			rep->unpackData(stream, store, estimatedTimeSent);
+			// Call inPreUpdateItem interceptor
+			if (!m_replicationInterceptor || m_replicationInterceptor->inPreUpdateItem(this, 0, eZCom_RoleAuthority, rep, estimatedTimeSent)) {
+				rep->unpackData(stream, store, estimatedTimeSent);
+			} else {
+				rep->unpackData(stream, false, estimatedTimeSent);
+			}
 		}
 	}
 	for (auto& entry : m_autoReplications) {
 		bool hasUpdate = stream->getInt(1) != 0;
 		if (hasUpdate && store && entry.ptr) {
+			// Call interceptor for intercepted auto-replications
+			if (m_replicationInterceptor && (entry.flags & ZCOM_REPFLAG_INTERCEPT) && m_interceptID >= 0) {
+				ZCom_ReplicatorSetup tempSetup(entry.flags, entry.rule, m_interceptID);
+				ZCom_ReplicatorBasic tempRep(&tempSetup);
+				tempRep.peekDataStore(entry.ptr);
+				if (!m_replicationInterceptor->inPreUpdateItem(this, 0, eZCom_RoleAuthority, &tempRep, estimatedTimeSent)) {
+					stream->skipInt(entry.bits);
+					continue;
+				}
+			}
 			if (entry.type == ReplicationEntry::TypeInt) {
 				*static_cast<int32_t*>(entry.ptr) = static_cast<int32_t>(stream->getInt(entry.bits));
 			} else {

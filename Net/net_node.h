@@ -140,7 +140,7 @@ public:
 	void addReplicationFloat(float* val, int bits, uint32_t flags, uint32_t rule);
 	void addReplicationBool(bool* val, uint32_t flags, uint32_t rule);
 	void setInterceptID(int id);
-	void setReplicationInterceptor(void* interceptor);
+	void setReplicationInterceptor(ZCom_NodeReplicationInterceptor* interceptor) { m_replicationInterceptor = interceptor; }
 	void setEventNotification(bool init, bool remove);
 	void setAnnounceData(ZCom_BitStream* data);
 	void setEventInterceptor(ZCom_NodeEventInterceptor* interceptor) { m_eventInterceptor = interceptor; }
@@ -158,6 +158,7 @@ public:
 	bool checkEventWaiting();
 	ZCom_BitStream* getNextEvent(eZCom_Event* type, eZCom_NodeRole* role, uint32_t* id);
 	int getRole() { return m_role; }
+	bool getEventNotification() const { return m_eventNotification; }
 
 	void setUserData(void* data) { m_userData = data; }
 	void* getUserData() { return m_userData; }
@@ -204,6 +205,8 @@ private:
 	std::vector<ReplicationEntry> m_autoReplications;
 	std::list<NodeEvent> m_eventQueue;
 	int m_zoidLevel;
+	int m_interceptID;
+	ZCom_NodeReplicationInterceptor* m_replicationInterceptor;
 };
 
 #endif // NET_NODE_H
