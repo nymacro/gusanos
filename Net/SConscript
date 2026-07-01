@@ -1,3 +1,21 @@
 Import('env')
 
 env.StaticLibrary(env.getLibName('omfgnet'), env.getObjects())
+
+# Build ztests alongside the library for debug builds
+if env['MY_BUILD'] == 'debug':
+    testEnv = env.Clone()
+
+    brew_prefix = '/home/linuxbrew/.linuxbrew'
+    testEnv.Append(
+        CPPPATH=[brew_prefix + '/include', '#Net'],
+        LIBPATH=[brew_prefix + '/lib', '#/lib/' + testEnv['MY_SUBFOLDER']],
+        LIBS=['omfgnet', 'boost_unit_test_framework', 'enet'],
+        LINKFLAGS=['-pthread'],
+        CPPDEFINES=['BOOST_TEST_DYN_LINK']
+    )
+
+    testEnv.Program(
+        testEnv.getBinName('ztests'),
+        testEnv.getObjects('tests')
+    )

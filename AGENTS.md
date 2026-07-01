@@ -148,11 +148,6 @@ console.registerVariables()
 ## Build Verification
 
 ```bash
-# Quick syntax check on a single file
-g++ -fsyntax-only -std=c++17 -I. -IUtility -IGoop -Ihttp -IConsole -INet -I../lua51 \
-    -D_GNU_SOURCE -DBOOST_TIMER_ENABLE_DEPRECATED \
-    path/to/file.cpp
-
 # Full debug build
 scons build=debug
 

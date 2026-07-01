@@ -9,7 +9,6 @@ sconscript = [
     'Console',
     'Goop',
     'Net',
-    'Net/tests',
     'OmfgScript',
     'liero2gus',
     'lua51',
