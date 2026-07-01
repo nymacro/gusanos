@@ -3,9 +3,10 @@
 #include "net_address.h"
 #include <cstring>
 #include <algorithm>
+#include <iostream>
 
 // Verbose logging for network debugging
-//#define NET_DEBUG
+#define NET_DEBUG
 #ifdef NET_DEBUG
 #define NET_LOG(x_) do { std::cerr << "[NET] " << x_ << std::endl; } while(0)
 #else
@@ -17,6 +18,7 @@ ZCom_Control* g_currentControl = nullptr;
 
 ZCom_Control::ZCom_Control()
 	: m_host(nullptr)
+	, m_isServer(false)
 	, m_nextConnID(1)
 	, m_nextNodeID(1)
 	, m_nextClassID(1)
@@ -55,6 +57,9 @@ void ZCom_Control::ZCom_processOutput()
 {
 	if (!m_host) return;
 	g_currentControl = this;
+
+	// Only servers broadcast replicator state — clients only receive
+	if (!m_isServer) return;
 
 	// Broadcast replicator state for all authority-owned nodes only
 	for (auto* node : m_nodes) {
@@ -293,8 +298,16 @@ bool ZCom_Control::registerNode(ZCom_Node* node)
 
 void ZCom_Control::sendNodeAnnouncement(uint32_t connID, ZCom_Node* node, int role)
 {
-	if (!m_host || !node) return;
-	
+    if (!m_host || !node) return;
+
+    // Skip duplicate announcements to the same peer
+    if (m_announcedNodes[connID].count(node->getNetworkID())) return;
+    m_announcedNodes[connID].insert(node->getNetworkID());
+
+    NET_LOG("sendNodeAnnouncement: connID=" << connID
+        << " nodeID=" << node->getNetworkID()
+        << " role=" << role);
+
 	ZCom_BitStream pkt;
 	pkt.addInt(MSG_NODE_ANNOUNCE, 8);
 	pkt.addInt(node->getClassID(), 8);
@@ -348,6 +361,12 @@ void ZCom_Control::announceNodeToAll(ZCom_Node* node, int role)
 		pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
 	enet_host_broadcast(m_host, 0, packet);
 
+	// Track per-peer so re-announcements are skipped
+	for (auto& pair : m_peerMap) {
+		if (m_announcedNodes[pair.first].count(node->getNetworkID())) continue;
+		m_announcedNodes[pair.first].insert(node->getNetworkID());
+	}
+
 	// Push eEvent_Init for each peer if node has event notification enabled
 	if (node->getEventNotification()) {
 		for (auto& pair : m_peerMap) {
@@ -356,27 +375,46 @@ void ZCom_Control::announceNodeToAll(ZCom_Node* node, int role)
 	}
 }
 
+void ZCom_Control::clearAnnouncedNode(uint32_t nodeID)
+{
+	// Clear per-peer tracking for this node so re-announcements (e.g. from setOwner)
+	// will go through with the updated role.
+	for (auto& pair : m_peerMap) {
+		m_announcedNodes[pair.first].erase(nodeID);
+	}
+}
+
 void ZCom_Control::announceNodeWithOwner(ZCom_Node* node)
 {
-	if (!m_host || !node) return;
+    if (!m_host || !node) return;
 
-	uint32_t ownerID = node->getOwner();
-	for (auto& pair : m_peerMap) {
-		int role;
-		if (ownerID != 0 && pair.first == ownerID) {
-			role = eZCom_RoleOwner;
-		} else {
-			role = eZCom_RoleProxy;
-		}
-		sendNodeAnnouncement(pair.first, node, role);
-	}
+    NET_LOG("announceNodeWithOwner: nodeID=" << node->getNetworkID()
+        << " ownerID=" << node->getOwner()
+        << " peers=" << m_peerMap.size());
+    uint32_t ownerID = node->getOwner();
+    for (auto& pair : m_peerMap) {
+        NET_LOG("  peer connID=" << pair.first);
+        // Skip duplicate announcements to the same peer
+        if (m_announcedNodes[pair.first].count(node->getNetworkID())) {
+            NET_LOG("  skipping duplicate for connID=" << pair.first);
+            continue;
+        }
 
-	// Also push eEvent_Init for each peer
-	if (node->getEventNotification()) {
-		for (auto& pair : m_peerMap) {
-			node->pushEvent(eZCom_EventInit, eZCom_RoleProxy, pair.first, nullptr);
-		}
-	}
+        int role;
+        if (ownerID != 0 && pair.first == ownerID) {
+            role = eZCom_RoleOwner;
+        } else {
+            role = eZCom_RoleProxy;
+        }
+        sendNodeAnnouncement(pair.first, node, role);
+    }
+
+    // Also push eEvent_Init for each peer
+    if (node->getEventNotification()) {
+        for (auto& pair : m_peerMap) {
+            node->pushEvent(eZCom_EventInit, eZCom_RoleProxy, pair.first, nullptr);
+        }
+    }
 }
 
 void ZCom_Control::syncNodesToPeer(ENetPeer* peer)
@@ -477,11 +515,22 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 				// Sync existing nodes to the new client (skip unique nodes — registered locally)
 				for (auto* node : m_nodes) {
 					if (node->isUnique()) continue;
+					// Track per-peer so re-announcements are skipped
+					if (m_announcedNodes[connID].count(node->getNetworkID())) continue;
+					m_announcedNodes[connID].insert(node->getNetworkID());
+
+					// Determine role for this client: Owner if node is owned by them, otherwise Proxy
+					int role = eZCom_RoleProxy;
+					uint32_t ownerID = node->getOwner();
+					if (ownerID != 0 && connID == ownerID) {
+						role = eZCom_RoleOwner;
+					}
+
 					ZCom_BitStream pkt;
 					pkt.addInt(MSG_NODE_ANNOUNCE, 8);
 					pkt.addInt(node->getClassID(), 8);
 					pkt.addInt(node->getNetworkID(), 16);
-					pkt.addInt(node->getRole(), 8);
+					pkt.addInt(role, 8);
 					
 					ZCom_BitStream* ad = node->getAnnounceData();
 					if (ad && ad->getDataLength() > 0) {
@@ -498,7 +547,7 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 
 					// Push eEvent_Init for nodes with event notification enabled
 					if (node->getEventNotification()) {
-						node->pushEvent(eZCom_EventInit, static_cast<eZCom_NodeRole>(node->getRole()), connID, nullptr);
+						node->pushEvent(eZCom_EventInit, static_cast<eZCom_NodeRole>(role), connID, nullptr);
 					}
 				}
 				// Fire connection spawned after reply is sent
@@ -635,12 +684,23 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 				int role = streamData.getInt(8);
 				int announceLen = streamData.getInt(16);
 
-				// Skip if a node with this ID already exists (handles re-announcements)
-				if (ZCom_getNode(net_id)) {
-					NET_LOG("Skipping duplicate MSG_NODE_ANNOUNCE for net_id=" << net_id);
+				// If node already exists locally, update its role (handles re-announcements from setOwner)
+				ZCom_Node* existingNode = ZCom_getNode(net_id);
+				if (existingNode) {
+					existingNode->setRole(role);
+					NET_LOG("Updating role for existing nodeID=" << net_id << " to " << role);
 					enet_packet_destroy(event.packet);
 					break;
 				}
+
+				// Skip duplicate announcements to this peer
+				if (m_announcedNodes[connID].count(net_id)) {
+					NET_LOG("Skipping duplicate MSG_NODE_ANNOUNCE for connID=" << connID
+						<< " net_id=" << net_id);
+					enet_packet_destroy(event.packet);
+					break;
+				}
+				m_announcedNodes[connID].insert(net_id);
 
 				NET_LOG("Received MSG_NODE_ANNOUNCE classID=" << classID
 					<< " net_id=" << net_id << " role=" << role << " announceLen=" << announceLen);
@@ -681,6 +741,7 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 			m_peerMap.erase(connID);
 			m_addressMap.erase(connID);
 			m_waitingForReply.erase(connID);
+			m_announcedNodes.erase(connID);
 
 			// Use pending disconnect data if available, otherwise empty
 			ZCom_BitStream reasonData;
@@ -766,7 +827,7 @@ bool ZCom_initSockets(bool isServer, int port, int maxClients, int something)
 	}
 	
 	if (g_currentControl) {
-		g_currentControl->setHost(host);
+		g_currentControl->setHost(host, isServer);
 	}
 	
 	return true;

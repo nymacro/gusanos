@@ -595,7 +595,8 @@ void BasePlayer::assignNetworkRole( bool authority, ZCom_BitStream* announceData
 
 void BasePlayer::setOwnerId( ZCom_ConnID id )
 {
-	m_node->setOwner( id, true );
+	// Owner is applied in assignNetworkRole() which creates m_node.
+	// Storing m_id here allows assignNetworkRole to propagate it.
 	m_id = id;
 }
 

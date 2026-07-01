@@ -28,8 +28,7 @@ ZCom_Node::~ZCom_Node()
 	if (m_control)
 		m_control->removeNode(this);
 	delete m_announceData;
-	for (auto* r : m_replicators)
-		delete r;
+	// Caller owns replicators — do not delete
 }
 
 void ZCom_Node::beginReplicationSetup(int level)
@@ -158,6 +157,7 @@ void ZCom_Node::setOwner(uint32_t id, bool auth)
 	m_authority = auth;
 	// If already registered, re-announce with owner-aware roles
 	if (m_control && m_nodeID > 0 && !m_isUnique) {
+		m_control->clearAnnouncedNode(m_nodeID);
 		m_control->announceNodeWithOwner(this);
 	}
 }

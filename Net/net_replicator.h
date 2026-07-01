@@ -235,6 +235,8 @@ public:
 		m_flags = 0;
 	}
 	uint32_t m_flags;
+
+	bool checkState() override { return true; }
 };
 
 // ---- Bool replicator (value type) ----

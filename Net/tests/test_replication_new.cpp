@@ -348,7 +348,7 @@ public:
 	{
 		m_testClass = ZCom_registerClass("OwnerNode", 0);
 		g_currentControl = this;
-		ZCom_initSockets(true, port, 0, 0);
+		ZCom_initSockets(true, port, 2, 0);
 	}
 
 protected:
@@ -437,9 +437,8 @@ BOOST_AUTO_TEST_CASE(owner_aware_role_owner_client)
 	// Create a node on the server with an owner set
 	g_currentControl = &srv;
 	ZCom_Node* node = new ZCom_Node();
-	node->registerNodeDynamic(srv.m_testClass, &srv);
-	// Set owner to the connected client
 	node->setOwner(srv.m_client1ID, true);
+	node->registerNodeDynamic(srv.m_testClass, &srv);
 	g_currentControl = nullptr;
 	processBoth(&srv, &cli, 15);
 

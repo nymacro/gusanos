@@ -3,6 +3,8 @@
 This document is an entry point for AI agents (LLMs, coding assistants, analysis
 tools) that need to understand and work with the Gusanos codebase.
 
+Always keep AGENTS.md and other project documentation up to date.
+
 ## Overview
 
 Gusanos is a C++17 game engine (SDL3 + ENet + SDL3_mixer) ported from the
@@ -18,6 +20,7 @@ multiplayer.
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layer diagram, dependency graph, singleton ownership, main loop, build targets, DEDSERV guards, network architecture | You need to understand how subsystems connect |
 | [COMPONENTS.md](docs/COMPONENTS.md) | Per-file/per-class breakdown by subsystem: Core, Entities, Graphics, UI, Network, Audio, Scripting, Input, Utility, Tools | You need to find where something lives |
 | [BUILD.md](docs/BUILD.md) | Build commands, output layout, SConscript targets, compiler flags, parser generation pipeline | You need to build, configure, or add dependencies |
+| [zoidcom-spec.md](docs/zoidcom/spec/zoidcom-spec.md) | Generated specification for Zoidcom-compatible networking. Read-only, never edit | You need to know more about networking in the project |
 
 ## Recommended Reading Order
 

@@ -89,6 +89,7 @@ public:
 	void announceNodeWithOwner(ZCom_Node* node); // announce with owner-aware roles
 	void announceNodeToAll(ZCom_Node* node, int role);
 	void syncNodesToPeer(ENetPeer* peer);
+	void clearAnnouncedNode(uint32_t nodeID); // clear per-peer tracking for re-announce
 
 	// Enum types (re-exported from network_compat.h)
 	using eZCom_SendMode = int;
@@ -97,7 +98,10 @@ public:
 	static const int eZCom_AddressUDP = 0;
 
 	// Internal: set the ENetHost
-	void setHost(ENetHost* host) { m_host = host; }
+	void setHost(ENetHost* host, bool isServer = false) {
+		m_host = host;
+		m_isServer = isServer;
+	}
 	ENetHost* getHost() { return m_host; }
 
 	// Find peer by connection ID
@@ -137,6 +141,7 @@ public:
 
 protected:
 	ENetHost* m_host;
+	bool m_isServer;
 	uint32_t m_nextConnID;
 	uint32_t m_nextNodeID;
 	uint32_t m_nextClassID;
@@ -147,6 +152,7 @@ protected:
 	ZCom_BitStream m_disconnectData;
 	std::map<uint32_t, ZCom_BitStream> m_pendingDisconnectData; ///< Pre-disconnect reason data per connID
 	std::set<uint32_t> m_waitingForReply; ///< Client connIDs waiting for connection reply
+	std::map<uint32_t, std::set<uint32_t>> m_announcedNodes; ///< Per-peer set of node IDs already announced
 
 	ZCom_ConnGroupManager m_groupManager;
 
