@@ -61,6 +61,7 @@ public:
 	// Class registration
 	uint32_t ZCom_registerClass(const char* name, uint32_t flags);
 	uint32_t ZCom_getClassID(const char* name) const;
+	std::string ZCom_getClassName(uint32_t classID) const;
 
 	// Main loop
 	void ZCom_processOutput();

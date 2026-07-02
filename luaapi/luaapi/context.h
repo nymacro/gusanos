@@ -3,9 +3,10 @@
 
 extern "C"
 {
-#include "../lua.h"
+#include "lua.h"
 }
 
+#include <cassert>
 #include "types.h"
 #include <iostream>
 #include <vector>

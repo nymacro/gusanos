@@ -152,7 +152,7 @@ console.registerVariables()
 
 ```bash
 # Full debug build (never build parallel)
-scons build=debug
+scons build=debug -j4
 
 # Clean
 scons -c

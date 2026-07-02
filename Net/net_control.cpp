@@ -53,6 +53,13 @@ uint32_t ZCom_Control::ZCom_getClassID(const char* name) const
 	return 0;
 }
 
+std::string ZCom_Control::ZCom_getClassName(uint32_t classID) const
+{
+	if (classID == 0 || classID > m_classes.size())
+		return "(unknown)";
+	return m_classes[classID - 1].name;
+}
+
 void ZCom_Control::ZCom_processOutput()
 {
 	if (!m_host) return;
@@ -61,10 +68,25 @@ void ZCom_Control::ZCom_processOutput()
 	// Only servers broadcast replicator state — clients only receive
 	if (!m_isServer) return;
 
-	// Broadcast replicator state for all authority-owned nodes only
+	// Broadcast replicator state for authority-owned nodes ONLY if they have
+	// been announced to at least one peer.  Per Zoidcom semantics, dynamic
+	// nodes must be announced before their replicator state is sent; the
+	// client creates the node in response to the announcement and registers
+	// its own replicators before accepting updates.
 	for (auto* node : m_nodes) {
 		// Only authority nodes broadcast — proxies receive
 		if (node->getRole() != eZCom_RoleAuthority) continue;
+
+		// Skip nodes that haven't been announced yet – the client won't have
+		// the node registered and will buffer the data unnecessarily.
+		bool announced = false;
+		for (auto& pair : m_announcedNodes) {
+			if (pair.second.count(node->getNetworkID())) {
+				announced = true;
+				break;
+			}
+		}
+		if (!announced) continue;
 
 		ZCom_BitStream repPacked;
 		node->packAllReplicators(&repPacked);
@@ -78,7 +100,9 @@ void ZCom_Control::ZCom_processOutput()
 				pkt.addInt(repPacked.getData()[i], 8);
 
 			NET_LOG("Broadcasting replicators for nodeID=" << node->getNetworkID()
-				<< " classID=" << node->getClassID() << " role=" << node->getRole()
+				<< " classID=" << node->getClassID() << " ("
+				<< ZCom_getClassName(node->getClassID()) << ")"
+				<< " role=" << node->getRole()
 				<< " dataLen=" << repPacked.getDataLength());
 
 			ENetPacket* packet = enet_packet_create(
@@ -307,6 +331,14 @@ bool ZCom_Control::registerNode(ZCom_Node* node)
 	node->setNodeID(m_nextNodeID++);
 	node->setControl(this);
 	m_nodes.push_back(node);
+
+	NET_LOG("Registered nodeID=" << node->getNetworkID()
+		<< " classID=" << node->getClassID() << " ("
+		<< ZCom_getClassName(node->getClassID()) << ")"
+		<< " unique=" << node->isUnique()
+		<< " role=" << node->getRole()
+		<< " owner=" << node->getOwner()
+		<< " totalNodes=" << m_nodes.size());
 
 	// Replay any buffered replicator data for this node
 	replayPendingReplicators(node);
@@ -677,7 +709,9 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 
 				if (repNode) {
 					NET_LOG("Received MSG_REPLICATORS for nodeID=" << repNodeID
-						<< " classID=" << repNode->getClassID() << " role=" << repNode->getRole()
+						<< " classID=" << repNode->getClassID() << " ("
+						<< ZCom_getClassName(repNode->getClassID()) << ")"
+						<< " role=" << repNode->getRole()
 						<< " dataLen=" << (event.packet->dataLength - 3));
 
 					// Replicator data starts at byte offset 3 (msgType=1 + nodeID=2)
@@ -728,7 +762,8 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 				}
 				m_announcedNodes[connID].insert(net_id);
 
-				NET_LOG("Received MSG_NODE_ANNOUNCE classID=" << classID
+				NET_LOG("Received MSG_NODE_ANNOUNCE classID=" << classID << " ("
+					<< ZCom_getClassName(classID) << ")"
 					<< " net_id=" << net_id << " role=" << role << " announceLen=" << announceLen);
 
 				ZCom_BitStream* announceData = nullptr;

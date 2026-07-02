@@ -11,7 +11,7 @@ sconscript = [
     'Net',
     'OmfgScript',
     'liero2gus',
-    'lua51',
+    'luaapi',
     'lighter',
     'http',
 ]
@@ -92,7 +92,7 @@ if os.path.exists(brew_prefix):
         env['ENV']['PATH'] = brew_bin + os.pathsep + env['ENV']['PATH']
 
 env.Append(
-    CPPPATH=Split('. #http #lua51 #Console #GUI #Utility #OmfgScript #Goop #Net'),
+    CPPPATH=Split('. #http #luaapi #Console #GUI #Utility #OmfgScript #Goop #Net'),
     LIBPATH=[os.path.join('#lib', env['MY_SUBFOLDER']), os.path.join('#lib', env['MY_CONF'])],
     CCFLAGS=Split('-pipe -Wall -Wno-reorder -Wno-register'),
     CXXFLAGS=Split('-std=c++17'),
@@ -136,6 +136,13 @@ for blib in boost_libs:
             print(f"Warning: Could not find boost library {blib}")
         env = conf.Finish()
         env['LIBPATH'] = orig_libpath
+
+# LuaJIT Detection
+try:
+    env.ParseConfig('pkg-config --cflags --libs luajit')
+    print("Found LuaJIT via pkg-config")
+except Exception as e:
+    print(f"Warning: Could not find LuaJIT via pkg-config. Error: {e}")
 
 # Build parser generator
 parserGen = SConscript('parsergen/SConscript', exports=exp)

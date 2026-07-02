@@ -2,7 +2,7 @@
 
 extern "C"
 {
-	#include "../lualib.h"
+	#include "lualib.h"
 }
 
 #include <iostream>
