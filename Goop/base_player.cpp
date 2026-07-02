@@ -40,7 +40,8 @@ BasePlayer::BasePlayer(boost::shared_ptr<PlayerOptions> options, BaseWorm* worm)
 , m_worm(0), m_id(0) // TODO: make a invalid_connection_id define thingy
 , m_wormID(INVALID_NODE_ID)
 , m_node(0), m_interceptor(0)
-, m_isAuthority(false)
+	, m_isAuthority(false)
+	, m_processingNetworkEvent(false)
 , colour(options->colour)
 , team(options->team)
 , luaData(0), local(false), deleted(false)
@@ -136,9 +137,10 @@ void BasePlayer::think()
 	{
 		while ( m_node->checkEventWaiting() )
 		{
+			std::cout << "[DEBUG] BasePlayer::think processing event" << std::endl;
 			eZCom_Event type;
-			eZCom_NodeRole    remote_role;
-			ZCom_ConnID       conn_id;
+			eZCom_NodeRole remote_role;
+			uint32_t conn_id;
 			
 			ZCom_BitStream *data = m_node->getNextEvent(&type, &remote_role, &conn_id);
 			switch ( type )
@@ -151,9 +153,10 @@ void BasePlayer::think()
 #else
 					NetEvents event = (NetEvents)data->getInt(8);
 #endif
-					switch ( event )
-					{
-						case ACTION_START: // ACTION TART LOL TBH
+					std::cout << "[DEBUG] decoded event=" << (int)event << " datalen=" << data->getDataLength() << " writeBit=" << data->getBitLength() << " bitsOfEventCount=" << Encoding::bitsOf(EVENT_COUNT - 1) << std::endl;
+				switch ( event )
+				{
+					case ACTION_START: // ACTION TART LOL TBH
 						{
 #ifdef COMPACT_ACTIONS
 							BaseActions action = (BaseActions)data->getInt(Encoding::bitsOf(ACTION_COUNT - 1));
@@ -175,7 +178,10 @@ void BasePlayer::think()
 								m_worm->aimAngle.clamp();
 							}
 							
+							std::cout << "[DEBUG] BasePlayer::think dispatching action=" << (int)action << " (event=" << (int)event << ")" << std::endl;
+							m_processingNetworkEvent = true;
 							baseActionStart(action);
+							m_processingNetworkEvent = false;
 						}
 						break;
 						case ACTION_STOP:
@@ -185,7 +191,9 @@ void BasePlayer::think()
 #else
 							BaseActions action = (BaseActions)data->getInt(8);
 #endif
+							m_processingNetworkEvent = true;
 							baseActionStop(action);
+							m_processingNetworkEvent = false;
 						}
 						break;
 						case SYNC:
@@ -544,7 +552,7 @@ boost::shared_ptr<PlayerOptions> BasePlayer::getOptions()
 	return m_options;
 }
 
-void BasePlayer::assignNetworkRole( bool authority )
+void BasePlayer::assignNetworkRole( bool authority, ZCom_BitStream* announceData, ZCom_NodeID net_id )
 {
 	m_node = new ZCom_Node();
 	if (!m_node)
@@ -553,13 +561,19 @@ void BasePlayer::assignNetworkRole( bool authority )
 	}
 
 	m_node->beginReplicationSetup(1);
-		//m_node->addReplicationInt( (zS32*)&deaths, 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL , 0);
 		m_node->setInterceptID( static_cast<ZCom_InterceptID>(WormID) );
 		m_node->addReplicationInt( (zS32*)&m_wormID, 32, false, ZCOM_REPFLAG_MOSTRECENT | ZCOM_REPFLAG_INTERCEPT, ZCOM_REPRULE_AUTH_2_ALL , INVALID_NODE_ID);
 	m_node->endReplicationSetup();
 
 	m_interceptor = new BasePlayerInterceptor( this );
 	m_node->setReplicationInterceptor(m_interceptor);
+
+	// Propagate owner if already set
+	if (m_id != 0)
+		m_node->setOwner(m_id, true);
+
+	if (announceData)
+		m_node->setAnnounceData(announceData);
 
 	m_isAuthority = authority;
 	if( m_isAuthority)
@@ -569,6 +583,8 @@ void BasePlayer::assignNetworkRole( bool authority )
 			allegro_message("ERROR: Unable to register player authority node.");
 	}else
 	{
+		if (net_id != 0)
+			m_node->setNetworkID(net_id);
 		m_node->setEventNotification(false, true); // Same but for the remove event.
 		if( !m_node->registerRequestedNode( classID, network.getZControl() ) )
 		allegro_message("ERROR: Unable to register player requested node.");
@@ -579,7 +595,8 @@ void BasePlayer::assignNetworkRole( bool authority )
 
 void BasePlayer::setOwnerId( ZCom_ConnID id )
 {
-	m_node->setOwner( id, true );
+	// Owner is applied in assignNetworkRole() which creates m_node.
+	// Storing m_id here allows assignNetworkRole to propagate it.
 	m_id = id;
 }
 
@@ -659,6 +676,8 @@ bool BasePlayerInterceptor::inPreUpdateItem (ZCom_Node *_node, ZCom_ConnID _from
 
 void BasePlayer::baseActionStart ( BaseActions action )
 {
+	ZCom_Node* savedNode = m_node;
+	if (m_processingNetworkEvent) m_node = nullptr;
 	switch (action)
 	{
 		case LEFT:
@@ -756,6 +775,7 @@ void BasePlayer::baseActionStart ( BaseActions action )
 		{
 			if ( m_worm && !m_worm->isActive() )
 			{
+				std::cout << "[DEBUG] baseActionStart RESPAWN: m_worm=" << (void*)m_worm << " isActive=" << (m_worm ? m_worm->isActive() : false) << " m_node=" << (void*)m_node << std::endl;
 				m_worm->respawn();
 			}
 			if ( m_node )
@@ -763,21 +783,21 @@ void BasePlayer::baseActionStart ( BaseActions action )
 				ZCom_BitStream *data = new ZCom_BitStream;
 				addActionStart(data, RESPAWN);
 				m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH, data);
-				// I am sending the event to both the auth and the proxies, but I 
-				//cant really think of any use for the proxies knowing this, maybe 
-				//I should change it to only send to auth? :o
 			}
 		}
 		break;
 		
 		case ACTION_COUNT: break; // Do nothing
 	}
+	m_node = savedNode;
 }
 
 
 
 void BasePlayer::baseActionStop ( BaseActions action )
 {
+	ZCom_Node* savedNode = m_node;
+	if (m_processingNetworkEvent) m_node = nullptr;
 	switch (action)
 	{
 		case LEFT:
@@ -860,6 +880,7 @@ void BasePlayer::baseActionStop ( BaseActions action )
 		
 		case ACTION_COUNT: break; // Do nothing
 	}
+	m_node = savedNode;
 }
 
 

@@ -1,8 +1,6 @@
 #ifndef SERVER_H
 #define SERVER_H
 
-#ifndef DISABLE_ZOIDCOM
-
 #include "base_player.h"
 
 #include "network_compat.h"
@@ -48,7 +46,6 @@ protected:
 	bool socketsInited;
 };
 
-#endif
 
 #endif // _SERVER_H_
 

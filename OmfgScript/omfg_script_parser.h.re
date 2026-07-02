@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
-using std::auto_ptr;
+using std::unique_ptr;
 
 #include <boost/lexical_cast.hpp>
 using boost::lexical_cast;
@@ -47,7 +47,7 @@ template<class T>
 struct TGrammar {
 #define self (static_cast<T *>(this))
 ~TGrammar() { free(buffer); }
-struct Token : public  TokenBase  { typedef std::auto_ptr<Token> ptr;
+struct Token : public  TokenBase  { typedef std::unique_ptr<Token> ptr;
 
 	Token(T& g_) : TokenBase(g_.getLoc()), g(g_) {}
 	
@@ -57,7 +57,7 @@ virtual ~Token() {}
 };
 
 struct STRING : public Token {
-typedef std::auto_ptr<STRING> ptr;
+typedef std::unique_ptr<STRING> ptr;
 #define CONSTRUCT(b_, e_) STRING(T& g, char const* b_, char const* e_)
 
 	CONSTRUCT(b, e) : Token(g), str(b, e) { }
@@ -79,7 +79,7 @@ typedef std::auto_ptr<STRING> ptr;
 #undef CONSTRUCT
 };
 struct INTEGER : public Token {
-typedef std::auto_ptr<INTEGER> ptr;
+typedef std::unique_ptr<INTEGER> ptr;
 #define CONSTRUCT(b_, e_) INTEGER(T& g, char const* b_, char const* e_)
 
 	CONSTRUCT(b, e) : Token(g) { v = lexical_cast<int>(std::string(b, e)); }
@@ -109,7 +109,7 @@ typedef std::auto_ptr<INTEGER> ptr;
 #undef CONSTRUCT
 };
 struct NUMBER : public Token {
-typedef std::auto_ptr<NUMBER> ptr;
+typedef std::unique_ptr<NUMBER> ptr;
 #define CONSTRUCT(b_, e_) NUMBER(T& g, char const* b_, char const* e_)
 
 	CONSTRUCT(b, e) : Token(g) { v = lexical_cast<double>(std::string(b, e)); }
@@ -335,7 +335,7 @@ return true; }
 bool full() { return cur == 0 && !error; }
 void rule_action(EventDef* event, std::vector<BaseAction*>& actions) {
 if(!matchToken(16)) return;
-std::auto_ptr<STRING> name(static_cast<STRING*>(curData.release()));
+std::unique_ptr<STRING> name(static_cast<STRING*>(curData.release()));
 next();
 
 		ActionDef* action(self->getAction(name->str));
@@ -356,7 +356,7 @@ next();
 		}
 		else
 		{
-			auto_ptr<Parameters> param(new Parameters(action->paramDef, self->getLoc()));
+			unique_ptr<Parameters> param(new Parameters(action->paramDef, self->getLoc()));
 	
 if(!matchToken(5)) return;
 next();
@@ -370,7 +370,7 @@ next();
 			if(param->flags & Parameters::Error)
 				semanticError("Malformed parameters", param->loc);
 			else
-				actions.push_back(self->createAction(action, param));
+				actions.push_back(self->createAction(action, std::move(param)));
 		}
 	
 }
@@ -378,7 +378,7 @@ void rule_event() {
 if(!matchToken(3)) return;
 next();
 if(!matchToken(16)) return;
-std::auto_ptr<STRING> name(static_cast<STRING*>(curData.release()));
+std::unique_ptr<STRING> name(static_cast<STRING*>(curData.release()));
 next();
 
 		EventDef* event(self->getEventDef(name->str));
@@ -390,7 +390,7 @@ while(cur != 3 && cur != 0) next();
 		}
 		else
 		{
-			auto_ptr<Parameters> param(new Parameters(event->paramDef, self->getLoc()));
+			unique_ptr<Parameters> param(new Parameters(event->paramDef, self->getLoc()));
 	
 if(!matchToken(5)) return;
 next();
@@ -408,7 +408,7 @@ rule_action(event, actions);
 			if(param->flags & Parameters::Error)
 				semanticError("Malformed parameters", param->loc);
 			else
-				self->addEvent(event, param, actions);
+				self->addEvent(event, std::move(param), actions);
 		}
 	
 }
@@ -446,24 +446,24 @@ next();
  a.reset(new INTEGER(*self, 0)); 
 }
 else if((cur == 16)) {
-std::auto_ptr<STRING> x(static_cast<STRING*>(curData.release()));
+std::unique_ptr<STRING> x(static_cast<STRING*>(curData.release()));
 next();
 if((cur == 5)) {
- auto_ptr<Func> l(new Func(self->getLoc(), x->str)); TokenBase::ptr el; 
+ unique_ptr<Func> l(new Func(self->getLoc(), x->str)); TokenBase::ptr el; 
 next();
 rule_leaf(el);
- l->add(el); 
+ l->add(std::move(el)); 
 while((cur == 11)) {
 next();
 rule_leaf(el);
- l->add(el); 
+ l->add(std::move(el)); 
 }
 if(!matchToken(6)) return;
 next();
- a = l; 
+ a = std::move(l); 
 }
 else if(true) {
- a = x; 
+ a = std::move(x); 
 }
 else { syntaxError(); return; }
 }
@@ -476,18 +476,18 @@ a.reset(curData.release());
 next();
 }
 else if((cur == 7)) {
- auto_ptr<List> l(new List(self->getLoc())); TokenBase::ptr el; 
+ unique_ptr<List> l(new List(self->getLoc())); TokenBase::ptr el; 
 next();
 rule_expr(el);
- l->add(el); 
+ l->add(std::move(el)); 
 while((cur == 11)) {
 next();
 rule_expr(el);
- l->add(el); 
+ l->add(std::move(el)); 
 }
 if(!matchToken(8)) return;
 next();
- a = l; 
+ a = std::move(l); 
 }
 else if((cur == 5)) {
 next();
@@ -509,21 +509,21 @@ void rule_parameter(Parameters& params) {
  TokenBase::ptr v; 
 Location paramLoc(self->getLoc());
 if((cur == 16)) {
-std::auto_ptr<STRING> name(static_cast<STRING*>(curData.release()));
+std::unique_ptr<STRING> name(static_cast<STRING*>(curData.release()));
 next();
 if((cur == 4)) {
 next();
 rule_expr(v);
- params.addParam(name->str, v, paramLoc); 
+ params.addParam(name->str, std::move(v), paramLoc); 
 }
 else if(true) {
- params.addParam(TokenBase::ptr(name), paramLoc); 
+ params.addParam(TokenBase::ptr(std::move(name)), paramLoc); 
 }
 else { syntaxError(); return; }
 }
 else if(set_1[cur]) {
 rule_expr(v);
- params.addParam(v, paramLoc); 
+ params.addParam(std::move(v), paramLoc); 
 }
 else { syntaxError(); return; }
 }
@@ -538,7 +538,7 @@ void rule_prop(std::string const& prefix = "") {
  TokenBase::ptr v; 
 Location propLoc(self->getLoc());
 if(!matchToken(16)) return;
-std::auto_ptr<STRING> name(static_cast<STRING*>(curData.release()));
+std::unique_ptr<STRING> name(static_cast<STRING*>(curData.release()));
 next();
 if((cur == 4)) {
 next();
@@ -599,7 +599,7 @@ set_17[14] = true;
 set_17[15] = true;
 }
 int cur;
-std::auto_ptr<Token> curData;
+std::unique_ptr<Token> curData;
 char* curp;
 char* limit;
 char* marker;

@@ -54,6 +54,10 @@ Remove legacy engine directories that are not built by the current SConstruct:
 
 ## Step 2: Graphics & Input (Allegro 4 → SDL3)
 
+**Status: Complete.** SDL3 backend is implemented. Hybrid software/hardware
+rendering pipeline is functional. Blitters operate on raw pixel data with SIMD
+optimizations.
+
 ### Rendering Strategy: Hybrid Software/Hardware
 Gusanos relies on destructible terrain and custom pixel blitters.
 - **Master Buffer:** Maintain a CPU-side `SDL_Surface` (or raw memory buffer) for the game world.
@@ -89,6 +93,12 @@ Gusanos relies on destructible terrain and custom pixel blitters.
 
 ## Step 3: Networking (ZoidCom → ENet)
 
+**Status: Largely complete.** The ENet-backed ZoidCom compatibility layer is
+implemented in `Net/`. `ZCom_BitStream`, `ZCom_Node`, `ZCom_Control`,
+`ZCom_Replicator`, and `ZCom_Address` are all functional. The remaining work
+is game-level networking logic (snapshot interpolation, client prediction,
+movement replication, file transfer).
+
 ### Transition to Authoritative Server
 ZoidCom's high-level replication must be replaced by a manual snapshot-based system.
 
@@ -111,6 +121,9 @@ ZoidCom's high-level replication must be replaced by a manual snapshot-based sys
 | `Goop/posspd_replicator.h` | Rewrite as a simple struct with `serialize/deserialize` methods. |
 
 ## Step 4: Audio (FMOD 3.74 → SDL3_mixer)
+
+**Status: Complete.** FMOD → SDL3_mixer adapter is implemented in
+`fmod_compat.h/cpp`.
 
 ### Mapping
 
@@ -145,3 +158,54 @@ ZoidCom's high-level replication must be replaced by a manual snapshot-based sys
 - **Thread Safety:** SDL3 events should be handled on the main thread. ENet can be serviced on the main thread as well.
 - **Legacy Removal:** Strictly remove `src/` and `zoid/` as they contain conflicting legacy code.
 - **Blitters:** MMX/SSE optimizations in `Goop/blitters/` should be preserved if possible, but raw C++ fallbacks must be prioritized for portability.
+
+## Lua: bundled 5.1 → LuaJIT system dep
+
+**Status: Not started.**
+
+Replace the bundled Lua 5.1 source tree (`lua51/`) with an external LuaJIT
+shared library via `pkg-config`. The C++ wrapper layer in `lua51/luaapi/`
+is kept as-is; only the C interpreter files are removed.
+
+### What to delete
+
+Remove `lua51/` entirely (50+ `.c`/`.h` files: `lapi.c`, `lcode.c`, `ldo.c`,
+`lgc.c`, `llex.c`, `lmem.c`, `lobject.c`, `lparser.c`, `lstate.c`,
+`lstring.c`, `ltable.c`, `lvm.c`, `lzio.c`, ... plus `lua.h`, `lauxlib.h`,
+`lualib.h`, `luaconf.h`).
+
+Also delete `lua/` (Lua 5.0.2 — dead code, not in SConstruct's build list).
+
+### What to keep
+
+| File | Purpose |
+|------|---------|
+| `lua51/luaapi/context.h/cpp` | `LuaContext` — the singleton `lua` global, call proxies, stack helpers, reference tracking |
+| `lua51/luaapi/types.h` | `LuaReference` struct, `lua_new_*` macros for userdata allocation |
+| `lua51/luaapi/macros.h` | `METHOD()`, `CLASS()`, `ENUM()` macros for binding C++ objects to Lua metatables |
+| `lua51/luaapi/classes.h` | `LuaID<T>` + `getObject<T>()` — type-safe userdata extraction via metatable tags |
+
+These must be extracted to a new location (e.g., `Goop/luaapi/`) and their
+relative `#include "../lua.h"` replaced with `#include <lua.hpp>`.
+
+### Build system changes
+
+| File | Change |
+|------|--------|
+| `SConstruct` | Remove `'lua51'` from `sconscript` list; remove `#lua51` from `CPPPATH`; add `luajit` to `pkg-config` libs |
+| `lua51/SConscript` | Replace compilation of C sources with link to `libluajit-5.1` via `ParseConfig` |
+
+### API compatibility
+
+All C API features used by this codebase are identical between Lua 5.1 and
+LuaJIT 2.x (`LUA_GLOBALSINDEX`, `LUA_REGISTRYINDEX`, `lua_newstate`,
+`lua_newuserdata`, `luaL_ref`, `lua_pcall`, `luaopen_*`). No game code in
+`Goop/` needs changes.
+
+### Risk areas
+
+- `lua51/lua.h` declares `"Lua 5.1 (beta)"` (2005 beta, not final 5.1) — edge
+  cases between beta and final API are the main risk.
+- Runtime JIT may expose differences in `.lua` scripts under `default/`.
+- `luaconf.h` differences only affect defaults overridden by the game's own
+  `lua_newstate` setup.

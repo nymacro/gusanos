@@ -161,6 +161,7 @@ void Player::actionStart ( Actions action )
 					jumping = true;
 				}else
 				{
+					std::cout << "[DEBUG] Player::actionStart JUMP with inactive worm, sending RESPAWN. m_node=" << (void*)m_node << " isActive=" << m_worm->isActive() << std::endl;
 					BasePlayer::baseActionStart(BasePlayer::RESPAWN);
 				}
 			}

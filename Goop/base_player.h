@@ -31,7 +31,7 @@ struct LuaEventDef;
 #define COMPACT_EVENTS
 #define COMPACT_ACTIONS
 
-class BasePlayer : public ZCom_Control
+class BasePlayer
 {
 public:
 	
@@ -103,7 +103,7 @@ public:
 	virtual void render() {}
 #endif
 
-	void assignNetworkRole( bool authority );
+	void assignNetworkRole( bool authority, ZCom_BitStream* announceData = nullptr, ZCom_NodeID net_id = 0 );
 	void setOwnerId( ZCom_ConnID id );
 
 	void assignWorm(BaseWorm* worm);
@@ -121,6 +121,8 @@ public:
 	void addDeath();
 
 	ZCom_NodeID getNodeID();
+	void setNodeID(uint32_t id) { if (m_node) m_node->setNetworkID(id); }
+	ZCom_Node* getNode() { return m_node; }
 	ZCom_ConnID getConnectionID();
 	void sendLuaEvent(LuaEventDef* event, eZCom_SendMode mode, zU8 rules, ZCom_BitStream* userdata, ZCom_ConnID connID);
 	shared_ptr<PlayerOptions> getOptions();
@@ -179,6 +181,7 @@ protected:
 	shared_ptr<PlayerOptions> m_options;
 
 	bool m_isAuthority;
+	bool m_processingNetworkEvent;
 	ZCom_Node *m_node;
 	BasePlayerInterceptor* m_interceptor;
 	ZCom_NodeID m_wormID;

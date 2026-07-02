@@ -12,7 +12,6 @@
 #include "util/log.h"
 #include "encoding.h"
 
-#ifndef DISABLE_ZOIDCOM
 
 #include "network_compat.h"
 #include "allegro_compat.h"
@@ -70,9 +69,11 @@ void Server::ZCom_cbDataReceived( ZCom_ConnID  _id, ZCom_BitStream &_data)
 			unsigned int uniqueID = static_cast<unsigned int>(_data.getInt(32));
 
 			BaseWorm* worm = game.addWorm(true);
-			if ( NetWorm* netWorm = dynamic_cast<NetWorm*>(worm) )
+			NetWorm* netWorm = dynamic_cast<NetWorm*>(worm);
+			if ( netWorm )
 			{
 				netWorm->setOwnerId(_id);
+				netWorm->registerNode();
 			}
 			BasePlayer* player = game.addPlayer ( Game::PROXY );
 			
@@ -97,9 +98,11 @@ void Server::ZCom_cbDataReceived( ZCom_ConnID  _id, ZCom_BitStream &_data)
 			player->team = team;
 			player->localChangeName( name );
 			console.addLogMsg( "* " + player->m_name + " HAS JOINED THE GAME");
-			player->assignNetworkRole(true);
 			player->setOwnerId(_id);
+player->assignNetworkRole(true);
 			player->assignWorm(worm);
+
+			// Auto-announce nodes handled by registerNode/setOwner in Net/ layer
 		}
 		break;
 		case Network::RConMsg:
@@ -145,10 +148,11 @@ bool Server::ZCom_cbConnectionRequest( ZCom_ConnID id, ZCom_BitStream &_request,
 	{
 		console.addLogMsg("* CONNECTION REQUESTED");
 		//_reply.addInt(Network::ConnectionReply::Ok, 8);
-		reply.addString( game.getMod().c_str() );
-		reply.addString( game.level.getName().c_str() );
+	reply.addString( game.getMod().c_str() );
+	reply.addString( game.level.getName().c_str() );
 
-		return true;
+	DLOG("Server sending mod='" << game.getMod() << "' map='" << game.level.getName() << "' in connection reply");
+	return true;
 	}
 	else
 	{
@@ -163,7 +167,7 @@ void Server::ZCom_cbConnectionSpawned( ZCom_ConnID _id )
 	ZCom_requestDownstreamLimit(_id, network.downPPS, network.downBPP);
 	network.incConnCount();
 
-	std::auto_ptr<ZCom_BitStream> data(new ZCom_BitStream);
+	std::unique_ptr<ZCom_BitStream> data(new ZCom_BitStream);
 	Encoding::encode(*data, Network::ClientEvents::LuaEvents, Network::ClientEvents::Max); 
 	network.encodeLuaEvents(data.get());
 	ZCom_sendData ( _id, data.release(), eZCom_ReliableOrdered);
@@ -204,5 +208,4 @@ void Server::ZCom_cbZoidResult(ZCom_ConnID _id, eZCom_ZoidResult _result, zU8 _n
 	console.addLogMsg("* NEW CONNECTION JOINED ZOIDMODE");
 }
 
-#endif
 

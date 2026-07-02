@@ -82,11 +82,86 @@ void Edit::setText(std::string const& aStr)
 
 bool Edit::keyDown(int key)
 {
-	
 	if(m_active)
 	{
+		bool select = context()->keyState(KEY_LSHIFT) || context()->keyState(KEY_RSHIFT);
+		
 		switch(key)
 		{
+			case KEY_RIGHT:
+				if(m_caretPos < m_text.size())
+					++m_caretPos;
+				if(!select)
+					m_selTo = m_caretPos;
+				return false;
+			break;
+			
+			case KEY_LEFT:
+				if(m_caretPos > 0)
+					--m_caretPos;
+				if(!select)
+					m_selTo = m_caretPos;
+				return false;
+			break;
+			
+			case KEY_BACKSPACE:
+				if(m_lock)
+					return false;
+					
+				if(m_selTo < m_caretPos)
+				{
+					m_text.erase(m_text.begin() + m_selTo, m_text.begin() + m_caretPos);
+					m_caretPos = m_selTo;
+				}
+				else if(m_selTo > m_caretPos)
+				{
+					m_text.erase(m_text.begin() + m_caretPos, m_text.begin() + m_selTo);
+					m_selTo = m_caretPos;
+				}
+				else if(m_caretPos > 0)
+				{
+					m_text.erase(m_text.begin() + (m_caretPos - 1));
+					--m_caretPos;
+					m_selTo = m_caretPos;
+				}
+				return false;
+			break;
+			
+			case KEY_DEL:
+				if(m_lock)
+					return false;
+				
+				if(m_selTo < m_caretPos)
+				{
+					m_text.erase(m_text.begin() + m_selTo, m_text.begin() + m_caretPos);
+					m_caretPos = m_selTo;
+				}
+				else if(m_selTo > m_caretPos)
+				{
+					m_text.erase(m_text.begin() + m_caretPos, m_text.begin() + m_selTo);
+					m_selTo = m_caretPos;
+				}
+				else if(m_caretPos < m_text.size())
+				{
+					m_text.erase(m_text.begin() + m_caretPos);
+				}
+				return false;
+			break;
+			
+			case KEY_HOME:
+				m_caretPos = 0;
+				if(!select)
+					m_selTo = m_caretPos;
+				return false;
+			break;
+			
+			case KEY_END:
+				m_caretPos = m_text.size();
+				if(!select)
+					m_selTo = m_caretPos;
+				return false;
+			break;
+			
 			case KEY_ENTER:
 				if(!doAction())
 					doSetActivation(false);
@@ -112,77 +187,15 @@ bool Edit::charPressed(char c, int key)
 {
 	if(m_active)
 	{
-		bool select = context()->keyState(KEY_LSHIFT) || context()->keyState(KEY_RSHIFT);
-		
 		switch(key)
 		{
-			case KEY_RIGHT:
-				if(m_caretPos < m_text.size())
-					++m_caretPos;
-			break;
-			
-			case KEY_LEFT:
-				if(m_caretPos > 0)
-					--m_caretPos;
-			break;
-			
-			case KEY_BACKSPACE:
-				if(m_lock)
-					break;
-					
-				if(m_selTo < m_caretPos)
-				{
-					m_text.erase(m_text.begin() + m_selTo, m_text.begin() + m_caretPos);
-					m_caretPos = m_selTo;
-				}
-				else if(m_selTo > m_caretPos)
-				{
-					m_text.erase(m_text.begin() + m_caretPos, m_text.begin() + m_selTo);
-					m_selTo = m_caretPos;
-				}
-				else if(m_caretPos > 0)
-				{
-					m_text.erase(m_text.begin() + (m_caretPos - 1));
-					--m_caretPos;
-					m_selTo = m_caretPos;
-				}
-			break;
-			
-			case KEY_DEL:
-				if(m_lock)
-					break;
-				
-				if(m_selTo < m_caretPos)
-				{
-					m_text.erase(m_text.begin() + m_selTo, m_text.begin() + m_caretPos);
-					m_caretPos = m_selTo;
-				}
-				else if(m_selTo > m_caretPos)
-				{
-					m_text.erase(m_text.begin() + m_caretPos, m_text.begin() + m_selTo);
-					m_selTo = m_caretPos;
-				}
-				else if(m_caretPos < m_text.size())
-				{
-					m_text.erase(m_text.begin() + m_caretPos);
-				}
-			break;
-			
-			case KEY_HOME:
-				m_caretPos = 0;
-			break;
-			
-			case KEY_END:
-				m_caretPos = m_text.size();
-			break;
-			
 			case KEY_ENTER:
 			case KEY_ESC:
 				// Ignore
 			break;
 			
 			default:
-				if(m_lock)
+				if(m_lock || c < 32)
 					break;
 				
 				switch(c)
@@ -207,9 +220,6 @@ bool Edit::charPressed(char c, int key)
 				}
 			break;
 		}
-		
-		if(!select)
-			m_selTo = m_caretPos;
 		
 		return false;
 	}

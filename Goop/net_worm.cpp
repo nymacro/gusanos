@@ -27,6 +27,7 @@ ZCom_ClassID NetWorm::classID = ZCom_Invalid_ID;
 
 NetWorm::NetWorm(bool isAuthority) : BaseWorm()
 {
+	health = 100;
 	timeSinceLastUpdate = 1;
 	
 	m_playerID = INVALID_NODE_ID;
@@ -72,15 +73,19 @@ NetWorm::NetWorm(bool isAuthority) : BaseWorm()
 	if( isAuthority)
 	{
 		m_node->setEventNotification(true, false); // Enables the eEvent_Init.
-		if( !m_node->registerNodeDynamic(classID, network.getZControl() ) )
-			allegro_message("ERROR: Unable to register worm authority node.");
+		m_node->setRole(eZCom_RoleAuthority);
 	}else
 	{
-		if( !m_node->registerRequestedNode( classID, network.getZControl() ) )
-		allegro_message("ERROR: Unable to register worm requested node.");
+		m_node->setRole(eZCom_RoleProxy);
 	}
-	
 	m_node->applyForZoidLevel(1);
+}
+
+void NetWorm::registerNode()
+{
+	if (!m_node) return;
+	if( !m_node->registerNodeDynamic(classID, network.getZControl() ) )
+		allegro_message("ERROR: Unable to register worm node.");
 }
 
 NetWorm::~NetWorm()
@@ -115,6 +120,7 @@ void NetWorm::think()
 	
 	while ( m_node->checkEventWaiting() )
 	{
+		std::cout << "[DEBUG] NetWorm::think processing event, isAuthority=" << m_isAuthority << std::endl;
 		eZCom_Event type;
 		eZCom_NodeRole    remote_role;
 		ZCom_ConnID       conn_id;
@@ -146,10 +152,10 @@ void NetWorm::think()
 					break;
 					case Respawn:
 					{
+						std::cout << "[DEBUG] NetWorm::think Respawn received, calling BaseWorm::respawn" << std::endl;
 						Vec newpos = game.level.vectorEncoding.decode<Vec>(*data);
-						//newpos.x = data->getFloat(32);
-						//newpos.y = data->getFloat(32);
 						BaseWorm::respawn( newpos );
+						health = 100;
 					}
 					break;
 					case Dig:

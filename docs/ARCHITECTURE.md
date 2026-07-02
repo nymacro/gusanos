@@ -24,7 +24,7 @@
 │                   Abstraction Layer                                 │
 │                                                                     │
 │  allegro_compat.h/cpp  — BITMAP, blit, drawing, color, timer       │
-│  network_compat.h       — ZoidCom type stubs (DISABLE_ZOIDCOM)      │
+│  network_compat.h       — ZoidCom API compat layer (ENet-backed, Net/)    │
 │  fmod_compat.h/cpp      — FMOD stub (stubbed out)                    │
 ├──────────────────────────────────────────────────────────────────────┤
 │                     Platform Layer                                    │
@@ -67,7 +67,7 @@ gusanos.cpp
 main()
   ├── game (Game)              — owns Level, objects Grid, players list, weapon list
   ├── gfx (Gfx)                — owns window, renderer, screenTexture, buffer BITMAP
-  ├── network (Network)        — static stubs (DISABLE_ZOIDCOM)
+  ├── network (Network)        — ENet-backed ZoidCom compatibility layer
   ├── sfx (Sfx)                — owns sound channels, listeners
   ├── console (GConsole)       — owns bindings, variables, commands
   ├── updater (Updater)        — file transfer state
@@ -138,22 +138,35 @@ The `DEDSERV` preprocessor define gates all GUI code. Key pattern:
 This is used in nearly every component — graphics (`gfx.cpp`), sound (`sfx.cpp`),
 input (`keyboard.cpp`, `mouse.cpp`), fonts, menus, and viewports.
 
-## Network Architecture (DISABLE_ZOIDCOM)
+## Network Architecture
 
-The current build defines `DISABLE_ZOIDCOM`, which activates stub
-implementations in `network_compat.h`. The `Network` class becomes a set of
-static no-op methods. Key stubs:
+Network synchronization uses an ENet-backed ZoidCom
+compatibility layer implemented in `Net/`. The `Network` class is a full
+implementation — not stubs. Game code in `Goop/` uses the ZoidCom API types
+(`ZCom_Control`, `ZCom_Node`, `ZCom_BitStream`, `ZCom_Replicator`) transparently.
 
-- `ZCom_BitStream` — bit-level serialization (all methods no-op)
-- `ZCom_Node` — network node with replication (all methods no-op)
-- `ZCom_Control` — connection manager (all methods no-op)
-- `ZoidCom` — library init (returns true)
+### ENet Implementation (`Net/`)
 
-The `DISABLE_ZOIDCOM` ifdef also gates:
-- `Game::assignNetworkRole()` / `removeNode()` in `game.cpp`
-- `Updater::assignNetworkRole()` / `removeNode()` in `updater.cpp`
-- `Particle::assignNetworkRole()` in `particle.cpp`
-- `LuaEventDef::call()` / destructor in `network.h`
+| Component | File(s) | Purpose |
+|---|---|---|
+| `ZCom_BitStream` | `net_bitstream.h/cpp` | Bit-level serialization (int, float, string, bool) |
+| `ZCom_Address` | `net_address.h/cpp` | ENet address wrapper |
+| `ZCom_Control` | `net_control.h/cpp` | Server/peer connection management, ENet event dispatch |
+| `ZCom_Node` | `net_node.h/cpp` | Networked object registration, replication, event queue |
+| `ZCom_Replicator` | `net_replicator.h` | Base class + numeric/bool/string replicators |
+| Type aliases | `net_types.h` | `ZCom_ConnID`, `ZCom_NodeID`, `eZCom_SendMode`, etc. |
+
+`Client` and `Server` in `Goop/` inherit from `ZCom_Control` and implement the
+virtual callback methods (`ZCom_cbDataReceived`, `ZCom_cbConnectionRequest`,
+`ZCom_cbZoidResult`, etc.) with game-specific logic.
+
+### Remaining work
+
+The transport and replication infrastructure is complete. Remaining game-level
+features include:
+- Snapshot interpolation for client-side prediction
+- Movement replication with server validation
+- File transfer (ENet stream-based, not yet implemented)
 
 ## Resource Lifecycle
 
@@ -184,4 +197,4 @@ Game::changeLevel("levelname")
 | GConsole | Game Console (Console subclass) |
 | GUS | Gusanos (level file format) |
 | LOSP | Losp (level file format variant) |
-| ZCom | ZoidCom (original networking library, now stubbed) |
+| ZCom | ZoidCom (original networking library; API preserved in compatibility layer over ENet) |

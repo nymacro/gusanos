@@ -3,21 +3,24 @@
 This document is an entry point for AI agents (LLMs, coding assistants, analysis
 tools) that need to understand and work with the Gusanos codebase.
 
+Always keep AGENTS.md and other project documentation up to date.
+
 ## Overview
 
 Gusanos is a C++17 game engine (SDL3 + ENet + SDL3_mixer) ported from the
 original Allegro 4 / ZoidCom / FMOD codebase. The engine features destructible
 terrain, pixel-level software blitters, Lua 5.1 scripting, and networked
-multiplayer. The project is in active SDL3 migration.
+multiplayer.
 
 ## Documentation Index
 
 | File | Contents | Read first if... |
 |---|---|---|
 | [README.md](docs/README.md) | Project overview, quick reference, architecture diagram | You need one-paragraph context |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layer diagram, dependency graph, singleton ownership, main loop, build targets, DEDSERV guards, network stubs | You need to understand how subsystems connect |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layer diagram, dependency graph, singleton ownership, main loop, build targets, DEDSERV guards, network architecture | You need to understand how subsystems connect |
 | [COMPONENTS.md](docs/COMPONENTS.md) | Per-file/per-class breakdown by subsystem: Core, Entities, Graphics, UI, Network, Audio, Scripting, Input, Utility, Tools | You need to find where something lives |
 | [BUILD.md](docs/BUILD.md) | Build commands, output layout, SConscript targets, compiler flags, parser generation pipeline | You need to build, configure, or add dependencies |
+| [zoidcom-spec.md](docs/zoidcom/spec/zoidcom-spec.md) | Generated specification for Zoidcom-compatible networking. Read-only, never edit | You need to know more about networking in the project |
 
 ## Recommended Reading Order
 
@@ -34,9 +37,6 @@ multiplayer. The project is in active SDL3 migration.
   server builds (`build=dedserv` / `build=dedserv-debug`). Every graphics call,
   sound call, input poll, font draw, and GUI operation must be wrapped in
   `#ifndef DEDSERV` / `#endif`.
-- **`DISABLE_ZOIDCOM`** — always defined. Activates stub implementations of
-  ZoidCom types in `network_compat.h`. The `Network` class becomes a static
-  no-op facade.
 - **`DEBUG`** — debug build only. Enables extra logging and assertions.
 - **`NDEBUG`** — release/dedicated server builds. Disables assertions.
 
@@ -94,12 +94,29 @@ the main thread in `Network::update()`.
   with path scanning.
 - Boost `shared_ptr` is used for `PlayerOptions` only.
 
-### Network System (Stub)
+### Network System
 
-The current build has `DISABLE_ZOIDCOM` defined, which makes all networking
-code compile to no-ops. The `Network` class exposes a `static` interface that
-returns default values. `ZCom_BitStream`, `ZCom_Node`, `ZCom_Control`, and
-other ZoidCom types are stubs in `network_compat.h`.
+All network synchronization uses a ZoidCom API compatibility layer built on top
+of ENet for reliable UDP transport. The layer lives in the `Net/` directory and
+preserves the original ZoidCom type names (`ZCom_Control`, `ZCom_Node`,
+`ZCom_BitStream`, `ZCom_Replicator`) so game code in `Goop/` requires no
+rewriting.
+
+Key files in `Net/`:
+
+| File | Purpose |
+|---|---|
+| `network_compat.h` | Umbrella header — includes all ZoidCom API types |
+| `net_types.h` | Type aliases and enums (`ZCom_ConnID`, `eZCom_SendMode`, etc.) |
+| `net_bitstream.h/cpp` | `ZCom_BitStream` — bit-level serialization |
+| `net_address.h/cpp` | `ZCom_Address` — ENet address wrapper |
+| `net_replicator.h` | `ZCom_Replicator` base class + numeric/bool/string replicators |
+| `net_node.h/cpp` | `ZCom_Node` — networked object registration and replication |
+| `net_control.h/cpp` | `ZCom_Control` — ENet server/peer connection management |
+| `tests/` | Unit tests for the networking layer |
+
+The `Goop/network.cpp/h` facade sits on top of this layer, managing game-level
+state (session lifecycle, Lua events, server list, player management).
 
 ## Common Tasks
 
@@ -123,27 +140,19 @@ console.registerVariables()
 ### Adding a new Lua binding
 
 1. Add the binding function in `Goop/lua/bindings-*.cpp` (or create a new file)
-2. Register it in `Goop/lua/bindings.cpp` `registerLuaBindings()`
+2. Call `LuaBindings::init()` in the binding function — each binding file's init is called from `game.cpp` startup.
 
 ### Adding a new Lua callback
 
 1. Add an entry to the `LuaCallbacks` enum in `Goop/glua.h`
 2. Fire it with `EACH_CALLBACK(i, MyNewCallback) { ... }`
-3. Expose it in Lua bindings so scripts can `addEventHandler("myNewCallback", fn)`
+3. Expose it in Lua bindings via `luaCallbacks.bind("myNewCallback", ref)` in the bindings init code.
 
 ## Build Verification
 
 ```bash
-# Quick syntax check on a single file
-g++ -fsyntax-only -std=c++17 -I. -IUtility -IGoop -Ihttp -IConsole -I../lua51 \
-    -D_GNU_SOURCE -DDISABLE_ZOIDCOM -DBOOST_TIMER_ENABLE_DEPRECATED \
-    path/to/file.cpp
-
-# Full debug build
-scons build=debug
-
-# Full release build (dedicated server)
-scons build=dedserv
+# Full debug build (never build parallel)
+scons build=debug -j4
 
 # Clean
 scons -c
@@ -151,17 +160,14 @@ scons -c
 
 ## Pitfalls to Avoid
 
-- **Don't add features, refactor, or clean up unrelated code** — the migration
-  is in progress; touching working code risks breaking fragile compat shims.
+- **Don't refactor or clean up unrelated code** — the SDL3/ENet migration is
+  complete; touching working code risks breaking fragile compat shims. The
+  remaining work is completing the networked gameplay features (snapshot
+  interpolation, client prediction, movement replication).
 - **Don't add `#include "allegro_compat.h"` after other headers** — it must be
   the very first include in a translation unit.
 - **Don't use standard mutexes** — the engine is single-threaded. Adding
   threading requires careful audit of global state.
-- **Don't assume networking works** — the `DISABLE_ZOIDCOM` stub makes
-  everything compile but nothing actually send/receive data.
-- **Don't modify `network_compat.h` stubs** without understanding that they
-  are placeholders for the future ENet migration. Changing their API surface
-  breaks the assumption that they match ZoidCom's interface.
 - **Don't remove `#ifndef DEDSERV` guards** — dedicated server builds depend on
   them to omit all rendering code.
 

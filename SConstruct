@@ -8,9 +8,10 @@ sconscript = [
     'Utility/util',
     'Console',
     'Goop',
+    'Net',
     'OmfgScript',
     'liero2gus',
-    'lua51',
+    'luaapi',
     'lighter',
     'http',
 ]
@@ -51,11 +52,28 @@ env.AddMethod(getBinName)
 env.AddMethod(getLibName)
 env.AddMethod(getObjects)
 
+# Generate compile_commands.json for IDE/LSP support
+env.Tool('compilation_db')
+
 # Set custom variables
 env['MY_CONF'] = ARGUMENTS.get('conf', 'posix')
 env['MY_BUILD'] = ARGUMENTS.get('build', 'release')
 env['MY_SUBFOLDER'] = os.path.join(env['MY_CONF'], env['MY_BUILD'])
 env['NO_PARSERS'] = ARGUMENTS.get('no-parsers', False)
+
+# Sanitizer support: sanitize=address,undefined or sanitize=thread, etc.
+# Debug builds default to address,undefined; pass sanitize=none to disable.
+_sanitize_arg = ARGUMENTS.get('sanitize', '')
+if _sanitize_arg == '':
+    _sanitize_list = []
+else:
+    _sanitize_list = [s.strip() for s in _sanitize_arg.split(',') if s.strip()]
+
+if _sanitize_list:
+    _san_flags = ' '.join(f'-fsanitize={s}' for s in _sanitize_list)
+    env.Append(CCFLAGS=Split(_san_flags),
+               LINKFLAGS=Split(_san_flags))
+
 
 # Add Homebrew paths for Linux
 brew_prefix = '/home/linuxbrew/.linuxbrew'
@@ -74,11 +92,11 @@ if os.path.exists(brew_prefix):
         env['ENV']['PATH'] = brew_bin + os.pathsep + env['ENV']['PATH']
 
 env.Append(
-    CPPPATH=Split('. #http #lua51 #Console #GUI #Utility #OmfgScript #Goop'),
+    CPPPATH=Split('. #http #luaapi #Console #GUI #Utility #OmfgScript #Goop #Net'),
     LIBPATH=[os.path.join('#lib', env['MY_SUBFOLDER']), os.path.join('#lib', env['MY_CONF'])],
-    CCFLAGS=Split('-pipe -Wall -Wno-reorder'),
+    CCFLAGS=Split('-pipe -Wall -Wno-reorder -Wno-register'),
     CXXFLAGS=Split('-std=c++17'),
-    CPPDEFINES=['_GNU_SOURCE', 'DISABLE_ZOIDCOM', 'BOOST_TIMER_ENABLE_DEPRECATED']
+    CPPDEFINES=['_GNU_SOURCE', 'BOOST_TIMER_ENABLE_DEPRECATED']
 )
 
 if env['MY_BUILD'] == 'release':
@@ -106,10 +124,25 @@ for lib in libs:
 boost_libs = ['boost_filesystem', 'boost_system']
 for blib in boost_libs:
     if not env.GetOption('clean'):
+        # LIBPATH is already set via pkg-config and Homebrew paths above.
+        # Just verify the library exists by trying a simple compile+link.
         conf = Configure(env)
-        if not conf.CheckLib(blib, language='C++'):
+        # Temporarily extend LIBPATH for the check
+        orig_libpath = list(env.get('LIBPATH', []))
+        env.Append(LIBPATH=['/usr/lib/x86_64-linux-gnu', os.path.join(brew_prefix, 'lib')])
+        if conf.CheckLib(blib, language='C++'):
+            env.Append(LINKLIBS=blib)
+        else:
             print(f"Warning: Could not find boost library {blib}")
         env = conf.Finish()
+        env['LIBPATH'] = orig_libpath
+
+# LuaJIT Detection
+try:
+    env.ParseConfig('pkg-config --cflags --libs luajit')
+    print("Found LuaJIT via pkg-config")
+except Exception as e:
+    print(f"Warning: Could not find LuaJIT via pkg-config. Error: {e}")
 
 # Build parser generator
 parserGen = SConscript('parsergen/SConscript', exports=exp)
@@ -133,3 +166,6 @@ env['BUILDERS']['Parser'] = parserBuilder
 # Build the rest
 for i in sconscript:
     SConscript(i + '/SConscript', exports=exp)
+
+# Generate compile_commands.json for IDE/LSP support
+env.CompilationDatabase()

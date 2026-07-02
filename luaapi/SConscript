@@ -1,0 +1,11 @@
+Import('env')
+
+# Only build the luaapi wrapper .cpp files (not embedded Lua 5.1 .c files)
+# LuaJIT is linked via pkg-config in SConstruct
+env = env.Clone()
+env.Append(LIBS = ['luajit-5.1'])
+
+# Build only .cpp files from luaapi/luaapi/ subdirectory
+luaapi_src = env.getObjects('luaapi')
+
+env.StaticLibrary(env.getLibName('glua'), luaapi_src)

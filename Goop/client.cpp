@@ -13,9 +13,15 @@
 #include <memory>
 #include "util/log.h"
 
-#ifndef DISABLE_ZOIDCOM
 
 #include "network_compat.h"
+
+#define CLIENT_DEBUG
+#ifdef CLIENT_DEBUG
+#define CLOG(x_) do { std::cerr << "[CLIENT] " << x_ << std::endl; } while(0)
+#else
+#define CLOG(x_) (void)0
+#endif
 
 Client::Client( int _udpport )
 {
@@ -23,7 +29,7 @@ Client::Client( int _udpport )
 		ZCom_simulateLag(0, network.simLag);
 	if(network.simLoss > 0.f)
 		ZCom_simulateLoss(0, network.simLoss);
-	if ( !ZCom_initSockets( true,_udpport, 1, 0 ) )
+	if ( !ZCom_initSockets( false,_udpport, 1, 0 ) )
 	{
 		console.addLogMsg("* ERROR: FAILED TO INITIALIZE SOCKETS");
 	}
@@ -56,7 +62,7 @@ void Client::requestPlayers()
 
 void Client::sendConsistencyInfo()
 {
-	std::auto_ptr<ZCom_BitStream> req(new ZCom_BitStream);
+	std::unique_ptr<ZCom_BitStream> req(new ZCom_BitStream);
 	req->addInt(Network::ConsistencyInfo, 8);
 	req->addInt(Network::protocolVersion, 32);
 	game.addCRCs(req.get());
@@ -94,6 +100,9 @@ void Client::ZCom_cbConnectResult( ZCom_ConnID _id, eZCom_ConnectResult _result,
 		std::string map = _reply.getStringStatic();
 		game.refreshLevels();
 		game.refreshMods();
+		DLOG("Client received mod='" << mod << "' map='" << map << "'");
+		DLOG("    modList contains " << game.modList.size() << " entries");
+		for (auto const& m : game.modList) DLOG("    modList entry: '" << m << "'");
 		bool hasLevel = game.hasLevel(map);
 		bool hasMod = game.hasMod(mod);
 		
@@ -263,24 +272,30 @@ void Client::ZCom_cbZoidResult(ZCom_ConnID _id, eZCom_ZoidResult _result, zU8 ne
 	}
 }
 
-void Client::ZCom_cbNodeRequest_Dynamic( ZCom_ConnID _id, ZCom_ClassID _requested_class, ZCom_BitStream *_announcedata, eZCom_NodeRole _role, ZCom_NodeID _net_id )
+void Client::ZCom_cbNodeRequest_Dynamic( ZCom_ConnID _id, ZCom_ClassID _requested_class, ZCom_BitStream *_announcedata, int _role, ZCom_NodeID _net_id )
 {
 	// check the requested class
 	if ( _requested_class == NetWorm::classID )
 	{
-		game.addWorm(false);
+		BaseWorm* worm = game.addWorm(false);
+		if (NetWorm* netWorm = dynamic_cast<NetWorm*>(worm)) {
+			netWorm->setNodeID(_net_id);
+			netWorm->registerNode();
+		}
 	}else if ( _requested_class == BasePlayer::classID )
 	{
 		// Creates a player class depending on the role
+		BasePlayer* player;
 		if( _role == eZCom_RoleOwner )
 		{
-			BasePlayer* player = game.addPlayer ( Game::OWNER );
-			player->assignNetworkRole(false);
+			player = game.addPlayer ( Game::OWNER );
 		}else
 		{
-			BasePlayer* player = game.addPlayer ( Game::PROXY );
-			player->assignNetworkRole(false);
+			player = game.addPlayer ( Game::PROXY );
 		}
+		if (!player) return;
+
+		player->assignNetworkRole(false, nullptr, _net_id);
 	}else if( _requested_class == Particle::classID )
 	{
 		int typeIndex = Encoding::decode(*_announcedata, partTypeList.size());
@@ -293,7 +308,6 @@ void Client::ZCom_cbNodeRequest_Dynamic( ZCom_ConnID _id, ZCom_ClassID _requeste
 	
 }
 
-#endif
 
 
 
