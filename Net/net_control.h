@@ -161,6 +161,19 @@ protected:
 	/// Keyed by nodeID; replayed when the node is registered via registerExistingNode or registerNode.
 	std::map<uint32_t, ZCom_BitStream> m_pendingReplicas;
 
+	/// Buffered node events (e.g. sync messages) that arrived before the target
+	/// node was registered locally. Keyed by nodeID; replayed on registration.
+	struct PendingNodeEvent {
+		int type;
+		int role;
+		uint32_t connID;
+		ZCom_BitStream data;
+	};
+	std::map<uint32_t, std::vector<PendingNodeEvent>> m_pendingNodeEvents;
+
+	/// Replay buffered node events for a newly registered node.
+	void replayPendingNodeEvents(ZCom_Node* node);
+
 	ZCom_ConnGroupManager m_groupManager;
 
 	void processENetEvent(ENetEvent& event);

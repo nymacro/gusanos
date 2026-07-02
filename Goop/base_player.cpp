@@ -552,7 +552,7 @@ boost::shared_ptr<PlayerOptions> BasePlayer::getOptions()
 	return m_options;
 }
 
-void BasePlayer::assignNetworkRole( bool authority, ZCom_BitStream* announceData, ZCom_NodeID net_id )
+void BasePlayer::assignNetworkRole( bool authority, ZCom_BitStream* announceData, ZCom_NodeID net_id, eZCom_NodeRole role )
 {
 	m_node = new ZCom_Node();
 	if (!m_node)
@@ -578,16 +578,22 @@ void BasePlayer::assignNetworkRole( bool authority, ZCom_BitStream* announceData
 	m_isAuthority = authority;
 	if( m_isAuthority)
 	{
+		m_node->setRole(eZCom_RoleAuthority);
 		m_node->setEventNotification(true, false); // Enables the eEvent_Init.
 		if( !m_node->registerNodeDynamic(classID, network.getZControl() ) )
 			allegro_message("ERROR: Unable to register player authority node.");
 	}else
 	{
+		// Client-side requested nodes must adopt the role announced by the server
+		// (Owner or Proxy). Without this, sendEvent() rule checks (e.g. the
+		// OWNER_2_AUTH rule used by selectWeapons) would silently drop events
+		// because the node defaults to eZCom_RoleAuthority.
+		m_node->setRole(role == eZCom_RoleUndefined ? eZCom_RoleProxy : role);
 		if (net_id != 0)
 			m_node->setNetworkID(net_id);
 		m_node->setEventNotification(false, true); // Same but for the remove event.
 		if( !m_node->registerRequestedNode( classID, network.getZControl() ) )
-		allegro_message("ERROR: Unable to register player requested node.");
+			allegro_message("ERROR: Unable to register player requested node.");
 	}
 
 	m_node->applyForZoidLevel(1);

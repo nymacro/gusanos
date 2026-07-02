@@ -271,31 +271,62 @@ void ZCom_Node::unpackAllReplicators(ZCom_BitStream* stream, bool store, uint32_
 	for (auto* rep : m_replicators) {
 		bool hasUpdate = stream->getInt(1) != 0;
 		if (hasUpdate) {
-			// Call inPreUpdateItem interceptor
-			if (!m_replicationInterceptor || m_replicationInterceptor->inPreUpdateItem(this, 0, eZCom_RoleAuthority, rep, estimatedTimeSent)) {
-				rep->unpackData(stream, store, estimatedTimeSent);
-			} else {
-				rep->unpackData(stream, false, estimatedTimeSent);
+			// Provide a peek stream positioned at this replicator's data so that
+			// an interceptor's peekData() call can read the incoming value without
+			// disturbing the main stream's read position.
+			ZCom_BitStream::BitPos savedRead;
+			stream->saveReadState(savedRead);
+			bool proceed = true;
+			if (m_replicationInterceptor) {
+				rep->setPeekStream(stream);
+				proceed = m_replicationInterceptor->inPreUpdateItem(this, 0, eZCom_RoleAuthority, rep, estimatedTimeSent);
+				rep->clearPeekData();
+				rep->setPeekStream(nullptr);
+				// peekData() may have advanced the read position; restore it so
+				// unpackData() reads from the same location.
+				stream->restoreReadState(savedRead);
 			}
+			if (proceed)
+				rep->unpackData(stream, store, estimatedTimeSent);
+			else
+				rep->unpackData(stream, false, estimatedTimeSent);
 		}
 	}
 	for (auto& entry : m_autoReplications) {
 		bool hasUpdate = stream->getInt(1) != 0;
 		if (hasUpdate && store && entry.ptr) {
-			// Call interceptor for intercepted auto-replications
+			// For intercepted auto-replications, decode the incoming value into a
+			// temporary and expose it via peekData() so the interceptor can read it
+			// (matching the Zoidcom contract used by BasePlayer/NetWorm).
 			if (m_replicationInterceptor && (entry.flags & ZCOM_REPFLAG_INTERCEPT) && m_interceptID >= 0) {
 				ZCom_ReplicatorSetup tempSetup(entry.flags, entry.rule, m_interceptID);
 				ZCom_ReplicatorBasic tempRep(&tempSetup);
-				tempRep.peekDataStore(entry.ptr);
-				if (!m_replicationInterceptor->inPreUpdateItem(this, 0, eZCom_RoleAuthority, &tempRep, estimatedTimeSent)) {
-					stream->skipInt(entry.bits);
-					continue;
+
+				int32_t decodedInt = 0;
+				float decodedFloat = 0.0f;
+				if (entry.type == ReplicationEntry::TypeInt) {
+					decodedInt = static_cast<int32_t>(stream->getInt(entry.bits));
+					tempRep.peekDataStore(&decodedInt);
+				} else {
+					decodedFloat = stream->getFloat(entry.bits);
+					tempRep.peekDataStore(&decodedFloat);
 				}
-			}
-			if (entry.type == ReplicationEntry::TypeInt) {
-				*static_cast<int32_t*>(entry.ptr) = static_cast<int32_t>(stream->getInt(entry.bits));
+				// Override peekData to return the decoded value: we stash a pointer
+				// to the local decoded value which the interceptor dereferences.
+				bool accept = m_replicationInterceptor->inPreUpdateItem(this, 0, eZCom_RoleAuthority, &tempRep, estimatedTimeSent);
+				tempRep.peekDataStore(nullptr);
+				if (!accept)
+					continue;
+				if (entry.type == ReplicationEntry::TypeInt)
+					*static_cast<int32_t*>(entry.ptr) = decodedInt;
+				else
+					*static_cast<float*>(entry.ptr) = decodedFloat;
 			} else {
-				*static_cast<float*>(entry.ptr) = stream->getFloat(entry.bits);
+				if (entry.type == ReplicationEntry::TypeInt) {
+					*static_cast<int32_t*>(entry.ptr) = static_cast<int32_t>(stream->getInt(entry.bits));
+				} else {
+					*static_cast<float*>(entry.ptr) = stream->getFloat(entry.bits);
+				}
 			}
 		} else if (hasUpdate) {
 			if (entry.type == ReplicationEntry::TypeInt) {

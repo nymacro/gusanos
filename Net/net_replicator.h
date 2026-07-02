@@ -217,8 +217,10 @@ public:
 	virtual void Process(int localRole, uint32_t simulationTimePassed) {}
 	virtual void* peekData() { return nullptr; }
 	virtual ZCom_BitStream* getPeekStream() { return m_peekStream; }
+	virtual void setPeekStream(ZCom_BitStream* s) { m_peekStream = s; }
 	virtual void peekDataStore(void* data) { m_peekData = data; }
 	virtual void* peekDataRetrieve() { return m_peekData; }
+	virtual void clearPeekData() {}
 
 	ZCom_ReplicatorSetup m_setup;
 	ZCom_BitStream* m_peekStream = nullptr;
@@ -235,6 +237,11 @@ public:
 		m_flags = 0;
 	}
 	uint32_t m_flags;
+
+	// For auto-replications, peekData() returns the decoded value stashed via
+	// peekDataStore() (a pointer the caller can dereference). Custom replicators
+	// (PosSpd/Vector/Angle) override peekData() to read from getPeekStream().
+	void* peekData() override { return m_peekData; }
 
 	bool checkState() override { return true; }
 };

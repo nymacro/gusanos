@@ -103,7 +103,7 @@ public:
 	virtual void render() {}
 #endif
 
-	void assignNetworkRole( bool authority, ZCom_BitStream* announceData = nullptr, ZCom_NodeID net_id = 0 );
+	void assignNetworkRole( bool authority, ZCom_BitStream* announceData = nullptr, ZCom_NodeID net_id = 0, eZCom_NodeRole role = eZCom_RoleUndefined );
 	void setOwnerId( ZCom_ConnID id );
 
 	void assignWorm(BaseWorm* worm);

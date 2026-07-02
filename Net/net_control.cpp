@@ -208,6 +208,7 @@ void ZCom_Control::Shutdown()
 	}
 	m_nodes.clear();
 	m_pendingReplicas.clear();
+	m_pendingNodeEvents.clear();
 }
 
 void ZCom_Control::disconnectPeer(uint32_t connID)
@@ -295,6 +296,8 @@ bool ZCom_Control::registerExistingNode(ZCom_Node* node)
 	m_nodes.push_back(node);
 	// Replay any buffered replicator data for this node
 	replayPendingReplicators(node);
+	// Replay any buffered node events for this node
+	replayPendingNodeEvents(node);
 	return true;
 }
 
@@ -307,6 +310,8 @@ bool ZCom_Control::registerNode(ZCom_Node* node)
 
 	// Replay any buffered replicator data for this node
 	replayPendingReplicators(node);
+	// Replay any buffered node events for this node
+	replayPendingNodeEvents(node);
 
 	// Auto-announce non-unique nodes to all connected peers
 	if (!node->isUnique()) {
@@ -770,6 +775,7 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 			m_waitingForReply.erase(connID);
 			m_announcedNodes.erase(connID);
 			m_pendingReplicas.clear(); // stale replica data from disconnected peer
+			m_pendingNodeEvents.clear();
 
 			// Use pending disconnect data if available, otherwise empty
 			ZCom_BitStream reasonData;
@@ -818,7 +824,38 @@ void ZCom_Control::dispatchNodeEvent(uint32_t nodeID, int type, int role, uint32
 			break;
 		}
 	}
-	(void)found;
+	if (!found && data) {
+		// Node not registered locally yet (e.g. the announcement is still in
+		// flight). Buffer the event so it can be replayed once the node exists.
+		PendingNodeEvent ev;
+		ev.type = type;
+		ev.role = role;
+		ev.connID = connID;
+		// Copy the remaining (unread) portion of the stream, preserving the
+		// current read position so the payload can be decoded on replay.
+		ZCom_BitStream* remaining = data->Duplicate();
+		ev.data = *remaining;
+		ev.data.resetReadState();
+		delete remaining;
+		m_pendingNodeEvents[nodeID].push_back(std::move(ev));
+		NET_LOG("Buffered node event for nodeID=" << nodeID
+			<< " type=" << type << " (" << m_pendingNodeEvents[nodeID].size() << " pending)");
+	}
+}
+
+void ZCom_Control::replayPendingNodeEvents(ZCom_Node* node)
+{
+	if (!node) return;
+	uint32_t nid = node->getNetworkID();
+	auto it = m_pendingNodeEvents.find(nid);
+	if (it == m_pendingNodeEvents.end()) return;
+
+	NET_LOG("Replaying " << it->second.size() << " buffered node event(s) for nodeID=" << nid);
+	for (auto& ev : it->second) {
+		node->pushEvent(static_cast<eZCom_Event>(ev.type),
+			static_cast<eZCom_NodeRole>(ev.role), ev.connID, &ev.data);
+	}
+	m_pendingNodeEvents.erase(it);
 }
 // ---- Global ZoidCom functions ----
 
