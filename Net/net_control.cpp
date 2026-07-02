@@ -432,13 +432,8 @@ void ZCom_Control::announceNodeWithOwner(ZCom_Node* node)
         }
         sendNodeAnnouncement(pair.first, node, role);
     }
-
-    // Also push eEvent_Init for each peer
-    if (node->getEventNotification()) {
-        for (auto& pair : m_peerMap) {
-            node->pushEvent(eZCom_EventInit, eZCom_RoleProxy, pair.first, nullptr);
-        }
-    }
+    // eEvent_Init is pushed per-peer inside sendNodeAnnouncement (with the
+    // correct owner-aware role), so no additional push is needed here.
 }
 
 void ZCom_Control::syncNodesToPeer(ENetPeer* peer)
@@ -744,13 +739,22 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 					announceData = new ZCom_BitStream(buf.data(), buf.size());
 				}
 
-				ZCom_cbNodeRequest_Dynamic(connID, classID, announceData,
-					role, net_id);
+			// Set the node-request context so that registerNodeDynamic /
+			// registerRequestedNode calls made inside the callback auto-assign
+			// the announced role to the new local node.
+			m_requestCtx.active = true;
+			m_requestCtx.connID = connID;
+			m_requestCtx.role = role;
 
-				delete announceData;
-				enet_packet_destroy(event.packet);
-				break;
-			}
+			ZCom_cbNodeRequest_Dynamic(connID, classID, announceData,
+				role, net_id);
+
+			m_requestCtx.active = false;
+
+			delete announceData;
+			enet_packet_destroy(event.packet);
+			break;
+		}
 			
 			// Handle disconnect reason data (sent before disconnect)
 		if (msgType == MSG_DISCONNECT_DATA) {
@@ -856,6 +860,16 @@ void ZCom_Control::replayPendingNodeEvents(ZCom_Node* node)
 			static_cast<eZCom_NodeRole>(ev.role), ev.connID, &ev.data);
 	}
 	m_pendingNodeEvents.erase(it);
+}
+
+void ZCom_Control::applyRequestRole(ZCom_Node* node)
+{
+	if (!node || !m_requestCtx.active) return;
+	// Per Zoidcom semantics, a node registered inside cbNodeRequest_Dynamic
+	// takes the role announced by the server (Owner or Proxy). The node must
+	// not remain eZCom_RoleAuthority, otherwise sendEvent() rule checks
+	// (e.g. OWNER_2_AUTH used by selectWeapons) would be wrong.
+	node->setRole(static_cast<eZCom_NodeRole>(m_requestCtx.role));
 }
 // ---- Global ZoidCom functions ----
 

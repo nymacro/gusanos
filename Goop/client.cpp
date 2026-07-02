@@ -295,7 +295,7 @@ void Client::ZCom_cbNodeRequest_Dynamic( ZCom_ConnID _id, ZCom_ClassID _requeste
 		}
 		if (!player) return;
 
-		player->assignNetworkRole(false, nullptr, _net_id, static_cast<eZCom_NodeRole>(_role));
+		player->assignNetworkRole(false, nullptr, _net_id);
 	}else if( _requested_class == Particle::classID )
 	{
 		int typeIndex = Encoding::decode(*_announcedata, partTypeList.size());

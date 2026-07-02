@@ -117,6 +117,13 @@ bool ZCom_Node::registerNodeDynamic(uint32_t classID, void* control)
 {
 	m_classID = classID;
 	m_control = static_cast<ZCom_Control*>(control);
+	// Per Zoidcom semantics: when registered outside cbNodeRequest_Dynamic
+	// this is an authority node; when registered inside the callback (client
+	// side) the control assigns the announced role (Proxy/Owner).
+	if (m_control && !m_control->isRequestActive())
+		m_role = eZCom_RoleAuthority;
+	if (m_control)
+		m_control->applyRequestRole(this);
 	if (m_control && m_nodeID > 0)
 		return m_control->registerExistingNode(this);
 	return m_control ? m_control->registerNode(this) : false;
@@ -143,6 +150,10 @@ bool ZCom_Node::registerRequestedNode(uint32_t classID, void* control)
 {
 	m_classID = classID;
 	m_control = static_cast<ZCom_Control*>(control);
+	// Requested nodes are always client-side; the control assigns the role
+	// announced by the server (Proxy/Owner) via the request context.
+	if (m_control)
+		m_control->applyRequestRole(this);
 	// Requested nodes already have a server-assigned ID — don't auto-assign
 	return m_control ? m_control->registerExistingNode(this) : false;
 }

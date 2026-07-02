@@ -142,6 +142,13 @@ public:
 	// Replay buffered replicator data for a newly registered node
 	void replayPendingReplicators(ZCom_Node* node);
 
+	/// Apply the current node-request context's role to a node, if any.
+	/// Called by ZCom_Node during registration inside cbNodeRequest_Dynamic.
+	void applyRequestRole(ZCom_Node* node);
+
+	/// True while the control is inside a ZCom_cbNodeRequest_Dynamic callback.
+	bool isRequestActive() const { return m_requestCtx.active; }
+
 protected:
 	ENetHost* m_host;
 	bool m_isServer;
@@ -173,6 +180,20 @@ protected:
 
 	/// Replay buffered node events for a newly registered node.
 	void replayPendingNodeEvents(ZCom_Node* node);
+
+protected:
+	/// Node-request context: while the control is inside a
+	/// ZCom_cbNodeRequest_Dynamic callback, this holds the requesting
+	/// connection and the role announced by the server. Registration calls
+	/// made within that callback (registerNodeDynamic/registerRequestedNode)
+	/// auto-assign this role to the new node, matching Zoidcom semantics where
+	/// the node's local role is determined by registration context.
+	struct NodeRequestContext {
+		bool active = false;
+		uint32_t connID = 0;
+		int role = 0;
+	};
+	NodeRequestContext m_requestCtx;
 
 	ZCom_ConnGroupManager m_groupManager;
 

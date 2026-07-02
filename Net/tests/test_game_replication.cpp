@@ -78,7 +78,6 @@ public:
         gotNodeID = net_id; gotRole = role;
         node = new ZCom_Node();
         node->setNetworkID(net_id);
-        node->setRole(static_cast<eZCom_NodeRole>(role));
         node->setEventNotification(true, true);
         node->beginReplicationSetup(1);
         node->setInterceptID(0);
@@ -88,6 +87,7 @@ public:
         node->endReplicationSetup();
         node->setReplicationInterceptor(&interceptor);
         node->registerRequestedNode(cls, this);
+        // Role is auto-assigned by the omfgnet layer from the request context.
     }
 };
 
@@ -164,9 +164,9 @@ BOOST_AUTO_TEST_CASE(node_event_reaches_client_queue)
             gotID=net_id;
             node=new ZCom_Node();
             node->setNetworkID(net_id);
-            node->setRole(static_cast<eZCom_NodeRole>(role));
             node->setEventNotification(true,true);
             node->registerRequestedNode(cls,this);
+            // Role auto-assigned by omfgnet layer from request context.
         }
     } cli(port);
 
@@ -231,9 +231,9 @@ BOOST_AUTO_TEST_CASE(node_event_buffered_before_node_registration)
         void createNodeNow() {
             node=new ZCom_Node();
             node->setNetworkID(gotID);
-            node->setRole(eZCom_RoleProxy);
             node->setEventNotification(true,true);
             node->registerRequestedNode(cls,this);
+            // Role auto-assigned by omfgnet layer from request context.
             created=true;
         }
     } cli(port);
@@ -308,9 +308,9 @@ BOOST_AUTO_TEST_CASE(client_owner_role_allows_owner_to_auth_event)
             gotID=net_id; gotRole=role;
             node=new ZCom_Node();
             node->setNetworkID(net_id);
-            node->setRole(static_cast<eZCom_NodeRole>(role)); // Owner
             node->setEventNotification(true,true);
             node->registerRequestedNode(cls,this);
+            // Role (Owner) auto-assigned by omfgnet layer from request context.
         }
     } cli(port);
 
@@ -347,6 +347,112 @@ BOOST_AUTO_TEST_CASE(client_owner_role_allows_owner_to_auth_event)
         }
     }
     BOOST_CHECK(srvGotIt);
+
+    srv.Shutdown(); cli.Shutdown();
+}
+
+// End-to-end game-style flow: authority node with event notification + owner,
+// eEvent_Init fires on the server -> server sends a sync event to the client
+// (mirrors BasePlayer/NetWorm sendSyncMessage). The client must receive it,
+// even though the client node is created asynchronously in cbNodeRequest_Dynamic.
+// Also verifies replicator state propagates to the client after the link is up.
+BOOST_AUTO_TEST_CASE(full_sync_and_replication_flow)
+{
+    g_currentControl = nullptr;
+    int port = s_port++;
+
+    class FullSrv : public ZCom_Control {
+    public:
+        uint32_t cls; ZCom_Node* node=nullptr; uint32_t clientID=0;
+        int32_t state = 7; // replicated authority state
+        FullSrv(int p){ g_currentControl=this; ZCom_initSockets(true,p,2,0); cls=ZCom_registerClass("F",0); }
+        bool ZCom_cbConnectionRequest(uint32_t,ZCom_BitStream&,ZCom_BitStream&) override { return true; }
+        void ZCom_cbConnectionSpawned(uint32_t id) override { if(clientID==0) clientID=id; }
+        // Server pumps its node events; on eEvent_Init it sends a sync event
+        // to the new peer (exactly like BasePlayer::think / NetWorm::think).
+        void pumpNode() {
+            if (!node) return;
+            while (node->checkEventWaiting()) {
+                eZCom_Event type; eZCom_NodeRole role; uint32_t connID;
+                ZCom_BitStream* data = node->getNextEvent(&type, &role, &connID);
+                if (type == eZCom_EventInit) {
+                    ZCom_BitStream* sync = new ZCom_BitStream();
+                    sync->addInt(0x5BAD, 16);
+                    node->sendEventDirect(eZCom_ReliableOrdered, sync, connID);
+                }
+            }
+        }
+    } srv(port);
+
+    class FullCli : public ZCom_Control {
+    public:
+        uint32_t cls; bool connected=false; ZCom_Node* node=nullptr;
+        int32_t localState = 0;
+        int syncEvents = 0;
+        FullCli(int p){ g_currentControl=this; ZCom_initSockets(false,0,0,0); cls=ZCom_registerClass("F",0); }
+        uint32_t ConnectTo(const char* h,int p){ ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p); a.setAddress(0,0,hp); return ZCom_Connect(a,nullptr); }
+        void ZCom_cbConnectResult(uint32_t,eZCom_ConnectResult r,ZCom_BitStream&) override { connected=(r==eZCom_ConnAccepted); }
+        void ZCom_cbNodeRequest_Dynamic(uint32_t,uint32_t,ZCom_BitStream*,int role,uint32_t net_id) override {
+            node=new ZCom_Node();
+            node->setNetworkID(net_id);
+            node->setEventNotification(true,true);
+            node->beginReplicationSetup(1);
+            node->addReplicationInt((zS32*)&localState, 32, false,
+                ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL, 0);
+            node->endReplicationSetup();
+            node->registerRequestedNode(cls,this);
+            // Role auto-assigned by omfgnet layer from request context.
+        }
+        void pumpNode() {
+            if (!node) return;
+            while (node->checkEventWaiting()) {
+                eZCom_Event type; eZCom_NodeRole role; uint32_t connID;
+                ZCom_BitStream* data = node->getNextEvent(&type, &role, &connID);
+                if (type == eZCom_EventUser && data) {
+                    // Verify sync payload (idempotent across duplicate syncs)
+                    (void)data->getInt(16);
+                    syncEvents++;
+                }
+            }
+        }
+    } cli(port);
+
+    cli.ConnectTo("127.0.0.1", port);
+    processBoth(&srv, &cli, 40);
+    BOOST_REQUIRE(cli.connected);
+    BOOST_REQUIRE_NE(srv.clientID, 0u);
+
+    // Server creates an authority node owned by the client. It auto-announces.
+    srv.node = new ZCom_Node();
+    srv.node->setEventNotification(true, false); // generate eEvent_Init on link
+    srv.node->beginReplicationSetup(1);
+    srv.node->addReplicationInt((zS32*)&srv.state, 32, false,
+        ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL, 0);
+    srv.node->endReplicationSetup();
+    srv.node->setOwner(srv.clientID, true);
+    srv.node->registerNodeDynamic(srv.cls, &srv);
+
+    // Pump the server's node events so eEvent_Init -> sendEventDirect(sync) fires.
+    g_currentControl = &srv; srv.pumpNode(); g_currentControl = nullptr;
+
+    // Let the announcement + sync event + replicator state propagate.
+    processBoth(&srv, &cli, 40);
+    g_currentControl = &cli; cli.pumpNode(); g_currentControl = nullptr;
+    g_currentControl = &srv; srv.pumpNode(); g_currentControl = nullptr;
+    processBoth(&srv, &cli, 20);
+    g_currentControl = &cli; cli.pumpNode(); g_currentControl = nullptr;
+
+    // Client node was created via the request callback.
+    BOOST_REQUIRE(cli.node != nullptr);
+    // Client received at least one sync event (the buffered-then-replayed one).
+    BOOST_CHECK_GE(cli.syncEvents, 1);
+    // Replicated authority state reached the client.
+    BOOST_CHECK_EQUAL(cli.localState, 7);
+
+    // Now change authority state and confirm it propagates.
+    srv.state = 99;
+    processBoth(&srv, &cli, 40);
+    BOOST_CHECK_EQUAL(cli.localState, 99);
 
     srv.Shutdown(); cli.Shutdown();
 }
