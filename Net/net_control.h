@@ -139,6 +139,9 @@ public:
 	// Replicator processing
 	void ZCom_processReplicators(uint32_t simulation_time_passed);
 
+	// Replay buffered replicator data for a newly registered node
+	void replayPendingReplicators(ZCom_Node* node);
+
 protected:
 	ENetHost* m_host;
 	bool m_isServer;
@@ -153,6 +156,10 @@ protected:
 	std::map<uint32_t, ZCom_BitStream> m_pendingDisconnectData; ///< Pre-disconnect reason data per connID
 	std::set<uint32_t> m_waitingForReply; ///< Client connIDs waiting for connection reply
 	std::map<uint32_t, std::set<uint32_t>> m_announcedNodes; ///< Per-peer set of node IDs already announced
+
+	/// Buffered replicator data for nodes that haven't been registered locally yet.
+	/// Keyed by nodeID; replayed when the node is registered via registerExistingNode or registerNode.
+	std::map<uint32_t, ZCom_BitStream> m_pendingReplicas;
 
 	ZCom_ConnGroupManager m_groupManager;
 

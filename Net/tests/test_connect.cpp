@@ -5,6 +5,7 @@
 #include <boost/test/unit_test.hpp>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 
 #include "net_control.h"
 
@@ -268,6 +269,40 @@ BOOST_AUTO_TEST_CASE(shutdown_cleans_up)
 	f.server->Shutdown();
 
 	BOOST_CHECK(true);
+}
+
+BOOST_AUTO_TEST_CASE(reconnect_after_disconnect)
+{
+	ConnectFixture f;
+	f.Setup();
+
+	// First connection
+	g_currentControl = f.client;
+	uint32_t cid = f.client->ZCom_Connect(f.serverAddr, nullptr);
+	g_currentControl = nullptr;
+	BOOST_REQUIRE(cid != ZCom_Invalid_ID);
+	f.ProcessAll(300);
+	BOOST_REQUIRE(f.client->m_connected);
+	BOOST_REQUIRE_EQUAL(f.server->m_connCount, 1);
+
+	// Disconnect
+	g_currentControl = f.client;
+	f.client->ZCom_Disconnect(cid, nullptr);
+	g_currentControl = nullptr;
+	f.ProcessAll(300);
+	BOOST_CHECK_EQUAL(f.server->m_disconnectCount, 1);
+	BOOST_CHECK_EQUAL(f.server->m_connCount, 0);
+
+	// Reconnect — allow more iterations for the disconnect to fully
+	// propagate before the new connection is established.
+	g_currentControl = f.client;
+	cid = f.client->ZCom_Connect(f.serverAddr, nullptr);
+	g_currentControl = nullptr;
+	BOOST_REQUIRE(cid != ZCom_Invalid_ID);
+	f.ProcessAll(400);
+
+	BOOST_CHECK_EQUAL(f.server->m_connCount, 1);
+	BOOST_CHECK(f.client->m_connected);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -198,4 +198,104 @@ BOOST_AUTO_TEST_CASE(event_binary_payload)
 	BOOST_CHECK(true);
 }
 
+BOOST_AUTO_TEST_CASE(event_interceptor_registration)
+{
+	static int portOffset = 0;
+	g_currentControl = nullptr;
+	int port = 19100 + (portOffset++);
+
+	EventServer srv(port);
+	EventClient cli(port);
+
+	uint32_t cid = cli.ConnectTo("127.0.0.1", port);
+	BOOST_REQUIRE(cid != ZCom_Invalid_ID);
+	processBoth(&srv, &cli, 30);
+	BOOST_REQUIRE(cli.m_connected);
+
+	// Create a node and set an event interceptor
+	g_currentControl = &cli;
+	ZCom_Node* node = new ZCom_Node();
+	node->beginReplicationSetup(0);
+	node->endReplicationSetup();
+	node->registerNodeDynamic(cli.m_eventClass, &cli);
+
+	// Interceptor registration should not crash
+	node->setEventInterceptor(nullptr);
+	BOOST_CHECK(true);
+
+	node->unregisterNode();
+	delete node;
+	g_currentControl = nullptr;
+
+	cli.Shutdown();
+	srv.Shutdown();
+}
+
+BOOST_AUTO_TEST_CASE(event_type_constants)
+{
+	BOOST_CHECK_EQUAL(eZCom_EventNoEvent, 0);
+	BOOST_CHECK_EQUAL(eZCom_EventUser, 100);
+	BOOST_CHECK_EQUAL(eZCom_EventReplicator, 50);
+	BOOST_CHECK(eZCom_EventUser > eZCom_EventReplicator);
+}
+
+BOOST_AUTO_TEST_CASE(send_mode_constants)
+{
+	BOOST_CHECK_EQUAL(eZCom_ReliableUnordered, 0);
+	BOOST_CHECK_EQUAL(eZCom_ReliableOrdered, 1);
+	BOOST_CHECK_EQUAL(eZCom_Unreliable, 2);
+}
+
+BOOST_AUTO_TEST_CASE(replication_flag_constants)
+{
+	BOOST_CHECK_EQUAL(ZCOM_REPFLAG_NONE, 0);
+	BOOST_CHECK_EQUAL(ZCOM_REPFLAG_UNRELIABLE, (1L << 0));
+	BOOST_CHECK_EQUAL(ZCOM_REPFLAG_MOSTRECENT, (1L << 1));
+	BOOST_CHECK_EQUAL(ZCOM_REPFLAG_RARELYCHANGED, (1L << 2));
+	BOOST_CHECK_EQUAL(ZCOM_REPFLAG_ONLYONCE, (1L << 3));
+	BOOST_CHECK_EQUAL(ZCOM_REPFLAG_INTERCEPT, (1L << 4));
+	BOOST_CHECK_EQUAL(ZCOM_REPFLAG_SETUPPERSISTS, (1L << 5));
+	BOOST_CHECK_EQUAL(ZCOM_REPFLAG_SETUPAUTODELETE, (1L << 6));
+	BOOST_CHECK_EQUAL(ZCOM_REPFLAG_STARTCLEAN, (1L << 7));
+}
+
+BOOST_AUTO_TEST_CASE(replication_rule_constants)
+{
+	BOOST_CHECK_EQUAL(ZCOM_REPRULE_AUTH_2_PROXY, (1L << 0));
+	BOOST_CHECK_EQUAL(ZCOM_REPRULE_AUTH_2_OWNER, (1L << 1));
+	BOOST_CHECK_EQUAL(ZCOM_REPRULE_AUTH_2_ALL, (ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_AUTH_2_OWNER));
+	BOOST_CHECK_EQUAL(ZCOM_REPRULE_OWNER_2_AUTH, (1L << 2));
+	BOOST_CHECK_EQUAL(ZCOM_REPRULE_NONE, 0);
+}
+
+BOOST_AUTO_TEST_CASE(node_event_notification_toggle)
+{
+	static int portOffset = 0;
+	g_currentControl = nullptr;
+	int port = 19110 + (portOffset++);
+
+	EventServer srv(port);
+	EventClient cli(port);
+
+	uint32_t cid = cli.ConnectTo("127.0.0.1", port);
+	BOOST_REQUIRE(cid != ZCom_Invalid_ID);
+	processBoth(&srv, &cli, 30);
+	BOOST_REQUIRE(cli.m_connected);
+
+	// Create a node with event notification enabled
+	g_currentControl = &cli;
+	ZCom_Node* node = new ZCom_Node();
+	node->beginReplicationSetup(0);
+	node->endReplicationSetup();
+	node->setEventNotification(true, true);
+	node->registerNodeDynamic(cli.m_eventClass, &cli);
+
+	node->unregisterNode();
+	delete node;
+	g_currentControl = nullptr;
+
+	cli.Shutdown();
+	srv.Shutdown();
+}
+
 BOOST_AUTO_TEST_SUITE_END()

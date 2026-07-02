@@ -207,6 +207,7 @@ void ZCom_Control::Shutdown()
 		m_host = nullptr;
 	}
 	m_nodes.clear();
+	m_pendingReplicas.clear();
 }
 
 void ZCom_Control::disconnectPeer(uint32_t connID)
@@ -274,11 +275,26 @@ void ZCom_Control::sendToAll(int mode, ZCom_BitStream* stream)
 	enet_host_broadcast(m_host, 0, packet);
 }
 
+void ZCom_Control::replayPendingReplicators(ZCom_Node* node)
+{
+	if (!node) return;
+	uint32_t nid = node->getNetworkID();
+	auto it = m_pendingReplicas.find(nid);
+	if (it == m_pendingReplicas.end()) return;
+
+	NET_LOG("Replaying buffered replicator data for nodeID=" << nid);
+	it->second.resetReadState();
+	node->unpackAllReplicators(&it->second, true, 0);
+	m_pendingReplicas.erase(it);
+}
+
 bool ZCom_Control::registerExistingNode(ZCom_Node* node)
 {
 	if (!node) return false;
 	node->setControl(this);
 	m_nodes.push_back(node);
+	// Replay any buffered replicator data for this node
+	replayPendingReplicators(node);
 	return true;
 }
 
@@ -288,6 +304,9 @@ bool ZCom_Control::registerNode(ZCom_Node* node)
 	node->setNodeID(m_nextNodeID++);
 	node->setControl(this);
 	m_nodes.push_back(node);
+
+	// Replay any buffered replicator data for this node
+	replayPendingReplicators(node);
 
 	// Auto-announce non-unique nodes to all connected peers
 	if (!node->isUnique()) {
@@ -669,7 +688,14 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 					);
 					repNode->unpackAllReplicators(&repData, true, 0);
 				} else {
-					NET_LOG("MSG_REPLICATORS: nodeID=" << repNodeID << " NOT FOUND locally (" << m_nodes.size() << " nodes)");
+					NET_LOG("MSG_REPLICATORS: nodeID=" << repNodeID << " NOT FOUND locally — buffering for later (" << m_nodes.size() << " nodes)");
+
+					// Buffer the replica data so it can be replayed when the node is registered
+					size_t offset = 3;
+					m_pendingReplicas[repNodeID].assign(
+						event.packet->data + offset,
+						event.packet->dataLength - offset
+					);
 				}
 
 				enet_packet_destroy(event.packet);
@@ -738,10 +764,12 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 		case ENET_EVENT_TYPE_DISCONNECT: {
 			connID = static_cast<uint32_t>(
 				reinterpret_cast<uintptr_t>(event.peer->data));
+			event.peer->data = nullptr; // Clear so reconnecting peer is treated as new incoming
 			m_peerMap.erase(connID);
 			m_addressMap.erase(connID);
 			m_waitingForReply.erase(connID);
 			m_announcedNodes.erase(connID);
+			m_pendingReplicas.clear(); // stale replica data from disconnected peer
 
 			// Use pending disconnect data if available, otherwise empty
 			ZCom_BitStream reasonData;

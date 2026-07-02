@@ -151,11 +151,8 @@ console.registerVariables()
 ## Build Verification
 
 ```bash
-# Full debug build
+# Full debug build (never build parallel)
 scons build=debug
-
-# Full release build (dedicated server)
-scons build=dedserv
 
 # Clean
 scons -c

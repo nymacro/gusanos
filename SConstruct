@@ -91,23 +91,6 @@ if os.path.exists(brew_prefix):
     if brew_bin not in env['ENV']['PATH']:
         env['ENV']['PATH'] = brew_bin + os.pathsep + env['ENV']['PATH']
 
-# Pick a compiler — prefer Homebrew clang++ over system GCC for better sanitizer support
-#import shutil
-#for _candidate in ['clang++-19', 'clang++-18', 'clang++-17', 'clang++-16', 'clang++-15', 'clang++']:
-#    _cxx = shutil.which(_candidate)
-#    if _cxx:
-#        env.Replace(CXX=_cxx)
-#        _cc = _cxx.replace('++', '')  # clang++ -> clang
-#        env.Replace(CC=_cc)
-#        # Use libc++ (Homebrew's or clang's own) instead of GCC libstdc++
-#        env.Append(CXXFLAGS=['-stdlib=libc++'])
-#        env.Append(LINKFLAGS=['-stdlib=libc++'])
-#        print(f"Using compiler: {_cxx}")
-#        break
-
-env.Replace(CC='gcc-16')
-env.Replace(CXX='g++-16')
-
 env.Append(
     CPPPATH=Split('. #http #lua51 #Console #GUI #Utility #OmfgScript #Goop #Net'),
     LIBPATH=[os.path.join('#lib', env['MY_SUBFOLDER']), os.path.join('#lib', env['MY_CONF'])],
@@ -141,10 +124,18 @@ for lib in libs:
 boost_libs = ['boost_filesystem', 'boost_system']
 for blib in boost_libs:
     if not env.GetOption('clean'):
+        # LIBPATH is already set via pkg-config and Homebrew paths above.
+        # Just verify the library exists by trying a simple compile+link.
         conf = Configure(env)
-        if not conf.CheckLib(blib, language='C++'):
+        # Temporarily extend LIBPATH for the check
+        orig_libpath = list(env.get('LIBPATH', []))
+        env.Append(LIBPATH=['/usr/lib/x86_64-linux-gnu', os.path.join(brew_prefix, 'lib')])
+        if conf.CheckLib(blib, language='C++'):
+            env.Append(LINKLIBS=blib)
+        else:
             print(f"Warning: Could not find boost library {blib}")
         env = conf.Finish()
+        env['LIBPATH'] = orig_libpath
 
 # Build parser generator
 parserGen = SConscript('parsergen/SConscript', exports=exp)

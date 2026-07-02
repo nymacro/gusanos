@@ -61,6 +61,36 @@ public:
 	TestMoveListener()
 		: input_updated_called(false), input_sent_called(false),
 		  correction_called(false), update_received_called(false) {}
+
+	void inputUpdated(ZCom_BitStream& _inputstream, bool _inputchanged,
+	                   uint32_t _client_time, uint32_t _estimated_time_sent) override
+	{
+		(void)_inputstream; (void)_inputchanged; (void)_client_time;
+		(void)_estimated_time_sent;
+		input_updated_called = true;
+	}
+
+	void inputSent(ZCom_BitStream& _inputstream) override
+	{
+		(void)_inputstream;
+		input_sent_called = true;
+	}
+
+	void correctionReceived(zFloat* _pos, zFloat* _vel, zFloat* _acc,
+	                         bool _teleport, uint32_t _estimated_time_sent) override
+	{
+		(void)_pos; (void)_vel; (void)_acc; (void)_teleport;
+		(void)_estimated_time_sent;
+		correction_called = true;
+	}
+
+	void updateReceived(ZCom_BitStream& _inputstream, zFloat* _pos,
+	                      zFloat* _vel, zFloat* _acc, uint32_t _estimated_time_sent) override
+	{
+		(void)_inputstream; (void)_pos; (void)_vel; (void)_acc;
+		(void)_estimated_time_sent;
+		update_received_called = true;
+	}
 };
 
 BOOST_AUTO_TEST_CASE(movement_listener)

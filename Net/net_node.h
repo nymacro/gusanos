@@ -163,6 +163,12 @@ public:
 	void setUserData(void* data) { m_userData = data; }
 	void* getUserData() { return m_userData; }
 
+	void setPrivate(bool priv) { m_isPrivate = priv; }
+	bool isPrivate() const { return m_isPrivate; }
+	void setUpdatePriority(int pri) { m_updatePriority = pri; }
+	void setDefaultRelevance(float rel) { m_defaultRelevance = rel; }
+	uint32_t getRelevantConnectionCount() { return m_relevantConnectionCount; }
+
 	void removeFromZoidLevel(int) {}
 
 	// File transfer stubs
@@ -193,6 +199,7 @@ private:
 	uint32_t m_ownerID;
 	int m_role;
 	bool m_isUnique;
+	bool m_isPrivate;
 	bool m_eventNotification;
 	bool m_eventNotificationRemove;
 	bool m_authority;
@@ -200,6 +207,9 @@ private:
 	ZCom_BitStream* m_announceData;
 	void* m_userData;
 	ZCom_NodeEventInterceptor* m_eventInterceptor;
+	int m_updatePriority;
+	float m_defaultRelevance;
+	uint32_t m_relevantConnectionCount;
 	
 	std::vector<ZCom_Replicator*> m_replicators;
 	std::vector<ReplicationEntry> m_autoReplications;
