@@ -568,13 +568,6 @@ void BasePlayer::assignNetworkRole( bool authority, ZCom_BitStream* announceData
 	m_interceptor = new BasePlayerInterceptor( this );
 	m_node->setReplicationInterceptor(m_interceptor);
 
-	// Propagate owner if already set
-	if (m_id != 0)
-		m_node->setOwner(m_id, true);
-
-	if (announceData)
-		m_node->setAnnounceData(announceData);
-
 	m_isAuthority = authority;
 	if( m_isAuthority)
 	{
@@ -583,8 +576,6 @@ void BasePlayer::assignNetworkRole( bool authority, ZCom_BitStream* announceData
 			allegro_message("ERROR: Unable to register player authority node.");
 	}else
 	{
-		if (net_id != 0)
-			m_node->setNetworkID(net_id);
 		m_node->setEventNotification(false, true); // Same but for the remove event.
 		if( !m_node->registerRequestedNode( classID, network.getZControl() ) )
 		allegro_message("ERROR: Unable to register player requested node.");
@@ -595,9 +586,7 @@ void BasePlayer::assignNetworkRole( bool authority, ZCom_BitStream* announceData
 
 void BasePlayer::setOwnerId( ZCom_ConnID id )
 {
-	// Owner is applied in assignNetworkRole() which creates m_node.
-	// Storing m_id here allows assignNetworkRole to propagate it.
-	m_id = id;
+	m_node->setOwner( id, true );
 }
 
 

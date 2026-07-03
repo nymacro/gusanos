@@ -947,8 +947,6 @@ void Game::refreshMods()
 void Game::createNetworkPlayers()
 {
 	BaseWorm* worm = addWorm(true);
-	if (NetWorm* netWorm = dynamic_cast<NetWorm*>(worm))
-		netWorm->registerNode();
 	BasePlayer* player = addPlayer ( OWNER, -1, worm );
 	player->assignNetworkRole(true);
 	//player->assignWorm(worm);
@@ -957,8 +955,6 @@ void Game::createNetworkPlayers()
 	{
 		// TODO: Factorize all this out, its being duplicated on client.cpp also :O
 		BaseWorm* worm = addWorm(true);
-		if (NetWorm* netWorm = dynamic_cast<NetWorm*>(worm))
-			netWorm->registerNode();
 		BasePlayer* player = addPlayer ( OWNER, -1, worm );
 		player->assignNetworkRole(true);
 		//player->assignWorm(worm);

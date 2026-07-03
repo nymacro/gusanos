@@ -73,7 +73,6 @@ void Server::ZCom_cbDataReceived( ZCom_ConnID  _id, ZCom_BitStream &_data)
 			if ( netWorm )
 			{
 				netWorm->setOwnerId(_id);
-				netWorm->registerNode();
 			}
 			BasePlayer* player = game.addPlayer ( Game::PROXY );
 			
@@ -98,8 +97,8 @@ void Server::ZCom_cbDataReceived( ZCom_ConnID  _id, ZCom_BitStream &_data)
 			player->team = team;
 			player->localChangeName( name );
 			console.addLogMsg( "* " + player->m_name + " HAS JOINED THE GAME");
+			player->assignNetworkRole(true);
 			player->setOwnerId(_id);
-player->assignNetworkRole(true);
 			player->assignWorm(worm);
 
 			// Auto-announce nodes handled by registerNode/setOwner in Net/ layer
@@ -148,11 +147,11 @@ bool Server::ZCom_cbConnectionRequest( ZCom_ConnID id, ZCom_BitStream &_request,
 	{
 		console.addLogMsg("* CONNECTION REQUESTED");
 		//_reply.addInt(Network::ConnectionReply::Ok, 8);
-	reply.addString( game.getMod().c_str() );
-	reply.addString( game.level.getName().c_str() );
+		reply.addString( game.getMod().c_str() );
+		reply.addString( game.level.getName().c_str() );
 
-	DLOG("Server sending mod='" << game.getMod() << "' map='" << game.level.getName() << "' in connection reply");
-	return true;
+		DLOG("Server sending mod='" << game.getMod() << "' map='" << game.level.getName() << "' in connection reply");
+		return true;
 	}
 	else
 	{

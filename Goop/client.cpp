@@ -277,11 +277,7 @@ void Client::ZCom_cbNodeRequest_Dynamic( ZCom_ConnID _id, ZCom_ClassID _requeste
 	// check the requested class
 	if ( _requested_class == NetWorm::classID )
 	{
-		BaseWorm* worm = game.addWorm(false);
-		if (NetWorm* netWorm = dynamic_cast<NetWorm*>(worm)) {
-			netWorm->setNodeID(_net_id);
-			netWorm->registerNode();
-		}
+		game.addWorm(false);
 	}else if ( _requested_class == BasePlayer::classID )
 	{
 		// Creates a player class depending on the role

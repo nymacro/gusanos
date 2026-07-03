@@ -780,6 +780,7 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 			m_requestCtx.active = true;
 			m_requestCtx.connID = connID;
 			m_requestCtx.role = role;
+			m_requestCtx.net_id = net_id;
 
 			ZCom_cbNodeRequest_Dynamic(connID, classID, announceData,
 				role, net_id);
@@ -895,6 +896,12 @@ void ZCom_Control::replayPendingNodeEvents(ZCom_Node* node)
 			static_cast<eZCom_NodeRole>(ev.role), ev.connID, &ev.data);
 	}
 	m_pendingNodeEvents.erase(it);
+}
+
+void ZCom_Control::applyRequestNodeID(ZCom_Node* node)
+{
+	if (!node || !m_requestCtx.active || node->getNetworkID() != 0) return;
+	node->setNodeID(m_requestCtx.net_id);
 }
 
 void ZCom_Control::applyRequestRole(ZCom_Node* node)

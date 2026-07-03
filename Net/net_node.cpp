@@ -124,6 +124,8 @@ bool ZCom_Node::registerNodeDynamic(uint32_t classID, void* control)
 		m_role = eZCom_RoleAuthority;
 	if (m_control)
 		m_control->applyRequestRole(this);
+	if (m_control)
+		m_control->applyRequestNodeID(this);
 	if (m_control && m_nodeID > 0)
 		return m_control->registerExistingNode(this);
 	return m_control ? m_control->registerNode(this) : false;
@@ -154,6 +156,9 @@ bool ZCom_Node::registerRequestedNode(uint32_t classID, void* control)
 	// announced by the server (Proxy/Owner) via the request context.
 	if (m_control)
 		m_control->applyRequestRole(this);
+	// Requested nodes already have a server-assigned ID — auto-assign from request context
+	if (m_control)
+		m_control->applyRequestNodeID(this);
 	// Requested nodes already have a server-assigned ID — don't auto-assign
 	return m_control ? m_control->registerExistingNode(this) : false;
 }

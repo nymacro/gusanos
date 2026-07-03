@@ -73,19 +73,15 @@ NetWorm::NetWorm(bool isAuthority) : BaseWorm()
 	if( isAuthority)
 	{
 		m_node->setEventNotification(true, false); // Enables the eEvent_Init.
-		m_node->setRole(eZCom_RoleAuthority);
+               if( !m_node->registerNodeDynamic(classID, network.getZControl() ) )
+                       allegro_message("ERROR: Unable to register worm authority node.");
+
 	}else
 	{
-		m_node->setRole(eZCom_RoleProxy);
+               if( !m_node->registerRequestedNode( classID, network.getZControl() ) )
+		       allegro_message("ERROR: Unable to register worm requested node.");
 	}
 	m_node->applyForZoidLevel(1);
-}
-
-void NetWorm::registerNode()
-{
-	if (!m_node) return;
-	if( !m_node->registerNodeDynamic(classID, network.getZControl() ) )
-		allegro_message("ERROR: Unable to register worm node.");
 }
 
 NetWorm::~NetWorm()

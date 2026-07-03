@@ -47,7 +47,7 @@ static const int MSG_ZOID_REQUEST = 101;
 static const int MSG_ZOID_RESULT = 102;
 static const int MSG_NODE_ANNOUNCE = 103;
 // Node event prefix (8 bits = 0, followed by 16-bit nodeID + payload)
-static const int MSG_NODE_EVENT = 0;
+static const int MSG_NODE_EVENT = 104;
 
 static const int MSG_REPLICATORS = 105;
 static const int MSG_DISCONNECT_DATA = 106;
@@ -146,6 +146,7 @@ public:
 	/// Apply the current node-request context's role to a node, if any.
 	/// Called by ZCom_Node during registration inside cbNodeRequest_Dynamic.
 	void applyRequestRole(ZCom_Node* node);
+	void applyRequestNodeID(ZCom_Node* node);
 
 	/// True while the control is inside a ZCom_cbNodeRequest_Dynamic callback.
 	bool isRequestActive() const { return m_requestCtx.active; }
@@ -193,6 +194,7 @@ protected:
 		bool active = false;
 		uint32_t connID = 0;
 		int role = 0;
+		uint32_t net_id = 0;
 	};
 	NodeRequestContext m_requestCtx;
 
