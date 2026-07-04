@@ -10,6 +10,7 @@
 #include <set>
 #include <string>
 #include <cstdint>
+#include <fstream>
 #include <enet/enet.h>
 
 struct ZCom_ConnStats {
@@ -51,6 +52,12 @@ static const int MSG_NODE_EVENT = 104;
 
 static const int MSG_REPLICATORS = 105;
 static const int MSG_DISCONNECT_DATA = 106;
+// File transfer protocol (Phase E)
+static const int MSG_FILE_OFFER = 107;    // sender -> receiver: start a transfer
+static const int MSG_FILE_ACCEPT = 108;   // receiver -> sender: accept/deny
+static const int MSG_FILE_DATA = 109;     // sender -> receiver: file chunk
+static const int MSG_FILE_ABORT = 110;    // either side: abort
+static const int MSG_FILE_COMPLETE = 111; // sender -> receiver: all chunks sent
 
 class ZCom_Control {
 
@@ -59,27 +66,27 @@ public:
 	virtual ~ZCom_Control();
 
 	// Class registration
-	uint32_t ZCom_registerClass(const char* name, uint32_t flags);
-	uint32_t ZCom_getClassID(const char* name) const;
+	ZCom_ClassID ZCom_registerClass(const char* name, zU32 flags = 0);
+	ZCom_ClassID ZCom_getClassID(const char* name) const;
 	std::string ZCom_getClassName(uint32_t classID) const;
 
 	// Main loop
 	void ZCom_processOutput();
-	void ZCom_processInput(int flags);
+	void ZCom_processInput(eZCom_BlockMode _block = eZCom_NoBlock);
 
 	// Connection
-	uint32_t ZCom_Connect(ZCom_Address& addr, ZCom_BitStream* data);
+	ZCom_ConnID ZCom_Connect(const ZCom_Address& addr, ZCom_BitStream* data);
 	void ZCom_disconnectAll(ZCom_BitStream* data);
-	void ZCom_Disconnect(uint32_t id, ZCom_BitStream* data);
+	void ZCom_Disconnect(ZCom_ConnID id, ZCom_BitStream* data);
 	void Shutdown();
 	void disconnectPeer(uint32_t connID);
 
 	// Peer info
-	ZCom_Address const* ZCom_getPeer(uint32_t id);
-	ZCom_ConnStats ZCom_getConnectionStats(uint32_t id);
+	const ZCom_Address* ZCom_getPeer(ZCom_ConnID id) const;
+	const ZCom_ConnStats& ZCom_getConnectionStats(ZCom_ConnID id) const;
 
 	// Sending
-	void ZCom_sendData(uint32_t connID, ZCom_BitStream* stream, int mode);
+	void ZCom_sendData(ZCom_ConnID connID, ZCom_BitStream* stream, eZCom_SendMode mode = eZCom_ReliableOrdered);
 	void sendToAll(int mode, ZCom_BitStream* stream);
 
 	// Node management
@@ -91,12 +98,14 @@ public:
 	void announceNodeToAll(ZCom_Node* node, int role);
 	void syncNodesToPeer(ENetPeer* peer);
 	void clearAnnouncedNode(uint32_t nodeID); // clear per-peer tracking for re-announce
+	void flushPendingAnnounces(); // flush deferred node announcements to peers
 
 	// Enum types (re-exported from network_compat.h)
-	using eZCom_SendMode = int;
+	using eZCom_SendMode = ::eZCom_SendMode;  // alias to file-scope enum (net_types.h)
 
-	// Address type
-	static const int eZCom_AddressUDP = 0;
+	// Address type: nested alias so `ZCom_Control::eZCom_AddressUDP`
+	// keeps resolving (the enum is now defined at file scope in net_types.h).
+	static constexpr eZCom_AddressType eZCom_AddressUDP = ::eZCom_AddressUDP;
 
 	// Internal: set the ENetHost
 	void setHost(ENetHost* host, bool isServer = false) {
@@ -106,7 +115,7 @@ public:
 	ENetHost* getHost() { return m_host; }
 
 	// Find peer by connection ID
-	ENetPeer* findPeer(uint32_t connID);
+	ENetPeer* findPeer(uint32_t connID) const;
 
 	// Callbacks (overridden by Server/Client)
 	virtual bool ZCom_cbConnectionRequest(uint32_t id, ZCom_BitStream& request, ZCom_BitStream& reply) { return true; }
@@ -128,6 +137,25 @@ public:
 	// Group manager
 	ZCom_ConnGroupManager& ZCom_getGroupManager() { return m_groupManager; }
 
+	// --- Reference API members (B1b): game-unused; stubs/delegations ---
+	bool ZCom_initSockets(bool _useudp, zU16 _udpport, zU16 _localport, zU8 _control_id_size = 0);
+	void ZCom_setControlID(zU8 _id);
+	void ZCom_setDebugName(const char* _name);
+	void ZCom_setUpstreamLimit(zU32 _total_bps, zU32 _perconn_bps);
+	void ZCom_requestDownstreamLimit(ZCom_ConnID _id, zU16 _pps, zU16 _bpp);
+	void ZCom_simulateLag(ZCom_ConnID _id, zU32 _lagmsec);
+	void ZCom_simulateLoss(ZCom_ConnID _id, zFloat _amount);
+	bool ZCom_requestZoidMode(ZCom_ConnID _id, zU8 _level);
+	bool ZCom_Discover(const ZCom_Address& _address, ZCom_BitStream* _request);
+	void ZCom_setDiscoverListener(eZCom_DiscoverOpt _opt, zU16 _discoverport);
+	void ZCom_setUserData(ZCom_ConnID _id, void* _data);
+	void* ZCom_getUserData(ZCom_ConnID _id) const;
+	static zU32 ZCom_getCurrentTime();
+	void ZCom_sendDataToGroup(ZCom_GroupID _gid, ZCom_BitStream* _stream, eZCom_SendMode _mode);
+	void ZCom_sendDataRaw(ZCom_Address& _dest, void* _data, zU32 _size);
+	zU8 ZCom_getControlID() const { return m_controlID; }
+	const std::string& ZCom_getDebugName() const { return m_debugName; }
+
 	// Access to registered nodes
 	const std::vector<ZCom_Node*>& getNodesConst() const { return m_nodes; }
 
@@ -135,7 +163,38 @@ public:
 	const std::map<uint32_t, ENetPeer*>& getPeers() const { return m_peerMap; }
 
 	// Node lookup
-	ZCom_Node* ZCom_getNode(uint32_t nid);
+	ZCom_Node* ZCom_getNode(ZCom_NodeID nid) const;
+
+	/// Returns the role the peer at connID holds for the given node, or
+	/// eZCom_RoleUndefined if the node was never announced to that peer.
+	/// Used by per-connection reprule routing (Phase D1/D2) and tests.
+	eZCom_NodeRole getPeerRole(ZCom_ConnID connID, ZCom_NodeID nid) const;
+
+	/// Route a node event packet to peers whose role for `nid` matches `rules`
+	/// under local role `localRole`. `rules==0` preserves legacy broadcast
+	/// semantics (send to all peers). Phase D2.
+	void routeNodeEvent(ZCom_NodeID nid, eZCom_NodeRole localRole, zU8 rules,
+	                    eZCom_SendMode mode, ZCom_BitStream& pkt);
+
+	// --- File transfer (Phase E) ---
+	// Sender side: open the local file, allocate a transfer id, send the offer
+	// to the destination connection. `node` is the node the events will be
+	// delivered to on the peer (its networkID is carried in the offer).
+	ZCom_FileTransID ZCom_sendFile(ZCom_Node* node, const char* _path,
+		const char* _pathtosend, ZCom_ConnID _destconn,
+		ZCom_BitStream* _data, zFloat _aggressivenes);
+	// Receiver side: accept (open local file for writing at `_path` or the
+	// received path) or deny (send abort + raise File_Aborted locally).
+	void ZCom_acceptFile(ZCom_Node* node, ZCom_ConnID _src_id,
+		ZCom_FileTransID _ftrans_id, const char* _path, bool _accept);
+	// Lookup progress info; returns a struct with id==ZCom_Invalid_ID if unknown.
+	const ZCom_FileTransInfo& ZCom_getFileInfo(ZCom_ConnID _conn_id,
+		ZCom_FileTransID _ftrans_id) const;
+	// Drive ongoing sender transfers (chunked reliable sends). Called from
+	// ZCom_processOutput.
+	void pumpFileTransfers();
+	// Deliver buffered file offers whose target node has just been registered.
+	void deliverPendingFileOffers(ZCom_Node* node);
 
 	// Replicator processing
 	void ZCom_processReplicators(uint32_t simulation_time_passed);
@@ -146,6 +205,9 @@ public:
 	/// Apply the current node-request context's role to a node, if any.
 	/// Called by ZCom_Node during registration inside cbNodeRequest_Dynamic.
 	void applyRequestRole(ZCom_Node* node);
+
+	/// Apply the current node-request context's node ID to a node, if any.
+	/// Called by ZCom_Node during registration inside cbNodeRequest_Dynamic.
 	void applyRequestNodeID(ZCom_Node* node);
 
 	/// True while the control is inside a ZCom_cbNodeRequest_Dynamic callback.
@@ -161,10 +223,25 @@ protected:
 	std::vector<ZCom_Node*> m_nodes;
 	std::map<uint32_t, ENetPeer*> m_peerMap;
 	std::map<uint32_t, ZCom_Address> m_addressMap;
+	mutable std::map<ZCom_ConnID, ZCom_ConnStats> m_statsCache; ///< Cache for ZCom_getConnectionStats (reference returns const&)
+	zU8 m_controlID = 0;
+	std::string m_debugName;
+	std::map<ZCom_ConnID, void*> m_userData; ///< Per-connection user data (ZCom_setUserData/getUserData)
 	ZCom_BitStream m_disconnectData;
 	std::map<uint32_t, ZCom_BitStream> m_pendingDisconnectData; ///< Pre-disconnect reason data per connID
 	std::set<uint32_t> m_waitingForReply; ///< Client connIDs waiting for connection reply
 	std::map<uint32_t, std::set<uint32_t>> m_announcedNodes; ///< Per-peer set of node IDs already announced
+
+	/// Node IDs registered by registerNode() whose announcement has been
+	/// deferred to the next ZCom_processOutput(), so a subsequent setOwner()
+	/// (same tick) is reflected as a single owner-aware announce instead of a
+	/// premature Proxy announce followed by an Owner re-announce.
+	std::set<uint32_t> m_pendingAnnounce;
+
+	/// Per-connection role each peer holds for each node (Phase D1 routing).
+	/// m_peerRole[connID][nodeID] = the role the peer at connID has for nodeID.
+	/// Set by every announcement path; cleared on disconnect / re-announce.
+	std::map<uint32_t, std::map<uint32_t, eZCom_NodeRole>> m_peerRole;
 
 	/// Buffered replicator data for nodes that haven't been registered locally yet.
 	/// Keyed by nodeID; replayed when the node is registered via registerExistingNode or registerNode.
@@ -182,6 +259,37 @@ protected:
 
 	/// Replay buffered node events for a newly registered node.
 	void replayPendingNodeEvents(ZCom_Node* node);
+
+	/// Per-transfer state for file transfer (Phase E). A transfer lives in the
+	/// control that owns it: the sender control holds the outbound (isReceiver
+	/// ==false) entry; the receiver control holds the inbound (isReceiver
+	/// ==true) entry. Both use the same ZCom_FileTransID (allocated by sender).
+	struct FileTransfer {
+		ZCom_FileTransID id = 0;
+		ZCom_NodeID nodeID = 0;       ///< node whose event queue receives File_* events
+		bool isReceiver = false;
+		ZCom_ConnID peerConnID = 0;  ///< destconn (sender) / srcconn (receiver)
+		std::string path;            ///< sender: local file path; receiver: save path
+		std::string pathtosend;      ///< path advertised to the peer
+		zU32 size = 0;
+		zU32 transferred = 0;
+		zU32 bps = 0;
+		zFloat aggressiveness = 1.0f;
+		bool accepted = false;       ///< sender: receiver accepted the offer
+		bool aborted = false;
+		bool done = false;
+		std::vector<uint8_t> offerData; ///< captured _data bytes (receiver: for Incoming event)
+		std::ifstream inFile;       ///< sender: source file
+		std::ofstream outFile;      ///< receiver: destination file
+		zU32 bytesThisSec = 0;
+		zU32 lastBpsTime = 0;
+	};
+	std::map<ZCom_FileTransID, FileTransfer> m_fileTransfers;
+	/// Offers that arrived before the target node was registered locally,
+	/// keyed by nodeID; delivered when the node appears.
+	std::map<ZCom_NodeID, std::vector<ZCom_FileTransID>> m_pendingFileOffers;
+	mutable ZCom_FileTransInfo m_fileInfoBuf; ///< backing store for ZCom_getFileInfo return
+	ZCom_FileTransID m_nextFileTransID = 1;
 
 protected:
 	/// Node-request context: while the control is inside a

@@ -25,8 +25,8 @@ struct GameInterceptor : public ZCom_NodeReplicationInterceptor
     uint32_t lastPeeked = 0xDEAD;
     bool peekCalled = false;
 
-    bool inPreUpdate(ZCom_Node*, uint32_t, int) override { return true; }
-    bool inPreUpdateItem(ZCom_Node*, uint32_t, int, ZCom_Replicator* rep, uint32_t) override
+    bool inPreUpdate(ZCom_Node*, uint32_t, eZCom_NodeRole) override { return true; }
+    bool inPreUpdateItem(ZCom_Node*, uint32_t, eZCom_NodeRole, ZCom_Replicator* rep, uint32_t) override
     {
         inPreUpdateItemCount++;
         void* peeked = rep->peekData();
@@ -36,8 +36,8 @@ struct GameInterceptor : public ZCom_NodeReplicationInterceptor
         }
         return true;
     }
-    bool outPreUpdate(ZCom_Node*, uint32_t, int) override { return true; }
-    bool outPreUpdateItem(ZCom_Node*, uint32_t, int, ZCom_Replicator*) override { return true; }
+    bool outPreUpdate(ZCom_Node*, uint32_t, eZCom_NodeRole) override { return true; }
+    bool outPreUpdateItem(ZCom_Node*, uint32_t, eZCom_NodeRole, ZCom_Replicator*) override { return true; }
 };
 
 class RepSrv : public ZCom_Control
@@ -71,13 +71,13 @@ public:
     }
     uint32_t ConnectTo(const char* host, int port) {
         ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",host,port);
-        a.setAddress(0,0,hp); return ZCom_Connect(a, nullptr);
+        a.setAddress(eZCom_AddressUDP,0,hp); return ZCom_Connect(a, nullptr);
     }
     void ZCom_cbConnectResult(uint32_t, eZCom_ConnectResult r, ZCom_BitStream&) override { connected = (r==eZCom_ConnAccepted); }
     void ZCom_cbNodeRequest_Dynamic(uint32_t, uint32_t, ZCom_BitStream*, int role, uint32_t net_id) override {
         gotNodeID = net_id; gotRole = role;
         node = new ZCom_Node();
-        node->setNetworkID(net_id);
+        // Net layer assigns the server-announced node ID via applyRequestNodeID.
         node->setEventNotification(true, true);
         node->beginReplicationSetup(1);
         node->setInterceptID(0);
@@ -158,12 +158,12 @@ BOOST_AUTO_TEST_CASE(node_event_reaches_client_queue)
     public:
         uint32_t cls; bool connected=false; ZCom_Node* node=nullptr; uint32_t gotID=0;
         ECli(int p){ g_currentControl=this; ZCom_initSockets(false,0,0,0); cls=ZCom_registerClass("E",0); }
-        uint32_t ConnectTo(const char* h,int p){ ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p); a.setAddress(0,0,hp); return ZCom_Connect(a,nullptr); }
+        uint32_t ConnectTo(const char* h,int p){ ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p); a.setAddress(eZCom_AddressUDP,0,hp); return ZCom_Connect(a,nullptr); }
         void ZCom_cbConnectResult(uint32_t,eZCom_ConnectResult r,ZCom_BitStream&) override { connected=(r==eZCom_ConnAccepted); }
         void ZCom_cbNodeRequest_Dynamic(uint32_t,uint32_t,ZCom_BitStream*,int role,uint32_t net_id) override {
             gotID=net_id;
             node=new ZCom_Node();
-            node->setNetworkID(net_id);
+            // Net layer assigns the server-announced node ID via applyRequestNodeID.
             node->setEventNotification(true,true);
             node->registerRequestedNode(cls,this);
             // Role auto-assigned by omfgnet layer from request context.
@@ -221,7 +221,7 @@ BOOST_AUTO_TEST_CASE(node_event_buffered_before_node_registration)
         uint32_t cls; bool connected=false; ZCom_Node* node=nullptr; uint32_t gotID=0;
         bool created=false; // defer node creation to simulate the race
         BCli(int p){ g_currentControl=this; ZCom_initSockets(false,0,0,0); cls=ZCom_registerClass("B",0); }
-        uint32_t ConnectTo(const char* h,int p){ ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p); a.setAddress(0,0,hp); return ZCom_Connect(a,nullptr); }
+        uint32_t ConnectTo(const char* h,int p){ ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p); a.setAddress(eZCom_AddressUDP,0,hp); return ZCom_Connect(a,nullptr); }
         void ZCom_cbConnectResult(uint32_t,eZCom_ConnectResult r,ZCom_BitStream&) override { connected=(r==eZCom_ConnAccepted); }
         // Defer node creation to force event buffering.
         void ZCom_cbNodeRequest_Dynamic(uint32_t,uint32_t,ZCom_BitStream*,int role,uint32_t net_id) override {
@@ -229,12 +229,13 @@ BOOST_AUTO_TEST_CASE(node_event_buffered_before_node_registration)
             // Record but don't create the node yet.
         }
         void createNodeNow() {
-            node=new ZCom_Node();
-            node->setNetworkID(gotID);
+            node = new ZCom_Node();
+            // Net layer assigns the server-announced node ID via applyRequestNodeID.
             node->setEventNotification(true,true);
-            node->registerRequestedNode(cls,this);
+            node->setReplicationInterceptor(&interceptor);
+            node->registerRequestedNode(cls, this);
             // Role auto-assigned by omfgnet layer from request context.
-            created=true;
+            created;
         }
     } cli(port);
 
@@ -302,12 +303,12 @@ BOOST_AUTO_TEST_CASE(client_owner_role_allows_owner_to_auth_event)
     public:
         uint32_t cls; bool connected=false; ZCom_Node* node=nullptr; uint32_t gotID=0; int gotRole=-1;
         OCli(int p){ g_currentControl=this; ZCom_initSockets(false,0,0,0); cls=ZCom_registerClass("O",0); }
-        uint32_t ConnectTo(const char* h,int p){ ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p); a.setAddress(0,0,hp); return ZCom_Connect(a,nullptr); }
+        uint32_t ConnectTo(const char* h,int p){ ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p); a.setAddress(eZCom_AddressUDP,0,hp); return ZCom_Connect(a,nullptr); }
         void ZCom_cbConnectResult(uint32_t,eZCom_ConnectResult r,ZCom_BitStream&) override { connected=(r==eZCom_ConnAccepted); }
         void ZCom_cbNodeRequest_Dynamic(uint32_t,uint32_t,ZCom_BitStream*,int role,uint32_t net_id) override {
             gotID=net_id; gotRole=role;
             node=new ZCom_Node();
-            node->setNetworkID(net_id);
+            // Net layer assigns the server-announced node ID via applyRequestNodeID.
             node->setEventNotification(true,true);
             node->registerRequestedNode(cls,this);
             // Role (Owner) auto-assigned by omfgnet layer from request context.
@@ -390,11 +391,11 @@ BOOST_AUTO_TEST_CASE(full_sync_and_replication_flow)
         int32_t localState = 0;
         int syncEvents = 0;
         FullCli(int p){ g_currentControl=this; ZCom_initSockets(false,0,0,0); cls=ZCom_registerClass("F",0); }
-        uint32_t ConnectTo(const char* h,int p){ ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p); a.setAddress(0,0,hp); return ZCom_Connect(a,nullptr); }
+        uint32_t ConnectTo(const char* h,int p){ ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p); a.setAddress(eZCom_AddressUDP,0,hp); return ZCom_Connect(a,nullptr); }
         void ZCom_cbConnectResult(uint32_t,eZCom_ConnectResult r,ZCom_BitStream&) override { connected=(r==eZCom_ConnAccepted); }
         void ZCom_cbNodeRequest_Dynamic(uint32_t,uint32_t,ZCom_BitStream*,int role,uint32_t net_id) override {
             node=new ZCom_Node();
-            node->setNetworkID(net_id);
+            // Net layer assigns the server-announced node ID via applyRequestNodeID.
             node->setEventNotification(true,true);
             node->beginReplicationSetup(1);
             node->addReplicationInt((zS32*)&localState, 32, false,
@@ -453,6 +454,53 @@ BOOST_AUTO_TEST_CASE(full_sync_and_replication_flow)
     srv.state = 99;
     processBoth(&srv, &cli, 40);
     BOOST_CHECK_EQUAL(cli.localState, 99);
+
+    srv.Shutdown(); cli.Shutdown();
+}
+
+// Regression for applyRequestNodeID: the client's proxy node (created via
+// registerRequestedNode inside cbNodeRequest_Dynamic, WITHOUT a manual
+// setNetworkID) must receive the server-announced node ID from the Net layer.
+// Previously applyRequestNodeID pushed/announced but never setNodeID, leaving
+// the client node at nodeID=0; MSG_REPLICATORS for the server's ID then never
+// resolved ("NOT FOUND locally — buffering for later") and state never arrived.
+BOOST_AUTO_TEST_CASE(register_requested_node_gets_announced_id)
+{
+    g_currentControl = nullptr;
+    int port = s_port++;
+    RepSrv srv(port);
+    RepCli cli(port);
+    cli.ConnectTo("127.0.0.1", port);
+    processBoth(&srv, &cli, 40);
+    BOOST_REQUIRE(cli.connected);
+
+    uint32_t playerID = 42;
+    g_currentControl = &srv;
+    srv.node = new ZCom_Node();
+    srv.node->setRole(eZCom_RoleAuthority);
+    srv.node->beginReplicationSetup(1);
+    srv.node->setInterceptID(0);
+    srv.node->addReplicationInt((zS32*)&playerID, 32, false,
+        ZCOM_REPFLAG_MOSTRECENT | ZCOM_REPFLAG_INTERCEPT, ZCOM_REPRULE_AUTH_2_ALL, 0);
+    srv.node->endReplicationSetup();
+    srv.node->registerNodeDynamic(srv.cls, &srv);
+    g_currentControl = nullptr;
+    processBoth(&srv, &cli, 30);
+
+    // Client created its proxy node from the request callback.
+    BOOST_REQUIRE(cli.node != nullptr);
+    BOOST_REQUIRE_NE(cli.gotNodeID, 0u);
+    // The proxy node's local ID must match the server-announced ID (assigned by
+    // applyRequestNodeID), not be left at the 0 default.
+    BOOST_CHECK_NE(cli.node->getNetworkID(), 0u);
+    BOOST_CHECK_EQUAL(cli.node->getNetworkID(), cli.gotNodeID);
+
+    // Replicator state for the announced ID must reach the client (lookup
+    // resolves instead of buffering forever).
+    playerID = 77;
+    processBoth(&srv, &cli, 30);
+    BOOST_CHECK_GT(cli.interceptor.inPreUpdateItemCount, 0);
+    BOOST_CHECK_EQUAL(cli.interceptor.lastPeeked, 77u);
 
     srv.Shutdown(); cli.Shutdown();
 }

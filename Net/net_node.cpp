@@ -12,6 +12,12 @@ void ZoidCom::Sleep(int ms)
 	std::this_thread::sleep_for(std::chrono::milliseconds(ms));
 }
 
+zU32 ZoidCom::getTime()
+{
+	return static_cast<zU32>(std::chrono::duration_cast<std::chrono::milliseconds>(
+		std::chrono::steady_clock::now().time_since_epoch()).count());
+}
+
 ZCom_Node::ZCom_Node()
 	: m_nodeID(0), m_classID(0), m_ownerID(0)
 	, m_role(0), m_eventNotification(false)
@@ -53,36 +59,39 @@ void ZCom_Node::addReplicator(ZCom_Replicator* replicator, bool flag)
 	m_replicators.push_back(replicator);
 }
 
-void ZCom_Node::addReplicationInt(int32_t* val, int bits, bool sign, uint32_t flags, uint32_t rule, uint32_t id)
+void ZCom_Node::addReplicationInt(zS32* val, zU8 bits, bool sign, zU8 flags, zU8 rules, zS16 mindelay, zS16 maxdelay)
 {
-	(void)id;
 	ReplicationEntry entry;
 	entry.type = ReplicationEntry::TypeInt;
 	entry.ptr = val;
 	entry.bits = bits;
 	entry.sign = sign;
 	entry.flags = flags;
-	entry.rule = rule;
+	entry.rule = rules;
 	entry.oldInt = val ? *val : 0;
 	entry.initial = true;
+	entry.minDelay = mindelay;
+	entry.maxDelay = maxdelay;
 	m_autoReplications.push_back(entry);
 }
 
-void ZCom_Node::addReplicationFloat(float* val, int bits, uint32_t flags, uint32_t rule)
+void ZCom_Node::addReplicationFloat(zFloat* val, zU8 mantissa_bits, zU8 flags, zU8 rules, zS16 mindelay, zS16 maxdelay)
 {
 	ReplicationEntry entry;
 	entry.type = ReplicationEntry::TypeFloat;
 	entry.ptr = val;
-	entry.bits = bits;
+	entry.bits = mantissa_bits;
 	entry.sign = false;
 	entry.flags = flags;
-	entry.rule = rule;
+	entry.rule = rules;
 	entry.oldFloat = val ? *val : 0.0f;
 	entry.initial = true;
+	entry.minDelay = mindelay;
+	entry.maxDelay = maxdelay;
 	m_autoReplications.push_back(entry);
 }
 
-void ZCom_Node::addReplicationBool(bool* val, uint32_t flags, uint32_t rule)
+void ZCom_Node::addReplicationBool(bool* val, zU8 flags, zU8 rules, zS16 mindelay, zS16 maxdelay)
 {
 	ReplicationEntry entry;
 	entry.type = ReplicationEntry::TypeInt; // reuse int type for bool (1 bit)
@@ -90,13 +99,15 @@ void ZCom_Node::addReplicationBool(bool* val, uint32_t flags, uint32_t rule)
 	entry.bits = 1;
 	entry.sign = false;
 	entry.flags = flags;
-	entry.rule = rule;
+	entry.rule = rules;
 	entry.oldInt = val ? (*val ? 1 : 0) : 0;
 	entry.initial = true;
+	entry.minDelay = mindelay;
+	entry.maxDelay = maxdelay;
 	m_autoReplications.push_back(entry);
 }
 
-void ZCom_Node::setInterceptID(int id)
+void ZCom_Node::setInterceptID(ZCom_InterceptID id)
 {
 	m_interceptID = id;
 }
@@ -131,7 +142,7 @@ bool ZCom_Node::registerNodeDynamic(uint32_t classID, void* control)
 	return m_control ? m_control->registerNode(this) : false;
 }
 
-bool ZCom_Node::registerNodeUnique(uint32_t classID, int role, void* control)
+bool ZCom_Node::registerNodeUnique(uint32_t classID, eZCom_NodeRole role, void* control)
 {
 	m_classID = classID;
 	m_role = role;
@@ -168,7 +179,7 @@ void ZCom_Node::applyForZoidLevel(int level)
 	m_zoidLevel = level;
 }
 
-void ZCom_Node::setOwner(uint32_t id, bool auth)
+void ZCom_Node::setOwner(ZCom_ConnID id, bool auth)
 {
 	m_ownerID = id;
 	m_authority = auth;
@@ -189,13 +200,13 @@ void ZCom_Node::pushEvent(eZCom_Event type, eZCom_NodeRole role, uint32_t connID
 	m_eventQueue.push_back(ev);
 }
 
-void ZCom_Node::sendEvent(int mode, uint32_t rules, ZCom_BitStream* stream)
+void ZCom_Node::sendEvent(eZCom_SendMode mode, zU8 rules, ZCom_BitStream* stream)
 {
 	if (!m_control || !stream) return;
 
 	// Determine if we are allowed to send based on local role
 	if ((rules & (ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_AUTH_2_OWNER)))
-		if (m_role != eZCom_RoleAuthority && m_role != ZCOM_ROLE_AUTHORITY)
+		if (m_role != eZCom_RoleAuthority)
 			return; // Only authority can send AUTH_* rules
 
 	if ((rules & ZCOM_REPRULE_OWNER_2_AUTH))
@@ -207,10 +218,12 @@ void ZCom_Node::sendEvent(int mode, uint32_t rules, ZCom_BitStream* stream)
 	pkt.addInt(m_nodeID, 16);
 	pkt.addBitStream(stream);
 
-	m_control->sendToAll(static_cast<int>(mode), &pkt);
+	// Route to peers matching the rule (rule==0 broadcasts to all, preserving
+	// legacy semantics). Phase D2.
+	m_control->routeNodeEvent(m_nodeID, static_cast<eZCom_NodeRole>(m_role), rules, mode, pkt);
 }
 
-void ZCom_Node::sendEventDirect(int mode, ZCom_BitStream* stream, uint32_t id)
+void ZCom_Node::sendEventDirect(eZCom_SendMode mode, ZCom_BitStream* stream, ZCom_ConnID id)
 {
 	if (!m_control || !stream) return;
 	ZCom_BitStream pkt;
@@ -225,16 +238,38 @@ bool ZCom_Node::checkEventWaiting()
 	return !m_eventQueue.empty();
 }
 
-ZCom_BitStream* ZCom_Node::getNextEvent(eZCom_Event* type, eZCom_NodeRole* role, uint32_t* id)
+ZCom_BitStream* ZCom_Node::getNextEvent(eZCom_Event* type, eZCom_NodeRole* role, ZCom_ConnID* connid, zU32* estimated_time_sent)
 {
 	if (m_eventQueue.empty()) return nullptr;
 	NodeEvent& ev = m_eventQueue.front();
 	if (type) *type = ev.type;
 	if (role) *role = ev.role;
-	if (id) *id = ev.connID;
-	ZCom_BitStream* data = ev.data;
-	m_eventQueue.pop_front();
-	return data;
+	if (connid) *connid = ev.connID;
+ 	if (estimated_time_sent) *estimated_time_sent = 0;
+ 	ZCom_BitStream* data = ev.data;
+ 	m_eventQueue.pop_front();
+ 	return data;
+ }
+
+// File transfer (Phase E) — delegate to the owning ZCom_Control.
+ZCom_FileTransID ZCom_Node::sendFile(const char* _path, const char* _pathtosend,
+	ZCom_ConnID _destconn, ZCom_BitStream* _data, zFloat _aggressivenes)
+{
+	if (!m_control) return ZCom_Invalid_ID;
+	return m_control->ZCom_sendFile(this, _path, _pathtosend, _destconn, _data, _aggressivenes);
+}
+
+void ZCom_Node::acceptFile(ZCom_ConnID _src_id, ZCom_FileTransID _ftrans_id,
+	const char* _path, bool _accept)
+{
+	if (m_control) m_control->ZCom_acceptFile(this, _src_id, _ftrans_id, _path, _accept);
+}
+
+const ZCom_FileTransInfo& ZCom_Node::getFileInfo(ZCom_ConnID _conn_id,
+	ZCom_FileTransID _ftrans_id) const
+{
+	if (!m_control) { static const ZCom_FileTransInfo inv{}; return inv; }
+	return m_control->ZCom_getFileInfo(_conn_id, _ftrans_id);
 }
 
 void ZCom_Node::packAllReplicators(ZCom_BitStream* stream)
@@ -275,6 +310,57 @@ void ZCom_Node::packAllReplicators(ZCom_BitStream* stream)
 		} else {
 			stream->addInt(0, 1);
 		}
+	}
+}
+
+void ZCom_Node::packReplicatorsForRouting(std::vector<PackedReplicator>& out)
+{
+	out.clear();
+	out.reserve(m_replicators.size() + m_autoReplications.size());
+
+	// Explicit replicators (ZCom_Replicator subclasses).
+	for (auto* rep : m_replicators) {
+		PackedReplicator p;
+		p.rule = rep->getSetup()->getRules();
+		if (rep->checkState()) {
+			p.hasUpdate = true;
+			rep->packData(&p.data); // clears dirty
+		} else {
+			p.hasUpdate = false;
+		}
+		out.push_back(std::move(p));
+	}
+
+	// Auto-replications (inline ReplicationEntry).
+	for (auto& entry : m_autoReplications) {
+		PackedReplicator p;
+		p.rule = entry.rule;
+		bool changed = false;
+		if (entry.type == ReplicationEntry::TypeInt && entry.ptr) {
+			int32_t val = *static_cast<int32_t*>(entry.ptr);
+			if (entry.initial || val != static_cast<int32_t>(entry.oldInt)) {
+				changed = true;
+				entry.oldInt = val;
+				entry.initial = false;
+			}
+		} else if (entry.type == ReplicationEntry::TypeFloat && entry.ptr) {
+			float val = *static_cast<float*>(entry.ptr);
+			if (entry.initial || val != entry.oldFloat) {
+				changed = true;
+				entry.oldFloat = val;
+				entry.initial = false;
+			}
+		}
+		if (changed) {
+			p.hasUpdate = true;
+			if (entry.type == ReplicationEntry::TypeInt)
+				p.data.addInt(*static_cast<int32_t*>(entry.ptr), entry.bits);
+			else
+				p.data.addFloat(*static_cast<float*>(entry.ptr), entry.bits);
+		} else {
+			p.hasUpdate = false;
+		}
+		out.push_back(std::move(p));
 	}
 }
 

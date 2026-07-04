@@ -239,17 +239,14 @@ BOOST_AUTO_TEST_CASE(send_mode_enum_values)
 	BOOST_CHECK_EQUAL(eZCom_Reliable, eZCom_ReliableOrdered);
 }
 
-// ---- eZCom_NodeRole enum values (game-code compatible layout) ----
+// ---- eZCom_NodeRole enum values (reference-aligned) ----
 
 BOOST_AUTO_TEST_CASE(node_role_enum_values)
 {
-	BOOST_CHECK_EQUAL(eZCom_RoleUndefined, 2);
+	BOOST_CHECK_EQUAL(eZCom_RoleUndefined, 0);
 	BOOST_CHECK_EQUAL(eZCom_RoleProxy, 1);
 	BOOST_CHECK_EQUAL(eZCom_RoleOwner, 2);
-	BOOST_CHECK_EQUAL(eZCom_RoleAuthority, 0);
-	BOOST_CHECK_EQUAL(eZCom_RoleAll, 3);
-	BOOST_CHECK_EQUAL(ZCOM_ROLE_AUTHORITY, 0);
-	BOOST_CHECK_EQUAL(ZCOM_ROLE_PROXY, 1);
+	BOOST_CHECK_EQUAL(eZCom_RoleAuthority, 3);
 }
 
 // ---- eZCom_ConnectResult enum values ----
@@ -257,9 +254,11 @@ BOOST_AUTO_TEST_CASE(node_role_enum_values)
 BOOST_AUTO_TEST_CASE(connect_result_enum_values)
 {
 	BOOST_CHECK_EQUAL(eZCom_ConnAccepted, 0);
-	BOOST_CHECK_EQUAL(eZCom_ConnRefused, 1);
+	BOOST_CHECK_EQUAL(eZCom_ConnDenied, 1);
+	BOOST_CHECK_EQUAL(eZCom_ConnRefused, eZCom_ConnDenied);
 	BOOST_CHECK_EQUAL(eZCom_ConnTimeout, 2);
-	BOOST_CHECK_EQUAL(eZCom_ConnDenied, eZCom_ConnRefused);
+	BOOST_CHECK_EQUAL(eZCom_ConnHostnameFailed, 3);
+	BOOST_CHECK_EQUAL(eZCom_ConnWrongVersion, 4);
 }
 
 // ---- ZCom_ConnStats ----

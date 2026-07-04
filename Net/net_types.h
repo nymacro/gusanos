@@ -6,20 +6,23 @@
 
 #include <cstdint>
 #include <climits>
+typedef int8_t    zS8;
+typedef uint8_t   zU8;
+typedef int16_t   zS16;
+typedef uint16_t  zU16;
+typedef int32_t   zS32;
+typedef uint32_t  zU32;
+typedef int64_t   zS64;
+typedef uint64_t  zU64;
+typedef float     zFloat;
+typedef double    zDouble;
+
 typedef uint32_t ZCom_ClassID;
 typedef uint32_t ZCom_ConnID;
 typedef uint32_t ZCom_NodeID;
-typedef uint32_t ZCom_InterceptID;
+typedef zU8      ZCom_InterceptID;
 typedef uint32_t ZCom_FileTransID;
 typedef uint32_t ZCom_GroupID;
-typedef int32_t   zS32;
-typedef uint8_t   zU8;
-typedef uint16_t  zU16;
-typedef uint32_t  zU32;
-typedef uint64_t  zU64;
-typedef int64_t   zS64;
-typedef float     zFloat;
-typedef double    zDouble;
 
 #define zU8_MAX   UCHAR_MAX
 #define zU16_MAX  USHRT_MAX
@@ -40,47 +43,65 @@ enum eZCom_SendMode {
 	eZCom_Reliable = eZCom_ReliableOrdered  // alias for convenience
 };
 
-// ---- Node role ----
-// NOTE: ZCOM_ROLE_AUTHORITY=0 and ZCOM_ROLE_PROXY=1 are anonymous
-// enumerators in eZCom_NodeRole. Some game code relies on
-// eZCom_RoleAuthority being 0 (the default ZCom_Node role), which
-// differs from the ZoidCom reference (where eZCom_RoleAuthority=3).
-// We keep this layout for compatibility with the game codebase.
-
-enum eZCom_NodeRole {
-	ZCOM_ROLE_AUTHORITY,
-	ZCOM_ROLE_PROXY,
-	eZCom_RoleUndefined,
-	eZCom_RoleAuthority = ZCOM_ROLE_AUTHORITY,
-	eZCom_RoleProxy = ZCOM_ROLE_PROXY,
-	eZCom_RoleOwner,
-	eZCom_RoleAll
+// ---- Block mode (aligned to reference zoidcom.h: Block=0, NoBlock=1) ----
+// Replaces the former `#define eZCom_NoBlock 0` (which was inverted vs ref).
+enum eZCom_BlockMode {
+	eZCom_Block = 0,
+	eZCom_NoBlock = 1
 };
 
-// ---- Node event types ----
+// ---- Address type (aligned to reference zoidcom.h) ----
+enum eZCom_AddressType {
+	eZCom_AddressLocal = 0,
+	eZCom_AddressTCP = 1,
+	eZCom_AddressUDP = 2,
+	eZCom_AddressBroadcast = 3
+};
+
+// ---- Address IP string option (reference zoidcom.h) ----
+enum eZCom_GetIPAddressOption {
+	eZCom_AddressWithPort = 0,
+	eZCom_AddressWithoutPort = 1
+};
+
+// ---- Node role (aligned to reference zoidcom.h: Undefined=0, Proxy=1, Owner=2, Authority=3) ----
+// Note: eZCom_RoleAll and the anonymous ZCOM_ROLE_* enumerators from the
+// old impl have been removed (no reference equivalent). Wire-serialized
+// as 8 bits; renumbering is consistent across both ends of this layer.
+enum eZCom_NodeRole {
+	eZCom_RoleUndefined = 0,
+	eZCom_RoleProxy = 1,
+	eZCom_RoleOwner = 2,
+	eZCom_RoleAuthority = 3
+};
+
+// ---- Node event types (aligned to reference zoidcom.h) ----
+// File transfer events are folded into eZCom_Event (reference uses a single
+// enum); the old separate anonymous file-event enum is gone. Event types are
+// NOT wire-serialized (local pushEvent/dispatch only), so renumbering is safe.
 enum eZCom_Event {
 	eZCom_EventNoEvent = 0,
 	eZCom_EventInit = 1,
 	eZCom_EventSyncRequest = 2,
 	eZCom_EventRemoved = 3,
-	eZCom_EventReplicator = 50,
-	eZCom_EventUser = 100
+	eZCom_EventFile_Incoming = 4,
+	eZCom_EventFile_Data = 5,
+	eZCom_EventFile_Aborted = 6,
+	eZCom_EventFile_Complete = 7,
+	eZCom_EventReplicator = 8,
+	eZCom_EventUser = 9
 };
 
-// Extended event types for file transfer (must not overlap with eZCom_Event)
-enum {
-	eZCom_EventFile_Incoming = 200,
-	eZCom_EventFile_Aborted = 201,
-	eZCom_EventFile_Complete = 202,
-	eZCom_EventFile_Data = 203,
-};
-
-// ---- Connection result (matches reference zoidcom.h) ----
+// ---- Connection result (aligned to reference zoidcom.h) ----
+// eZCom_ConnDenied is the primary name (=1); eZCom_ConnRefused kept as an
+// alias for any existing references.
 enum eZCom_ConnectResult {
 	eZCom_ConnAccepted = 0,
-	eZCom_ConnRefused = 1,
+	eZCom_ConnDenied = 1,
+	eZCom_ConnRefused = eZCom_ConnDenied,  // alias for backward compat
 	eZCom_ConnTimeout = 2,
-	eZCom_ConnDenied = eZCom_ConnRefused  // alias for backward compat
+	eZCom_ConnHostnameFailed = 3,
+	eZCom_ConnWrongVersion = 4
 };
 
 // ---- Close reason ----
@@ -91,13 +112,28 @@ enum eZCom_CloseReason {
 	eZCom_ClosedKicked
 };
 
-// ---- Zoid result ----
+// ---- Zoid result (matches reference zoidcom.h) ----
 enum eZCom_ZoidResult {
 	eZCom_ZoidEnabled,
 	eZCom_ZoidDenied,
 	eZCom_ZoidFailed_System,
 	eZCom_ZoidFailed_Node,
 	eZCom_ZoidDisabled
+};
+
+// ---- Hostname resolution result (reference zoidcom.h; signatures only) ----
+enum eZCom_HostnameResult {
+	eZCom_HostnameIdle = 0,
+	eZCom_HostnameFailed = 1,
+	eZCom_HostnameSuccess = 2,
+	eZCom_HostnameInProgress = 3
+};
+
+// ---- Discovery option (reference zoidcom.h; signatures only) ----
+enum eZCom_DiscoverOpt {
+	eZCom_DiscoverEnable = 0,
+	eZCom_DiscoverDisableAndKeep = 1,
+	eZCom_DiscoverDisable = 2
 };
 
 // ---- Replicator internal flags ----
@@ -129,10 +165,11 @@ enum eZCom_ZoidResult {
 
 #define ZCOM_CLASSFLAG_ANNOUNCEDATA 1
 #define ZCOM_FTRANS_ID_BITS 32
+#define ZCOM_FTRANS_SIZE_BITS 32
+#define ZCOM_FTRANS_CHUNK_BITS 16
+// ZCOM_CONNGROUP_ALL: reference value is 1; impl uses 0xFFFFFFFF for
+// compatibility with existing internal group management. UNUSED by the game;
+// left as-is (documented deviation).
 #define ZCOM_CONNGROUP_ALL 0xFFFFFFFF
-#define eZCom_NoBlock 0
-#define eZCom_EventNoEvent 0
-#define eZCom_EventUser 100
-#define eZCom_EventReplicator 50
 
 #endif // NET_TYPES_H

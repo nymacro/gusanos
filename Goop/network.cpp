@@ -419,8 +419,8 @@ void Network::update()
 					
 					m_control = new Client( 0 );
 					registerClasses();
-					ZCom_Address address;
-					address.setAddress( 0, 0, ( data.addr + ":" + cast<string>(m_serverPort) ).c_str() );
+				ZCom_Address address;
+				address.setAddress( eZCom_AddressUDP, 0, ( data.addr + ":" + cast<string>(m_serverPort) ).c_str() );
 					m_control->ZCom_Connect( address, NULL );
 					//m_client = true; // We wait with setting this until we've connected
 					m_lastServerAddr = data.addr;

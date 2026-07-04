@@ -27,6 +27,7 @@ _$*
 core
 default/**
 bin/**
+lib/**
 .*
 OmfgScript/omfg_script_parser.h
 GUI/detail/gss-grammar.h

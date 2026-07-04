@@ -717,7 +717,7 @@ BOOST_AUTO_TEST_CASE(replicator_value_pointer_update)
 class TestEventInterceptor : public ZCom_NodeEventInterceptor {
 public:
 	bool userEventCalled = false;
-	bool recUserEvent(ZCom_Node* node, uint32_t from, int remoterole, ZCom_BitStream& data, uint32_t estimated_time_sent) override {
+	bool recUserEvent(ZCom_Node* node, uint32_t from, eZCom_NodeRole remoterole, ZCom_BitStream& data, uint32_t estimated_time_sent) override {
 		userEventCalled = true;
 		return true;
 	}
@@ -727,7 +727,7 @@ BOOST_AUTO_TEST_CASE(event_interceptor_derived)
 {
 	TestEventInterceptor interceptor;
 	ZCom_BitStream bs;
-	BOOST_CHECK(interceptor.recUserEvent(nullptr, 0, 0, bs, 0));
+	BOOST_CHECK(interceptor.recUserEvent(nullptr, 0, eZCom_RoleUndefined, bs, 0));
 	BOOST_CHECK(interceptor.userEventCalled);
 }
 
@@ -736,7 +736,7 @@ BOOST_AUTO_TEST_CASE(event_interceptor_derived)
 class TestRepInterceptor : public ZCom_NodeReplicationInterceptor {
 public:
 	bool preUpdateCalled = false;
-	bool outPreUpdate(ZCom_Node* node, uint32_t to, int remote_role) override {
+	bool outPreUpdate(ZCom_Node* node, uint32_t to, eZCom_NodeRole remote_role) override {
 		preUpdateCalled = true;
 		return true;
 	}
@@ -745,7 +745,7 @@ public:
 BOOST_AUTO_TEST_CASE(rep_interceptor_derived)
 {
 	TestRepInterceptor interceptor;
-	BOOST_CHECK(interceptor.outPreUpdate(nullptr, 0, 0));
+	BOOST_CHECK(interceptor.outPreUpdate(nullptr, 0, eZCom_RoleUndefined));
 	BOOST_CHECK(interceptor.preUpdateCalled);
 }
 

@@ -1,23 +1,24 @@
 #include "net_address.h"
 #include <cstring>
 #include <cstdlib>
-#include <sstream>
+#include <cstdio>
 #include <arpa/inet.h>
 
 ZCom_Address::ZCom_Address()
-	: m_valid(false), m_type(0), m_controlID(0)
+	: m_valid(false), m_type(eZCom_AddressLocal), m_controlID(0)
 {
 	memset(&m_address, 0, sizeof(m_address));
 }
 
 ZCom_Address::ZCom_Address(const ENetAddress& addr)
-	: m_address(addr), m_valid(true), m_type(0), m_controlID(0)
+	: m_address(addr), m_valid(true), m_type(eZCom_AddressLocal), m_controlID(0)
 {
 }
 
 ZCom_Address::ZCom_Address(const ZCom_Address& other)
 	: m_address(other.m_address), m_valid(other.m_valid)
 	, m_type(other.m_type), m_controlID(other.m_controlID)
+	, m_hostname(other.m_hostname)
 {
 }
 
@@ -27,6 +28,7 @@ ZCom_Address& ZCom_Address::operator=(const ZCom_Address& other)
 	m_valid = other.m_valid;
 	m_type = other.m_type;
 	m_controlID = other.m_controlID;
+	m_hostname = other.m_hostname;
 	return *this;
 }
 
@@ -34,10 +36,11 @@ ZCom_Address::~ZCom_Address()
 {
 }
 
-bool ZCom_Address::setAddress(int type, int controlID, const char* addr)
+bool ZCom_Address::setAddress(eZCom_AddressType type, zU8 controlID, const char* addr)
 {
 	m_type = type;
-	m_controlID = static_cast<uint32_t>(controlID);
+	m_controlID = controlID;
+	m_hostname = addr ? std::string(addr) : std::string();
 
 	if (!addr) {
 		m_valid = true; // local address, can leave host=0
@@ -71,33 +74,43 @@ bool ZCom_Address::setAddress(int type, int controlID, const char* addr)
 	}
 
 	m_address.port = static_cast<uint16_t>(port);
+	m_valid = true;
 	return true;
 }
 
-void ZCom_Address::setIP(uint8_t a, uint8_t b, uint8_t c, uint8_t d)
+void ZCom_Address::setIP(zU8 a, zU8 b, zU8 c, zU8 d)
 {
-	uint32_t h = (static_cast<uint32_t>(a) << 24)
-	           | (static_cast<uint32_t>(b) << 16)
-	           | (static_cast<uint32_t>(c) << 8)
-	           | static_cast<uint32_t>(d);
+	zU32 h = (static_cast<zU32>(a) << 24)
+	       | (static_cast<zU32>(b) << 16)
+	       | (static_cast<zU32>(c) << 8)
+	       | static_cast<zU32>(d);
 	m_address.host = htonl(h);
 	m_valid = true;
 }
 
-uint8_t ZCom_Address::getIP(int byteIndex) const
+void ZCom_Address::setIP(zU32 ip)
+{
+	m_address.host = htonl(ip);
+	m_valid = true;
+}
+
+zU32 ZCom_Address::getIP(void) const
+{
+	return ntohl(m_address.host);
+}
+
+zU8 ZCom_Address::getIP(zU8 pos) const
 {
 	// ENet stores host in network byte order; convert for consistent extraction
-	uint32_t h = ntohl(m_address.host);
-	switch (byteIndex) {
-		case 0: return static_cast<uint8_t>((h >> 24) & 0xFF);
-		case 1: return static_cast<uint8_t>((h >> 16) & 0xFF);
-		case 2: return static_cast<uint8_t>((h >> 8) & 0xFF);
-		case 3: return static_cast<uint8_t>(h & 0xFF);
+	zU32 h = ntohl(m_address.host);
+	switch (pos) {
+		case 0: return static_cast<zU8>((h >> 24) & 0xFF);
+		case 1: return static_cast<zU8>((h >> 16) & 0xFF);
+		case 2: return static_cast<zU8>((h >> 8) & 0xFF);
+		case 3: return static_cast<zU8>(h & 0xFF);
 		default: return 0;
 	}
 }
-
-uint32_t ZCom_Address::getIP() const { return ntohl(m_address.host); }
 
 bool ZCom_Address::operator==(const ZCom_Address& other) const
 {
@@ -107,12 +120,62 @@ bool ZCom_Address::operator==(const ZCom_Address& other) const
 	    && m_controlID == other.m_controlID;
 }
 
-std::string ZCom_Address::toString() const
+const char* ZCom_Address::getAddressIP(eZCom_GetIPAddressOption with_port) const
 {
-	if (!m_valid) return "(invalid)";
-	char host[256];
-	enet_address_get_host_ip(&m_address, host, sizeof(host));
-	std::ostringstream oss;
-	oss << host << ":" << m_address.port;
-	return oss.str();
+	static char buf[64];
+	if (!m_valid) return nullptr;
+	char host[64];
+	if (enet_address_get_host_ip(&m_address, host, sizeof(host)) != 0)
+		return nullptr;
+	if (with_port == eZCom_AddressWithPort)
+		std::snprintf(buf, sizeof(buf), "%s:%u", host, static_cast<unsigned>(m_address.port));
+	else
+		std::snprintf(buf, sizeof(buf), "%s", host);
+	return buf;
+}
+
+const char* ZCom_Address::getAddressHostname() const
+{
+	return m_hostname.empty() ? nullptr : m_hostname.c_str();
+}
+
+const char* ZCom_Address::toString() const
+{
+	static char buf[128];
+	if (!m_valid) {
+		std::snprintf(buf, sizeof(buf), "(invalid)");
+		return buf;
+	}
+	if (m_type == eZCom_AddressLocal) {
+		std::snprintf(buf, sizeof(buf), "[local]::%u", static_cast<unsigned>(m_address.port));
+		return buf;
+	}
+	char host[64];
+	if (enet_address_get_host_ip(&m_address, host, sizeof(host)) != 0)
+		std::snprintf(buf, sizeof(buf), "[udp]:<unresolved>:%u", static_cast<unsigned>(m_address.port));
+	else
+		std::snprintf(buf, sizeof(buf), "[udp]:%s:%u", host, static_cast<unsigned>(m_address.port));
+	return buf;
+}
+
+bool ZCom_Address::resolveHostname(bool /*async*/, zU32 /*timeout*/)
+{
+	// setAddress() already resolves the hostname synchronously via ENet, so
+	// there is no deferred work to start or wait for. Report success only when
+	// the address is valid.
+	return m_valid;
+}
+
+eZCom_HostnameResult ZCom_Address::checkHostname()
+{
+	return m_valid ? eZCom_HostnameSuccess : eZCom_HostnameFailed;
+}
+
+zU32 ZCom_Address::computeHashKey(zU32 max) const
+{
+	if (max == 0) return 0;
+	zU32 h = getIP();
+	h ^= static_cast<zU32>(m_address.port) << 16;
+	h ^= static_cast<zU32>(m_controlID);
+	return h % max;
 }
