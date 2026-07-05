@@ -294,6 +294,7 @@ void Client::ZCom_cbNodeRequest_Dynamic( ZCom_ConnID _id, ZCom_ClassID _requeste
 		player->assignNetworkRole(false, nullptr, _net_id);
 	}else if( _requested_class == Particle::classID )
 	{
+		if(!_announcedata) { console.addLogMsg("* ERROR: particle announce data missing"); return; }
 		int typeIndex = Encoding::decode(*_announcedata, partTypeList.size());
 		BasePlayer* owner = game.findPlayerWithID(_announcedata->getInt(32));
 		newParticle_requested(partTypeList[typeIndex], Vec(), Vec(), 1, owner, Angle());

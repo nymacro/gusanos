@@ -579,4 +579,332 @@ BOOST_AUTO_TEST_CASE(signed_int_replication_roundtrip)
     srv.Shutdown(); cli.Shutdown();
 }
 
+// Regression for the "server worm missing on client" bug:
+// When an authority node is created on the server BEFORE any client connects,
+// its auto-replication entries have initial=true. Without the
+// m_forceReplicationUpdate flag, processOutput() packs and clears that flag
+// even with no peers — so by the time a client connects, the dirty state has
+// been consumed and the announcement sync can't recover the initial values.
+// With the fix, ZCom_cbConnectionSpawned marks existing nodes as force-update,
+// so the first packReplicatorsForRouting after connection sends full state.
+BOOST_AUTO_TEST_CASE(authority_node_before_client_still_replicates)
+{
+    g_currentControl = nullptr;
+    int port = s_port++;
+
+    class PreSrv : public ZCom_Control {
+    public:
+        uint32_t cls;
+        ZCom_Node* node = nullptr;
+        uint32_t clientID = 0;
+        int32_t hp = 100; // replicated authority state
+        PreSrv(int p) { g_currentControl=this; ZCom_initSockets(true,p,2,0); cls=ZCom_registerClass("PR",0); }
+        bool ZCom_cbConnectionRequest(uint32_t,ZCom_BitStream&,ZCom_BitStream&) override { return true; }
+        void ZCom_cbConnectionSpawned(uint32_t id) override { if(clientID==0) clientID=id; }
+    } srv(port);
+
+    class PreCli : public ZCom_Control {
+    public:
+        uint32_t cls;
+        bool connected = false;
+        ZCom_Node* node = nullptr;
+        int32_t rhp = 0;
+        PreCli(int p) { g_currentControl=this; ZCom_initSockets(false,0,0,0); cls=ZCom_registerClass("PR",0); }
+        uint32_t ConnectTo(const char* h,int p) {
+            ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p);
+            a.setAddress(eZCom_AddressUDP,0,hp); return ZCom_Connect(a,nullptr);
+        }
+        void ZCom_cbConnectResult(uint32_t,eZCom_ConnectResult r,ZCom_BitStream&) override {
+            connected = (r == eZCom_ConnAccepted);
+        }
+        void ZCom_cbNodeRequest_Dynamic(uint32_t,uint32_t,ZCom_BitStream*,int,uint32_t) override {
+            node = new ZCom_Node();
+            node->beginReplicationSetup(1);
+            node->addReplicationInt(&rhp, 32, false,
+                ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL, 0);
+            node->endReplicationSetup();
+            node->registerRequestedNode(cls, this);
+        }
+    } cli(port);
+
+    // Server creates authority node BEFORE client connects, with state = 100.
+    g_currentControl = &srv;
+    srv.node = new ZCom_Node();
+    srv.node->setRole(eZCom_RoleAuthority);
+    srv.node->beginReplicationSetup(1);
+    srv.node->addReplicationInt(&srv.hp, 32, false,
+        ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL, 0);
+    srv.node->endReplicationSetup();
+    srv.node->registerNodeDynamic(srv.cls, &srv);
+    g_currentControl = nullptr;
+
+    // Tick server with NO peers — this consumes initial=true entries.
+    // Without the fix, the next client to connect would receive an empty state.
+    processBoth(&srv, &cli, 10);
+
+    // Mutate state AFTER the empty ticks to verify it propagates regardless.
+    srv.hp = 100;
+    processBoth(&srv, &cli, 5);
+
+    // Now client connects.
+    cli.ConnectTo("127.0.0.1", port);
+    processBoth(&srv, &cli, 60);
+    BOOST_REQUIRE(cli.connected);
+    BOOST_REQUIRE(cli.node != nullptr);
+
+    // Client should have received the server's authority state.
+    // Without the force-replication fix this is 0 (initial=true consumed before peer existed).
+    // With the fix this is 100.
+    BOOST_CHECK_EQUAL(cli.rhp, 100);
+
+    // Further state changes must also propagate.
+    srv.hp = 77;
+    processBoth(&srv, &cli, 30);
+    BOOST_CHECK_EQUAL(cli.rhp, 77);
+
+    srv.Shutdown(); cli.Shutdown();
+}
+
+// Regression for the "client can't spawn" bug:
+// When the server creates a worm/player node BEFORE a client connects, it has
+// setEventNotification(true, false). On client connect, ZCom_cbConnectionSpawned
+// pushes eZCom_EventInit to that node with connID = new client. The server's
+// think() must observe that event and send a SYNC event to the client (mirrors
+// NetWorm::sendSyncMessage / BasePlayer::sendSyncMessage). Without the event
+// arriving, m_isActive stays false on the client → JUMP falls through to RESPAWN
+// every frame ("JUMP with inactive worm, sending RESPAWN").
+BOOST_AUTO_TEST_CASE(authority_node_before_client_sends_sync_on_init)
+{
+    g_currentControl = nullptr;
+    int port = s_port++;
+
+    class SyncSrv : public ZCom_Control {
+    public:
+        uint32_t cls;
+        ZCom_Node* node = nullptr;
+        uint32_t clientID = 0;
+        // State we want the SYNC payload to carry.
+        bool sIsActive = true;
+        bool sNinjaActive = false;
+        uint8_t sCurWeapon = 2;
+        int syncSendsToClient = 0;
+        SyncSrv(int p) { g_currentControl=this; ZCom_initSockets(true,p,2,0); cls=ZCom_registerClass("SY",0); }
+        bool ZCom_cbConnectionRequest(uint32_t,ZCom_BitStream&,ZCom_BitStream&) override { return true; }
+        void ZCom_cbConnectionSpawned(uint32_t id) override { if(clientID==0) clientID=id; }
+        // Server's per-tick pump: on eEvent_Init, emit a SYNC event to that peer.
+        // Mirrors NetWorm::think() and BasePlayer::think() event-handler branches.
+        void pumpAndSync() {
+            if (!node) return;
+            while (node->checkEventWaiting()) {
+                eZCom_Event type; eZCom_NodeRole role; uint32_t connID;
+                ZCom_BitStream* data = node->getNextEvent(&type, &role, &connID);
+                if (type == eZCom_EventInit && connID == clientID) {
+                    ZCom_BitStream* sync = new ZCom_BitStream();
+                    sync->addBool(sIsActive);
+                    sync->addBool(sNinjaActive);
+                    sync->addInt(sCurWeapon, 8);
+                    node->sendEventDirect(eZCom_ReliableOrdered, sync, connID);
+                    syncSendsToClient++;
+                }
+            }
+        }
+    } srv(port);
+
+    class SyncCli : public ZCom_Control {
+    public:
+        uint32_t cls;
+        bool connected = false;
+        ZCom_Node* node = nullptr;
+        // State decoded from the SYNC event.
+        bool cIsActive = false;
+        bool cNinjaActive = false;
+        int cCurWeapon = -1;
+        int syncEvents = 0;
+        SyncCli(int p) { g_currentControl=this; ZCom_initSockets(false,0,0,0); cls=ZCom_registerClass("SY",0); }
+        uint32_t ConnectTo(const char* h,int p) {
+            ZCom_Address a;             char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p);
+            a.setAddress(eZCom_AddressUDP,0,hp); return ZCom_Connect(a,nullptr);
+        }
+        void ZCom_cbConnectResult(uint32_t,eZCom_ConnectResult r,ZCom_BitStream&) override {
+            connected = (r == eZCom_ConnAccepted);
+        }
+        void ZCom_cbNodeRequest_Dynamic(uint32_t,uint32_t,ZCom_BitStream*,int,uint32_t) override {
+            node = new ZCom_Node();
+            node->setEventNotification(false, true); // proxy: remove events only
+            node->registerRequestedNode(cls, this);
+        }
+        // Client drains pending user events; first one is the SYNC payload.
+        void drainEvents() {
+            if (!node) return;
+            while (node->checkEventWaiting()) {
+                eZCom_Event type; eZCom_NodeRole role; uint32_t connID;
+                ZCom_BitStream* data = node->getNextEvent(&type, &role, &connID);
+                if (type == eZCom_EventUser && data) {
+                    cIsActive      = data->getBool();
+                    cNinjaActive   = data->getBool();
+                    cCurWeapon     = data->getInt(8);
+                    syncEvents++;
+                }
+            }
+        }
+    } cli(port);
+
+    // 1. Server creates the authority node BEFORE any client connects.
+    //    This is the real-world server.cpp PLAYER_REQUEST flow, but pushed earlier
+    //    so the connection-spawn path has to handle an already-existing node.
+    g_currentControl = &srv;
+    srv.node = new ZCom_Node();
+    srv.node->setRole(eZCom_RoleAuthority);
+    srv.node->setEventNotification(true, false); // init yes, remove no
+    srv.node->registerNodeDynamic(srv.cls, &srv);
+    g_currentControl = nullptr;
+
+    // 2. Client connects. ZCom_cbConnectionSpawned will push eZCom_EventInit
+    //    to the existing node with connID = cli conn id.
+    cli.ConnectTo("127.0.0.1", port);
+    processBoth(&srv, &cli, 40);
+    BOOST_REQUIRE(cli.connected);
+    BOOST_REQUIRE_NE(srv.clientID, 0u);
+
+    // 3. Server's per-tick pump sees eZCom_EventInit and emits SYNC.
+    g_currentControl = &srv; srv.pumpAndSync(); g_currentControl = nullptr;
+
+    // 4. Let the SYNC packet traverse the wire.
+    processBoth(&srv, &cli, 40);
+
+    // 5. Client drains its pending user events.
+    g_currentControl = &cli; cli.drainEvents(); g_currentControl = nullptr;
+
+    // The SYNC event must have arrived; otherwise the worm stays inactive
+    // and JUMP falls through to RESPAWN every frame.
+    BOOST_CHECK_GE(cli.syncEvents, 1);
+    BOOST_CHECK_EQUAL(cli.cIsActive, true);
+    BOOST_CHECK_EQUAL(cli.cNinjaActive, false);
+    BOOST_CHECK_EQUAL(cli.cCurWeapon, 2);
+    // Server must have sent exactly one SYNC for this connection.
+    BOOST_CHECK_EQUAL(srv.syncSendsToClient, 1);
+
+    srv.Shutdown(); cli.Shutdown();
+}
+
+// Regression for "client can't spawn" — same as above but the node is created
+// AFTER the client connects (mirrors server.cpp PLAYER_REQUEST flow where the
+// server registers the worm and player node, then sets the client as owner in
+// the same data-received callback). setOwner() must trigger eZCom_EventInit
+// for the new peer, so the server's think-loop emits SYNC to the client.
+BOOST_AUTO_TEST_CASE(authority_node_after_client_sends_sync_on_init)
+{
+    g_currentControl = nullptr;
+    int port = s_port++;
+
+    class SyncSrv2 : public ZCom_Control {
+    public:
+        uint32_t cls;
+        ZCom_Node* node = nullptr;
+        uint32_t clientID = 0;
+        bool sIsActive = true;
+        bool sNinjaActive = false;
+        uint8_t sCurWeapon = 3;
+        int syncSendsToClient = 0;
+        SyncSrv2(int p) { g_currentControl=this; ZCom_initSockets(true,p,2,0); cls=ZCom_registerClass("SA",0); }
+        bool ZCom_cbConnectionRequest(uint32_t,ZCom_BitStream&,ZCom_BitStream&) override { return true; }
+        void ZCom_cbConnectionSpawned(uint32_t id) override { if(clientID==0) clientID=id; }
+        void pumpAndSync() {
+            if (!node) return;
+            while (node->checkEventWaiting()) {
+                eZCom_Event type; eZCom_NodeRole role; uint32_t connID;
+                ZCom_BitStream* data = node->getNextEvent(&type, &role, &connID);
+                if (type == eZCom_EventInit && connID == clientID) {
+                    ZCom_BitStream* sync = new ZCom_BitStream();
+                    sync->addBool(sIsActive);
+                    sync->addBool(sNinjaActive);
+                    sync->addInt(sCurWeapon, 8);
+                    node->sendEventDirect(eZCom_ReliableOrdered, sync, connID);
+                    syncSendsToClient++;
+                }
+            }
+        }
+    } srv(port);
+
+    class SyncCli2 : public ZCom_Control {
+    public:
+        uint32_t cls;
+        bool connected = false;
+        ZCom_Node* node = nullptr;
+        bool cIsActive = false;
+        bool cNinjaActive = false;
+        int cCurWeapon = -1;
+        int syncEvents = 0;
+        SyncCli2(int p) { g_currentControl=this; ZCom_initSockets(false,0,0,0); cls=ZCom_registerClass("SA",0); }
+        uint32_t ConnectTo(const char* h,int p) {
+            ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p);
+            a.setAddress(eZCom_AddressUDP,0,hp); return ZCom_Connect(a,nullptr);
+        }
+        void ZCom_cbConnectResult(uint32_t,eZCom_ConnectResult r,ZCom_BitStream&) override {
+            connected = (r == eZCom_ConnAccepted);
+        }
+        void ZCom_cbNodeRequest_Dynamic(uint32_t,uint32_t,ZCom_BitStream*,int role,uint32_t net_id) override {
+            node = new ZCom_Node();
+            node->setEventNotification(false, true);
+            // Save role for diagnostics — Owner here means client controls the worm.
+            node->setRole(static_cast<eZCom_NodeRole>(role));
+            node->registerRequestedNode(cls, this);
+        }
+        void drainEvents() {
+            if (!node) return;
+            while (node->checkEventWaiting()) {
+                eZCom_Event type; eZCom_NodeRole role; uint32_t connID;
+                ZCom_BitStream* data = node->getNextEvent(&type, &role, &connID);
+                if (type == eZCom_EventUser && data) {
+                    cIsActive    = data->getBool();
+                    cNinjaActive = data->getBool();
+                    cCurWeapon   = data->getInt(8);
+                    syncEvents++;
+                }
+            }
+        }
+    } cli(port);
+
+    // 1. Client connects FIRST, then server creates the worm.
+    //    This matches server.cpp's PLAYER_REQUEST flow where the worm node
+    //    is created (and the client set as owner) inside the data-received
+    //    callback, AFTER the connection has already been established.
+    cli.ConnectTo("127.0.0.1", port);
+    processBoth(&srv, &cli, 40);
+    BOOST_REQUIRE(cli.connected);
+    BOOST_REQUIRE_NE(srv.clientID, 0u);
+
+    // 2. Server creates the authority node, owner = client. setOwner must
+    //    trigger announceNodeWithOwner which pushes eZCom_EventInit for
+    //    the client peer.
+    g_currentControl = &srv;
+    srv.node = new ZCom_Node();
+    srv.node->setRole(eZCom_RoleAuthority);
+    srv.node->setEventNotification(true, false); // init yes, remove no
+    srv.node->setOwner(srv.clientID, true);
+    srv.node->registerNodeDynamic(srv.cls, &srv);
+    g_currentControl = nullptr;
+
+    // 3. Pump the wire so the announce + (deferred) init event get sent.
+    processBoth(&srv, &cli, 40);
+
+    // 4. Server's per-tick pump sees eZCom_EventInit and emits SYNC.
+    g_currentControl = &srv; srv.pumpAndSync(); g_currentControl = nullptr;
+
+    // 5. Let the SYNC packet traverse the wire.
+    processBoth(&srv, &cli, 40);
+
+    // 6. Client drains its pending user events.
+    g_currentControl = &cli; cli.drainEvents(); g_currentControl = nullptr;
+
+    // The SYNC event must have arrived.
+    BOOST_CHECK_GE(cli.syncEvents, 1);
+    BOOST_CHECK_EQUAL(cli.cIsActive, true);
+    BOOST_CHECK_EQUAL(cli.cNinjaActive, false);
+    BOOST_CHECK_EQUAL(cli.cCurWeapon, 3);
+    BOOST_CHECK_GE(srv.syncSendsToClient, 1);
+
+    srv.Shutdown(); cli.Shutdown();
+}
+
 BOOST_AUTO_TEST_SUITE_END()

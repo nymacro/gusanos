@@ -166,6 +166,18 @@ public:
 	void sendEventDirect(eZCom_SendMode mode, ZCom_BitStream* stream, ZCom_ConnID id);
 	uint32_t getNetworkID() { return m_nodeID; }
 	void setNetworkID(uint32_t id) { m_nodeID = id; }
+	// Force the next packReplicatorsForRouting to pack all entries regardless of
+	// dirty flags. Used by ZCom_Control when a new peer connects to ensure the
+	// peer receives the current state of authority nodes created earlier.
+	void forceReplicationUpdate() { m_forceReplicationUpdate = true; }
+
+	// Build announce data by firing the outPreReplicateNode interceptor (if set),
+	// then returning the announce data stream. Must be called before the node
+	// announcement is serialized (every code path that reads announce data
+	// should call this instead of getAnnounceData()). The _to/_remote_role
+	// params identify the peer the node is being announced to.
+	ZCom_BitStream* buildAnnounceData(uint32_t to, eZCom_NodeRole remoteRole);
+
 	int getZoidLevel() const { return m_zoidLevel; }
 	bool checkEventWaiting();
 	ZCom_BitStream* getNextEvent(eZCom_Event* type, eZCom_NodeRole* role, ZCom_ConnID* connid, zU32* estimated_time_sent = nullptr);
@@ -242,6 +254,13 @@ private:
 	int m_zoidLevel;
 	int m_interceptID;
 	ZCom_NodeReplicationInterceptor* m_replicationInterceptor;
+
+	// Set when a new peer needs the initial replicator state (set during the
+	// connection-time node sync, consumed by the next packReplicatorsForRouting).
+	// Without this, server-side authority nodes created before any client
+	// connected would have their initial=true entries consumed by an empty
+	// processOutput, leaving newly connecting peers without any state.
+	bool m_forceReplicationUpdate = false;
 };
 
 #endif // NET_NODE_H

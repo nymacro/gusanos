@@ -484,7 +484,7 @@ void ZCom_Control::sendNodeAnnouncement(uint32_t connID, ZCom_Node* node, int ro
 	pkt.addInt(node->getNetworkID(), 16);
 	pkt.addInt(role, 8);
 	
-	ZCom_BitStream* ad = node->getAnnounceData();
+	ZCom_BitStream* ad = node->buildAnnounceData(connID, static_cast<eZCom_NodeRole>(role));
 	if (ad && ad->getDataLength() > 0) {
 		pkt.addInt(static_cast<int>(ad->getDataLength()), 16);
 		for (size_t i = 0; i < ad->getDataLength(); ++i)
@@ -518,7 +518,7 @@ void ZCom_Control::announceNodeToAll(ZCom_Node* node, int role)
 	pkt.addInt(node->getNetworkID(), 16);
 	pkt.addInt(role, 8);
 
-	ZCom_BitStream* ad = node->getAnnounceData();
+	ZCom_BitStream* ad = node->buildAnnounceData(0, static_cast<eZCom_NodeRole>(node->getRole()));
 	if (ad && ad->getDataLength() > 0) {
 		pkt.addInt(static_cast<int>(ad->getDataLength()), 16);
 		for (size_t i = 0; i < ad->getDataLength(); ++i)
@@ -526,7 +526,7 @@ void ZCom_Control::announceNodeToAll(ZCom_Node* node, int role)
 	} else {
 		pkt.addInt(0, 16);
 	}
-
+	
 	ENetPacket* packet = enet_packet_create(
 		pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
 	enet_host_broadcast(m_host, 0, packet);
@@ -635,7 +635,7 @@ void ZCom_Control::syncNodesToPeer(ENetPeer* peer)
 		pkt.addInt(node->getNetworkID(), 16);
 		pkt.addInt(node->getRole(), 8);
 		
-		ZCom_BitStream* ad = node->getAnnounceData();
+		ZCom_BitStream* ad = node->buildAnnounceData(0, static_cast<eZCom_NodeRole>(node->getRole()));
 		if (ad && ad->getDataLength() > 0) {
 			pkt.addInt(static_cast<int>(ad->getDataLength()), 16);
 			for (size_t i = 0; i < ad->getDataLength(); ++i)
@@ -802,7 +802,7 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 					pkt.addInt(node->getNetworkID(), 16);
 					pkt.addInt(role, 8);
 					
-					ZCom_BitStream* ad = node->getAnnounceData();
+					ZCom_BitStream* ad = node->buildAnnounceData(connID, static_cast<eZCom_NodeRole>(role));
 					if (ad && ad->getDataLength() > 0) {
 						pkt.addInt(static_cast<int>(ad->getDataLength()), 16);
 						for (size_t i = 0; i < ad->getDataLength(); ++i)
@@ -819,6 +819,14 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 					if (node->getEventNotification()) {
 						node->pushEvent(eZCom_EventInit, static_cast<eZCom_NodeRole>(role), connID, nullptr);
 					}
+
+					// Force a full replicator pack on the next processOutput so
+					// this new peer receives the current node state. Without this,
+					// authority nodes created before any client connected have
+					// already had their initial=true entries consumed by empty
+					// processOutput passes, so the new peer would only see future
+					// dirty updates — missing the worm's position, health, etc.
+					node->forceReplicationUpdate();
 				}
 				// Fire connection spawned after reply is sent
 				ZCom_cbConnectionSpawned(connID);

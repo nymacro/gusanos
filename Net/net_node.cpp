@@ -124,6 +124,16 @@ void ZCom_Node::setAnnounceData(ZCom_BitStream* data)
 	m_announceData = data ? data->Duplicate() : nullptr;
 }
 
+ZCom_BitStream* ZCom_Node::buildAnnounceData(uint32_t to, eZCom_NodeRole remoteRole)
+{
+	// Fire the interceptor so it can populate announce data (e.g. Particle's
+	// outPreReplicateNode calls setAnnounceData). The game code's interceptors
+	// ignore _to/_remote_role, but we pass them for Zoidcom spec compliance.
+	if (m_replicationInterceptor)
+		m_replicationInterceptor->outPreReplicateNode(this, to, remoteRole);
+	return m_announceData; // may be null; callers already handle that
+}
+
 bool ZCom_Node::registerNodeDynamic(uint32_t classID, void* control)
 {
 	m_classID = classID;
@@ -331,11 +341,52 @@ void ZCom_Node::packReplicatorsForRouting(std::vector<PackedReplicator>& out)
 	out.clear();
 	out.reserve(m_replicators.size() + m_autoReplications.size());
 
+	// When set (typically after announcing the node to a freshly connected
+	// peer), force every replicator to be packed regardless of its dirty flag
+	// so the new peer receives the current state instead of nothing. The flag
+	// is cleared after the pass so subsequent packs resume normal dirty-only
+	// behaviour.
+	const bool forceAll = m_forceReplicationUpdate;
+	m_forceReplicationUpdate = false;
+
+	// Call outPreUpdate on the sender side. If it returns false, skip all
+	// replicators for this node. The forceAll path bypasses this check so
+	// a freshly connecting peer always receives the initial state.
+	if (!forceAll && m_replicationInterceptor &&
+		!m_replicationInterceptor->outPreUpdate(this, 0, eZCom_RoleProxy))
+	{
+		// Still need to push PackedReplicators for all entries (with
+		// hasUpdate=false) to keep slot alignment with the receiver side.
+		for (auto* rep : m_replicators) {
+			PackedReplicator p;
+			p.rule = rep->getSetup()->getRules();
+			p.hasUpdate = false;
+			out.push_back(std::move(p));
+		}
+		for (auto& entry : m_autoReplications) {
+			PackedReplicator p;
+			p.rule = entry.rule;
+			p.hasUpdate = false;
+			out.push_back(std::move(p));
+		}
+		return;
+	}
+
 	// Explicit replicators (ZCom_Replicator subclasses).
 	for (auto* rep : m_replicators) {
 		PackedReplicator p;
 		p.rule = rep->getSetup()->getRules();
-		if (rep->checkState()) {
+		bool proceed = true;
+		// For intercepted replicators, consult outPreUpdateItem on the sender
+		// side. The forceAll path bypasses this so freshly connecting peers
+		// always receive the initial intercept state (e.g. worm m_playerID).
+		if (!forceAll && m_replicationInterceptor &&
+			(rep->getSetup()->getFlags() & ZCOM_REPFLAG_INTERCEPT))
+		{
+			proceed = m_replicationInterceptor->outPreUpdateItem(
+				this, 0, eZCom_RoleProxy, rep);
+		}
+		if (proceed && (forceAll || rep->checkState())) {
 			p.hasUpdate = true;
 			rep->packData(&p.data); // clears dirty
 		} else {
@@ -351,14 +402,14 @@ void ZCom_Node::packReplicatorsForRouting(std::vector<PackedReplicator>& out)
 		bool changed = false;
 		if (entry.type == ReplicationEntry::TypeInt && entry.ptr) {
 			int32_t val = *static_cast<int32_t*>(entry.ptr);
-			if (entry.initial || val != static_cast<int32_t>(entry.oldInt)) {
+			if (forceAll || entry.initial || val != static_cast<int32_t>(entry.oldInt)) {
 				changed = true;
 				entry.oldInt = val;
 				entry.initial = false;
 			}
 		} else if (entry.type == ReplicationEntry::TypeFloat && entry.ptr) {
 			float val = *static_cast<float*>(entry.ptr);
-			if (entry.initial || val != entry.oldFloat) {
+			if (forceAll || entry.initial || val != entry.oldFloat) {
 				changed = true;
 				entry.oldFloat = val;
 				entry.initial = false;
@@ -366,7 +417,7 @@ void ZCom_Node::packReplicatorsForRouting(std::vector<PackedReplicator>& out)
 		} else if (entry.type == ReplicationEntry::TypeBool && entry.ptr) {
 			bool val = *static_cast<bool*>(entry.ptr);
 			bool old = entry.initial ? false : (entry.oldInt != 0);
-			if (entry.initial || val != old) {
+			if (forceAll || entry.initial || val != old) {
 				changed = true;
 				entry.oldInt = val ? 1 : 0;
 				entry.initial = false;
