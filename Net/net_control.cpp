@@ -582,36 +582,42 @@ void ZCom_Control::announceNodeWithOwner(ZCom_Node* node)
 
 		uint32_t ownerID = node->getOwner();
 
-		// Find the old owner for this node, if any, and clear it from
-		// m_peerRole so the new owner's assignment will be correctly tracked.
+		// Publish to all currently connected peers (owner and proxies).
+		// For each peer, if this is a re-announce (e.g. setOwner() after a
+		// previous announce), clear any stale Owner role first so the new
+		// owner's assignment is tracked correctly. The clear and the new
+		// send must happen atomically per peer — if we cleared in a separate
+		// loop and then hit the duplicate-skip below, we'd wipe the role
+		// without restoring it.
 		for (auto& pair : m_peerMap)
 		{
 			uint32_t connID = pair.first;
-			auto nit = m_peerRole[connID].find(node->getNetworkID());
-			if (nit != m_peerRole[connID].end() && nit->second == eZCom_RoleOwner)
-			{
-				m_peerRole[connID].erase(nit);
-				NET_LOG("Cleared old owner role=" << eZCom_RoleOwner << " for nodeID=" << node->getNetworkID() << " on connID=" << connID);
-			}
-		}
 
-		// Publish to all currently connected peers (owner and proxies)
-		for (auto& pair : m_peerMap)
-		{
-			NET_LOG("  peer connID=" << pair.first);
 			// Skip duplicate announcements to the same peer
-			if (m_announcedNodes[pair.first].count(node->getNetworkID())) {
-				NET_LOG("  skipping duplicate for connID=" << pair.first);
+			if (m_announcedNodes[connID].count(node->getNetworkID())) {
+				NET_LOG("  peer connID=" << connID << " (skip duplicate)");
 				continue;
 			}
 
+			// Clear stale Owner role for this peer so the new role assignment
+			// below takes effect.
+			auto nit = m_peerRole[connID].find(node->getNetworkID());
+			if (nit != m_peerRole[connID].end() && nit->second == eZCom_RoleOwner)
+			{
+				NET_LOG("Cleared old owner role=" << eZCom_RoleOwner
+					<< " for nodeID=" << node->getNetworkID()
+					<< " on connID=" << connID);
+				m_peerRole[connID].erase(nit);
+			}
+
+			NET_LOG("  peer connID=" << connID);
 			int role;
-			if (ownerID != 0 && pair.first == ownerID) {
+			if (ownerID != 0 && connID == ownerID) {
 				role = eZCom_RoleOwner;
 			} else {
 				role = eZCom_RoleProxy;
 			}
-			sendNodeAnnouncement(pair.first, node, role);
+			sendNodeAnnouncement(connID, node, role);
 		}
 		// eEvent_Init is pushed per-peer inside sendNodeAnnouncement (with the
 		// correct owner-aware role), so no additional push is needed here.

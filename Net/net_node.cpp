@@ -311,7 +311,10 @@ void ZCom_Node::packAllReplicators(ZCom_BitStream* stream)
 		if (changed) {
 			stream->addInt(1, 1);
 			if (entry.type == ReplicationEntry::TypeInt) {
-				stream->addInt(*static_cast<int32_t*>(entry.ptr), entry.bits);
+				if (entry.sign)
+					stream->addSignedInt(*static_cast<int32_t*>(entry.ptr), entry.bits);
+				else
+					stream->addInt(*static_cast<int32_t*>(entry.ptr), entry.bits);
 			} else if (entry.type == ReplicationEntry::TypeFloat) {
 				stream->addFloat(*static_cast<float*>(entry.ptr), entry.bits);
 			} else {
@@ -371,9 +374,12 @@ void ZCom_Node::packReplicatorsForRouting(std::vector<PackedReplicator>& out)
 		}
 		if (changed) {
 			p.hasUpdate = true;
-			if (entry.type == ReplicationEntry::TypeInt)
-				p.data.addInt(*static_cast<int32_t*>(entry.ptr), entry.bits);
-			else if (entry.type == ReplicationEntry::TypeFloat)
+			if (entry.type == ReplicationEntry::TypeInt) {
+				if (entry.sign)
+					p.data.addSignedInt(*static_cast<int32_t*>(entry.ptr), entry.bits);
+				else
+					p.data.addInt(*static_cast<int32_t*>(entry.ptr), entry.bits);
+			} else if (entry.type == ReplicationEntry::TypeFloat)
 				p.data.addFloat(*static_cast<float*>(entry.ptr), entry.bits);
 			else
 				p.data.addInt(*static_cast<bool*>(entry.ptr) ? 1 : 0, 1);
@@ -427,7 +433,8 @@ void ZCom_Node::unpackAllReplicators(ZCom_BitStream* stream, bool store, uint32_
 				int32_t decodedInt = 0;
 				float decodedFloat = 0.0f;
 				if (entry.type == ReplicationEntry::TypeInt) {
-					decodedInt = static_cast<int32_t>(stream->getInt(entry.bits));
+					decodedInt = entry.sign ? stream->getSignedInt(entry.bits)
+					                        : static_cast<int32_t>(stream->getInt(entry.bits));
 					tempRep.peekDataStore(&decodedInt);
 				} else if (entry.type == ReplicationEntry::TypeBool) {
 					int decodedInt = stream->getInt(1);
@@ -448,7 +455,9 @@ void ZCom_Node::unpackAllReplicators(ZCom_BitStream* stream, bool store, uint32_
 					*static_cast<float*>(entry.ptr) = decodedFloat;
 			} else {
 				if (entry.type == ReplicationEntry::TypeInt) {
-					*static_cast<int32_t*>(entry.ptr) = static_cast<int32_t>(stream->getInt(entry.bits));
+					*static_cast<int32_t*>(entry.ptr) = entry.sign
+						? stream->getSignedInt(entry.bits)
+						: static_cast<int32_t>(stream->getInt(entry.bits));
 				} else if (entry.type == ReplicationEntry::TypeBool) {
 					*static_cast<bool*>(entry.ptr) = stream->getInt(1) != 0;
 				} else {

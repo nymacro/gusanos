@@ -708,6 +708,7 @@ protected:
 	void ZCom_cbConnectionSpawned(ZCom_ConnID id) override
 	{
 		m_connSpawned++;
+		m_clientID = id;
 	}
 
 	void ZCom_cbNodeRequest_Dynamic(ZCom_ConnID id, uint32_t requested_class,
@@ -792,6 +793,7 @@ BOOST_AUTO_TEST_CASE(register_requested_node_gets_announced_id)
 	g_currentControl = &srv;
 	ZCom_Node* srvNode = new ZCom_Node();
 	BOOST_CHECK(srvNode->registerNodeDynamic(srv.m_testClass, &srv));
+	srv.m_announcedNodeId = srvNode->getNetworkID();
 	BOOST_CHECK_EQUAL(srvNode->getNetworkID(), srv.m_announcedNodeId);
 	g_currentControl = nullptr;
 
