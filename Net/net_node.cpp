@@ -299,13 +299,23 @@ void ZCom_Node::packAllReplicators(ZCom_BitStream* stream)
 				entry.oldFloat = val;
 				entry.initial = false;
 			}
+		} else if (entry.type == ReplicationEntry::TypeBool && entry.ptr) {
+			bool val = *static_cast<bool*>(entry.ptr);
+			bool old = entry.initial ? false : (entry.oldInt != 0); // oldInt stores bool value
+			if (entry.initial || val != old) {
+				changed = true;
+				entry.oldInt = val ? 1 : 0;
+				entry.initial = false;
+			}
 		}
 		if (changed) {
 			stream->addInt(1, 1);
 			if (entry.type == ReplicationEntry::TypeInt) {
 				stream->addInt(*static_cast<int32_t*>(entry.ptr), entry.bits);
-			} else {
+			} else if (entry.type == ReplicationEntry::TypeFloat) {
 				stream->addFloat(*static_cast<float*>(entry.ptr), entry.bits);
+			} else {
+				stream->addInt(*static_cast<bool*>(entry.ptr) ? 1 : 0, 1);
 			}
 		} else {
 			stream->addInt(0, 1);
@@ -350,13 +360,23 @@ void ZCom_Node::packReplicatorsForRouting(std::vector<PackedReplicator>& out)
 				entry.oldFloat = val;
 				entry.initial = false;
 			}
+		} else if (entry.type == ReplicationEntry::TypeBool && entry.ptr) {
+			bool val = *static_cast<bool*>(entry.ptr);
+			bool old = entry.initial ? false : (entry.oldInt != 0);
+			if (entry.initial || val != old) {
+				changed = true;
+				entry.oldInt = val ? 1 : 0;
+				entry.initial = false;
+			}
 		}
 		if (changed) {
 			p.hasUpdate = true;
 			if (entry.type == ReplicationEntry::TypeInt)
 				p.data.addInt(*static_cast<int32_t*>(entry.ptr), entry.bits);
-			else
+			else if (entry.type == ReplicationEntry::TypeFloat)
 				p.data.addFloat(*static_cast<float*>(entry.ptr), entry.bits);
+			else
+				p.data.addInt(*static_cast<bool*>(entry.ptr) ? 1 : 0, 1);
 		} else {
 			p.hasUpdate = false;
 		}
@@ -409,23 +429,28 @@ void ZCom_Node::unpackAllReplicators(ZCom_BitStream* stream, bool store, uint32_
 				if (entry.type == ReplicationEntry::TypeInt) {
 					decodedInt = static_cast<int32_t>(stream->getInt(entry.bits));
 					tempRep.peekDataStore(&decodedInt);
+				} else if (entry.type == ReplicationEntry::TypeBool) {
+					int decodedInt = stream->getInt(1);
+					tempRep.peekDataStore(&decodedInt);
 				} else {
 					decodedFloat = stream->getFloat(entry.bits);
 					tempRep.peekDataStore(&decodedFloat);
 				}
-				// Override peekData to return the decoded value: we stash a pointer
-				// to the local decoded value which the interceptor dereferences.
 				bool accept = m_replicationInterceptor->inPreUpdateItem(this, 0, eZCom_RoleAuthority, &tempRep, estimatedTimeSent);
 				tempRep.peekDataStore(nullptr);
 				if (!accept)
 					continue;
 				if (entry.type == ReplicationEntry::TypeInt)
 					*static_cast<int32_t*>(entry.ptr) = decodedInt;
+				else if (entry.type == ReplicationEntry::TypeBool)
+					*static_cast<bool*>(entry.ptr) = decodedInt != 0;
 				else
 					*static_cast<float*>(entry.ptr) = decodedFloat;
 			} else {
 				if (entry.type == ReplicationEntry::TypeInt) {
 					*static_cast<int32_t*>(entry.ptr) = static_cast<int32_t>(stream->getInt(entry.bits));
+				} else if (entry.type == ReplicationEntry::TypeBool) {
+					*static_cast<bool*>(entry.ptr) = stream->getInt(1) != 0;
 				} else {
 					*static_cast<float*>(entry.ptr) = stream->getFloat(entry.bits);
 				}
@@ -433,6 +458,8 @@ void ZCom_Node::unpackAllReplicators(ZCom_BitStream* stream, bool store, uint32_
 		} else if (hasUpdate) {
 			if (entry.type == ReplicationEntry::TypeInt) {
 				stream->getInt(entry.bits);
+			} else if (entry.type == ReplicationEntry::TypeBool) {
+				stream->getInt(1);
 			} else {
 				stream->getFloat(entry.bits);
 			}

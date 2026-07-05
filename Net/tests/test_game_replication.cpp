@@ -220,6 +220,7 @@ BOOST_AUTO_TEST_CASE(node_event_buffered_before_node_registration)
     public:
         uint32_t cls; bool connected=false; ZCom_Node* node=nullptr; uint32_t gotID=0;
         bool created=false; // defer node creation to simulate the race
+        GameInterceptor interceptor;
         BCli(int p){ g_currentControl=this; ZCom_initSockets(false,0,0,0); cls=ZCom_registerClass("B",0); }
         uint32_t ConnectTo(const char* h,int p){ ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p); a.setAddress(eZCom_AddressUDP,0,hp); return ZCom_Connect(a,nullptr); }
         void ZCom_cbConnectResult(uint32_t,eZCom_ConnectResult r,ZCom_BitStream&) override { connected=(r==eZCom_ConnAccepted); }
@@ -235,7 +236,7 @@ BOOST_AUTO_TEST_CASE(node_event_buffered_before_node_registration)
             node->setReplicationInterceptor(&interceptor);
             node->registerRequestedNode(cls, this);
             // Role auto-assigned by omfgnet layer from request context.
-            created;
+            created = true;
         }
     } cli(port);
 

@@ -106,7 +106,7 @@ private:
 
 // Auto replication entry
 struct ReplicationEntry {
-	enum Type { TypeInt, TypeFloat };
+	enum Type { TypeInt, TypeFloat, TypeBool };
 	Type type;
 	void* ptr;
 	int bits;

@@ -60,6 +60,9 @@ env['MY_CONF'] = ARGUMENTS.get('conf', 'posix')
 env['MY_BUILD'] = ARGUMENTS.get('build', 'release')
 env['MY_SUBFOLDER'] = os.path.join(env['MY_CONF'], env['MY_BUILD'])
 env['NO_PARSERS'] = ARGUMENTS.get('no-parsers', False)
+env['CCCOMSTR'] = 'Compiling $TARGET'
+env['CXXCOMSTR'] = 'Compiling $TARGET'
+env['LINKCOMSTR'] = 'Linking $TARGET'
 
 # Sanitizer support: sanitize=address,undefined or sanitize=thread, etc.
 # Debug builds default to address,undefined; pass sanitize=none to disable.
@@ -94,7 +97,7 @@ if os.path.exists(brew_prefix):
 env.Append(
     CPPPATH=Split('. #http #luaapi #Console #GUI #Utility #OmfgScript #Goop #Net'),
     LIBPATH=[os.path.join('#lib', env['MY_SUBFOLDER']), os.path.join('#lib', env['MY_CONF'])],
-    CCFLAGS=Split('-pipe -Wall -Wno-reorder -Wno-register'),
+    CCFLAGS=Split('-pipe -fno-diagnostics-show-caret -fno-diagnostics-show-option -Wfatal-errors -Wall -Wno-reorder -Wno-register'),
     CXXFLAGS=Split('-std=c++17'),
     CPPDEFINES=['_GNU_SOURCE', 'BOOST_TIMER_ENABLE_DEPRECATED']
 )
