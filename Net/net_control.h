@@ -8,6 +8,7 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <unordered_set>
 #include <string>
 #include <cstdint>
 #include <fstream>
@@ -237,6 +238,13 @@ protected:
 	/// (same tick) is reflected as a single owner-aware announce instead of a
 	/// premature Proxy announce followed by an Owner re-announce.
 	std::set<uint32_t> m_pendingAnnounce;
+
+	/// Nodes whose removal has been deferred to the next ZCom_processOutput().
+	/// removeNode() adds here instead of erasing m_nodes directly, so that
+	/// destructors triggered mid-iteration (e.g. Game::reset -> deleteThis ->
+	/// delete m_node) don't invalidate iterators in active range-for loops
+	/// over m_nodes. The actual erase happens at the top of ZCom_processOutput.
+	std::unordered_set<ZCom_Node*> m_pendingRemove;
 
 	/// Per-connection role each peer holds for each node (Phase D1 routing).
 	/// m_peerRole[connID][nodeID] = the role the peer at connID has for nodeID.

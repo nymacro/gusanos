@@ -124,10 +124,7 @@ BOOST_AUTO_TEST_CASE(nested_bitstream)
 	BOOST_CHECK_EQUAL(outer.getInt(8), 0);
 	BOOST_CHECK_EQUAL(outer.getInt(16), 42);
 
-	// addBitStream writes 16-bit bit-length + raw bytes
-	int innerBits = outer.getInt(16);
-	BOOST_CHECK(innerBits > 0);
-
+	// addBitStream inlines the inner bits directly (no length prefix)
 	BOOST_CHECK_EQUAL(outer.getInt(8), 99);
 	BOOST_CHECK_EQUAL(std::string(outer.getStringStatic()), "nested");
 }
@@ -216,9 +213,7 @@ BOOST_AUTO_TEST_CASE(stream_roundtrip_with_node_event_pattern)
 	BOOST_CHECK_EQUAL(pkt.getInt(8), 0);
 	BOOST_CHECK_EQUAL(pkt.getInt(16), 1);
 
-	int innerBits = pkt.getInt(16);
-	BOOST_CHECK(innerBits > 0);
-
+	// addBitStream inlines the payload bits directly (no length prefix)
 	BOOST_CHECK_EQUAL(std::string(pkt.getStringStatic()), "event data");
 }
 

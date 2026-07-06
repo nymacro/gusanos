@@ -394,12 +394,16 @@ bool ZCom_BitStream::addBitStream(ZCom_BitStream* other, bool _allow_align)
 {
 	(void)_allow_align;
 	if (!other) return false;
-	size_t bits = other->getBitLength();
-	addInt(static_cast<int>(bits), 16);
-	const uint8_t* data = other->getData();
-	size_t bytes = (bits + 7) / 8;
-	for (size_t i = 0; i < bytes; ++i)
-		addInt(data[i], 8);
+	// Inline the source stream's written bits directly (no length prefix),
+	// matching original Zoidcom semantics: addBitStream embeds bits that the
+	// receiver reads back with getBitStream(bits) or direct getInt/getBool
+	// calls — the application tracks how many bits to read. A length prefix
+	// would desynchronize readers that consume the embedded bits directly
+	// (e.g. NetWorm::sendWeaponMessage -> recieveMessage, LuaEvent payloads).
+	other->resetReadState();
+	zU32 n = other->getBitCount();
+	for (zU32 i = 0; i < n; ++i)
+		addBool(other->getBool());
 	return true;
 }
 

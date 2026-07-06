@@ -357,6 +357,80 @@ BOOST_AUTO_TEST_CASE(client_owner_role_allows_owner_to_auth_event)
     srv.Shutdown(); cli.Shutdown();
 }
 
+// Regression: an Owner sending a COMBINED reprule
+// (AUTH_2_PROXY | OWNER_2_AUTH — exactly what BasePlayer::baseActionStart uses
+// for every action: JUMP/RESPAWN/FIRE/...) must reach the Authority via the
+// OWNER_2_AUTH leg. The previous sendEvent guard hard-dropped the whole event
+// because the rule contained an AUTH_* bit, silently discarding all client
+// action events so the client could never spawn.
+BOOST_AUTO_TEST_CASE(client_owner_role_combined_rule_reaches_authority)
+{
+    g_currentControl = nullptr;
+    int port = s_port++;
+
+    class CSrv : public ZCom_Control {
+    public:
+        uint32_t cls; ZCom_Node* node=nullptr; uint32_t clientID=0;
+        CSrv(int p){ g_currentControl=this; ZCom_initSockets(true,p,2,0); cls=ZCom_registerClass("C",0); }
+        bool ZCom_cbConnectionRequest(uint32_t,ZCom_BitStream&,ZCom_BitStream&) override { return true; }
+        void ZCom_cbConnectionSpawned(uint32_t id) override { if(clientID==0) clientID=id; }
+    } srv(port);
+
+    class CCli : public ZCom_Control {
+    public:
+        uint32_t cls; bool connected=false; ZCom_Node* node=nullptr; uint32_t gotID=0; int gotRole=-1;
+        CCli(int p){ g_currentControl=this; ZCom_initSockets(false,0,0,0); cls=ZCom_registerClass("C",0); }
+        uint32_t ConnectTo(const char* h,int p){ ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p); a.setAddress(eZCom_AddressUDP,0,hp); return ZCom_Connect(a,nullptr); }
+        void ZCom_cbConnectResult(uint32_t,eZCom_ConnectResult r,ZCom_BitStream&) override { connected=(r==eZCom_ConnAccepted); }
+        void ZCom_cbNodeRequest_Dynamic(uint32_t,uint32_t,ZCom_BitStream*,int role,uint32_t net_id) override {
+            gotID=net_id; gotRole=role;
+            node=new ZCom_Node();
+            node->setEventNotification(true,true);
+            node->registerRequestedNode(cls,this);
+        }
+    } cli(port);
+
+    cli.ConnectTo("127.0.0.1", port);
+    processBoth(&srv, &cli, 40);
+    BOOST_REQUIRE(cli.connected);
+    BOOST_REQUIRE_NE(srv.clientID, 0u);
+
+    // Server creates a node owned by the client — client should get RoleOwner.
+    srv.node = new ZCom_Node();
+    srv.node->setRole(eZCom_RoleAuthority);
+    srv.node->setOwner(srv.clientID, true);
+    srv.node->registerNodeDynamic(srv.cls, &srv);
+    srv.node->setEventNotification(true, false);
+    processBoth(&srv, &cli, 30);
+    BOOST_REQUIRE_NE(cli.gotID, 0u);
+    BOOST_CHECK_EQUAL(cli.gotRole, eZCom_RoleOwner);
+
+    // Client (owner) sends an event with the combined rule used by
+    // BasePlayer::baseActionStart. The OWNER_2_AUTH leg must deliver it to the
+    // authority; the AUTH_2_PROXY bit is inapplicable to an Owner sender and
+    // must not cause the event to be dropped.
+    ZCom_BitStream ev;
+    ev.addInt(0x77, 8);
+    cli.node->sendEvent(eZCom_ReliableOrdered,
+        ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH, &ev);
+    processBoth(&srv, &cli, 20);
+
+    bool srvGotIt = false;
+    if (srv.node) {
+        while (srv.node->checkEventWaiting()) {
+            eZCom_Event type; eZCom_NodeRole role; uint32_t connID;
+            ZCom_BitStream* data = srv.node->getNextEvent(&type, &role, &connID);
+            if (type == eZCom_EventUser && data) {
+                srvGotIt = true;
+                BOOST_CHECK_EQUAL(data->getInt(8), 0x77);
+            }
+        }
+    }
+    BOOST_CHECK(srvGotIt);
+
+    srv.Shutdown(); cli.Shutdown();
+}
+
 // End-to-end game-style flow: authority node with event notification + owner,
 // eEvent_Init fires on the server -> server sends a sync event to the client
 // (mirrors BasePlayer/NetWorm sendSyncMessage). The client must receive it,

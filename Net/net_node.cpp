@@ -32,8 +32,10 @@ ZCom_Node::ZCom_Node()
 
 ZCom_Node::~ZCom_Node()
 {
-	if (m_control)
-		m_control->removeNode(this);
+	// Delegate to unregisterNode so m_control is nulled after removal; this
+	// guards against re-entrant destruction and would keep this path safe if
+	// the owning ZCom_Control were ever destroyed before the node.
+	unregisterNode();
 	delete m_announceData;
 	// Caller owns replicators — do not delete
 }
@@ -214,14 +216,29 @@ void ZCom_Node::sendEvent(eZCom_SendMode mode, zU8 rules, ZCom_BitStream* stream
 {
 	if (!m_control || !stream) return;
 
-	// Determine if we are allowed to send based on local role
-	if ((rules & (ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_AUTH_2_OWNER)))
-		if (m_role != eZCom_RoleAuthority)
-			return; // Only authority can send AUTH_* rules
-
-	if ((rules & ZCOM_REPRULE_OWNER_2_AUTH))
-		if (m_role != eZCom_RoleOwner)
-			return; // Only owner can send OWNER_2_AUTH rules
+	// The reprule is a recipient filter bitmask, not a sender permission
+	// (Zoidcom spec: docs/zoidcom/OCommEvents.md, classZCom__Node.md). The
+	// sender's role determines only which rule bits are *applicable* to it:
+	// an Authority may use AUTH_2_* bits; an Owner may use OWNER_2_AUTH.
+	// Bits that don't apply to this sender are masked off, and routing then
+	// filters per-peer via repruleMatches().
+	//
+	// This is critical for combined rules like
+	// AUTH_2_PROXY | OWNER_2_AUTH (used by BasePlayer::baseActionStart for
+	// every action): an Owner sending such a rule must still reach the
+	// Authority via the OWNER_2_AUTH leg. The previous hard-drop of the
+	// whole event on any AUTH_* bit silently discarded all client action
+	// events (JUMP/RESPAWN/FIRE/...), so the client could never spawn.
+	uint8_t effective = rules;
+	if (m_role != eZCom_RoleAuthority)
+		effective &= ~(ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_AUTH_2_OWNER);
+	if (m_role != eZCom_RoleOwner)
+		effective &= ~ZCOM_REPRULE_OWNER_2_AUTH;
+	// rule==0 keeps the legacy broadcast behaviour (routeNodeEvent sends to
+	// all peers). A non-zero rule that fully masked away has no recipients.
+	if (rules != 0 && effective == 0)
+		return;
+	rules = effective;
 
 	ZCom_BitStream pkt;
 	pkt.addInt(MSG_NODE_EVENT, 8);

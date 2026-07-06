@@ -341,7 +341,16 @@ void NetWorm::respawn()
 {
 	if ( m_isAuthority && m_node )
 	{
-		BaseWorm::respawn();
+		// Network-initiated respawn: honor immediately, bypassing the
+		// m_timeSinceDeath > minRespawnTime gate in BaseWorm::respawn().
+		// That gate exists for auto-respawn timing, not for explicit
+		// user-initiated respawn requests (JUMP with inactive worm).
+		std::cout << "[DEBUG] NetWorm::respawn authority nodeID=" << m_node->getNetworkID()
+			<< " m_timeSinceDeath=" << m_timeSinceDeath
+			<< " m_isActive(before)=" << m_isActive << std::endl;
+		BaseWorm::respawn( game.level.getSpawnLocation( m_owner ) );
+		std::cout << "[DEBUG] NetWorm::respawn authority nodeID=" << m_node->getNetworkID()
+			<< " m_isActive(after)=" << m_isActive << std::endl;
 		if ( m_isActive )
 		{
 			ZCom_BitStream *data = new ZCom_BitStream;

@@ -74,6 +74,15 @@ void Weapon::reset()
 
 void Weapon::think( bool isFocused, size_t index )
 {
+	// Whether this side runs primaryShoot locally and therefore owns the ammo
+	// counter. The authority always does; a client does only for predicted
+	// weapons (syncHax == false). For such weapons the client must also drive
+	// the full out-of-ammo/reload cycle locally — deferring to the server
+	// round-trip (OutOfAmmoCheck) stalls firing every time ammo hits 0, because
+	// the client stops shooting while the server keeps firing, producing the
+	// desync where the server shows particles the client never sees and the
+	// client's ammo bar sticks at 0.
+	bool localPredict = !network.isClient() || !m_type->syncHax;
 	foreach(t, timer)
 	{
 		if ( t->tick() )
@@ -125,12 +134,14 @@ void Weapon::think( bool isFocused, size_t index )
 		if ( ammo <= 0 && !reloading && !m_outOfAmmo)
 		{
 			m_outOfAmmo = true;
-			//std::cout << "out of ammo" << endl;
-			if ( !network.isClient() || !m_type->syncReload )
+			// Predicted shooting (localPredict) or non-synced reload: handle the
+			// out-of-ammo transition locally. Only server-authoritative weapons
+			// (syncHax) with synced reload defer to the server via OutOfAmmoCheck.
+			if ( localPredict || !m_type->syncReload )
 			{
 				outOfAmmo();
 				
-				if ( network.isHost() && m_type->syncReload )
+				if ( network.isHost() && m_type->syncHax && m_type->syncReload )
 				{
 					ZCom_BitStream* data = new ZCom_BitStream;
 					//data->addInt( OUTOFAMMO , 8);
@@ -152,11 +163,11 @@ void Weapon::think( bool isFocused, size_t index )
 		if ( reloading )
 		{
 			if ( reloadTime > 0 ) --reloadTime;
-			else if ( !network.isClient() || !m_type->syncReload )
+			else if ( localPredict || !m_type->syncReload )
 			{
 				reload();
 				
-				if ( network.isHost() && m_type->syncReload )
+				if ( network.isHost() && m_type->syncHax && m_type->syncReload )
 				{
 					ZCom_BitStream* data = new ZCom_BitStream;
 					//data->addInt( RELOADED , 8);

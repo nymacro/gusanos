@@ -161,14 +161,10 @@ BOOST_AUTO_TEST_CASE(nested_bitstream)
 	uint32_t a = outer.getInt(8);
 	BOOST_CHECK_EQUAL(a, 1);
 
-	// addBitStream writes: 16-bit bit-count + raw data bytes
-	int innerBits = outer.getInt(16);
-	BOOST_CHECK(innerBits > 0);
-
-	// Consume the raw inner data bytes
-	int innerBytes = (innerBits + 7) / 8;
-	for (int i = 0; i < innerBytes; i++)
-		outer.getInt(8);
+	// addBitStream inlines the inner bits directly (no length prefix).
+	// Consume the inner data: 1 byte (0xDE) then the string "inner".
+	outer.getInt(8); // 0xDE
+	BOOST_CHECK_EQUAL(std::string(outer.getStringStatic()), "inner");
 
 	uint32_t d = outer.getInt(8);
 	BOOST_CHECK_EQUAL(d, 2);
@@ -561,11 +557,8 @@ BOOST_AUTO_TEST_CASE(add_get_bitstream_roundtrip)
 	ZCom_BitStream outer;
 	outer.addBitStream(&inner);
 
-	// Consume the 16-bit length prefix first
-	int bits = outer.getInt(16);
-	BOOST_CHECK_EQUAL(bits, 16);
-
-	// getBitStream reads the remaining raw data bits
+	// addBitStream inlines the inner bits directly (no length prefix).
+	// getBitStream reads the requested number of raw data bits.
 	ZCom_BitStream* extracted = outer.getBitStream(16, false);
 	BOOST_REQUIRE(extracted != nullptr);
 	BOOST_CHECK_EQUAL(extracted->getInt(8), 1);
@@ -575,16 +568,13 @@ BOOST_AUTO_TEST_CASE(add_get_bitstream_roundtrip)
 
 BOOST_AUTO_TEST_CASE(add_bitstream_bits)
 {
-	// Verify addBitStream writes a 16-bit length prefix
+	// addBitStream inlines the inner bits directly (no length prefix)
 	ZCom_BitStream inner;
 	inner.addInt(99, 8); // 8 bits
 
 	ZCom_BitStream outer;
 	outer.addBitStream(&inner);
 
-	// Read 16-bit length prefix (should be 8)
-	int bits = outer.getInt(16);
-	BOOST_CHECK_EQUAL(bits, 8);
 	BOOST_CHECK_EQUAL(outer.getInt(8), 99);
 }
 

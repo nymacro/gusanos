@@ -117,4 +117,31 @@ BOOST_AUTO_TEST_CASE(server_client_connect_and_delete_node)
 	BOOST_CHECK(true);
 }
 
+// Regression: a node registered with a control must survive the control's
+// Shutdown() being called before the node is deleted. Mirrors the server-exit
+// crash where Network::disconnect completion does `delete m_control` while
+// BasePlayer::m_node / NetWorm::m_node still hold an m_control back-pointer;
+// the later game.unload -> ~ZCom_Node -> unregisterNode -> removeNode would
+// dereference the freed control and crash inside m_pendingRemove.insert.
+BOOST_AUTO_TEST_CASE(shutdown_then_delete_node)
+{
+	g_currentControl = nullptr;
+	int port = 19150;
+
+	DeletionServer srv(port);
+	srv.m_playerClass = srv.ZCom_registerClass("Deletable", 0);
+
+	ZCom_Node* node = new ZCom_Node();
+	node->registerNodeDynamic(srv.m_playerClass, &srv);
+	BOOST_REQUIRE(node->getControl() == &srv);
+
+	// Shutdown nulls node back-pointers (and frees the host). Without that,
+	// the delete below dereferences the about-to-be-freed srv.
+	srv.Shutdown();
+	BOOST_REQUIRE(node->getControl() == nullptr);
+
+	delete node; // must not crash (unregisterNode is a no-op when m_control==null)
+	BOOST_CHECK(true);
+}
+
 BOOST_AUTO_TEST_SUITE_END()

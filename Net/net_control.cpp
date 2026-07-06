@@ -110,6 +110,21 @@ void ZCom_Control::ZCom_processOutput()
 	if (!m_host) return;
 	g_currentControl = this;
 
+	// Flush deferred node removals BEFORE anything that iterates m_nodes.
+	// removeNode() is called from ZCom_Node::~ZCom_Node(), which can fire
+	// during game logic (e.g. Game::reset -> BasePlayer::deleteThis -> delete
+	// m_node). Deferring the erase avoids iterator invalidation in active
+	// range-for loops over m_nodes (processOutput, flushPendingAnnounces,
+	// ZCom_getNode, dispatchNodeEvent, etc.).
+	if (!m_pendingRemove.empty()) {
+		auto pending = std::move(m_pendingRemove);
+		m_pendingRemove.clear();
+		m_nodes.erase(
+			std::remove_if(m_nodes.begin(), m_nodes.end(),
+				[&](ZCom_Node* n) { return pending.count(n) != 0; }),
+			m_nodes.end());
+	}
+
 	// Flush deferred node announcements before routing replicators, so a node
 	// registered this tick (and possibly owner-assigned via setOwner) has its
 	// per-peer role (m_peerRole) recorded before getPeerRole() is consulted.
@@ -334,9 +349,21 @@ void ZCom_Control::Shutdown()
 		enet_host_destroy(m_host);
 		m_host = nullptr;
 	}
+	// Null node back-pointers BEFORE clearing m_nodes: nodes are owned by the
+	// game (BasePlayer::m_node, NetWorm::m_node, etc.) and outlive the control.
+	// Without this, a later ~ZCom_Node -> unregisterNode -> removeNode would
+	// dereference this freed control (use-after-free crash on server exit:
+	// disconnect completion does `delete m_control` while player/worm nodes
+	// still hold m_control pointers; then game.unload -> deleteThis -> ~ZCom_Node
+	// -> removeNode -> m_pendingRemove.insert crashes inside the hashtable).
+	for (auto* node : m_nodes)
+		node->setControl(nullptr);
 	m_nodes.clear();
+	m_pendingRemove.clear();
+	m_pendingAnnounce.clear();
 	m_pendingReplicas.clear();
 	m_pendingNodeEvents.clear();
+	m_pendingFileOffers.clear();
 }
 
 void ZCom_Control::disconnectPeer(uint32_t connID)
@@ -453,14 +480,16 @@ bool ZCom_Control::registerExistingNode(ZCom_Node* node)
 	// Deliver any buffered file-transfer offers for this node
 	deliverPendingFileOffers(node);
 
+	if (node->isUnique()) return true;
+
 	// Defer announcement to ZCom_processOutput() so a subsequent setOwner()
 	// (same tick, e.g. server.cpp PLAYER_REQUEST) is reflected as a single
 	// owner-aware announce instead of a premature Proxy announce followed by
-	// an Owner re-announce. Particles and other owner-less nodes are announced
-	// as Proxy one tick later (spec-compliant: announces go out in processOutput).
-	if (!node->isUnique()) {
-		m_pendingAnnounce.insert(node->getNetworkID());
-	}
+	// an Owner re-announce. Owner-less nodes (e.g. Particles) are still safe
+	// because ZCom_Control::processOutput calls flushPendingAnnounces BEFORE
+	// game logic deletes short-lived nodes (the deletion loop runs at the
+	// start of the next tick, not this one).
+	m_pendingAnnounce.insert(node->getNetworkID());
 	return true;
 }
 
@@ -654,9 +683,19 @@ void ZCom_Control::syncNodesToPeer(ENetPeer* peer)
 void ZCom_Control::removeNode(ZCom_Node* node)
 {
 	if (!node) return;
-	auto it = std::find(m_nodes.begin(), m_nodes.end(), node);
-	if (it != m_nodes.end())
-		m_nodes.erase(it);
+	// Defer the actual erase to the start of the next ZCom_processOutput().
+	// removeNode is called from ZCom_Node::~ZCom_Node(), which can fire while
+	// other code is iterating m_nodes (e.g. Game::reset -> deleteThis ->
+	// delete m_node during processOutput). Erasing here would invalidate
+	// those iterators and crash. Mark for deferred removal and clear any
+	// associated per-peer bookkeeping immediately so the node stops being
+	// routed to peers.
+	uint32_t nid = node->getNetworkID();
+	m_pendingRemove.insert(node);
+	for (auto& pair : m_peerMap) {
+		m_announcedNodes[pair.first].erase(nid);
+		m_peerRole[pair.first].erase(nid);
+	}
 }
 
 const ZCom_Address* ZCom_Control::ZCom_getPeer(ZCom_ConnID id) const
@@ -918,8 +957,8 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 			if (msgType == MSG_NODE_EVENT) {
 				streamData.getInt(8); // consume msgType
 				int nodeID = streamData.getInt(16);
-				streamData.getInt(16); // consume addBitStream length prefix
-				// Remaining data is the event payload (without the addBitStream length prefix)
+				// addBitStream inlines the payload bits directly (no length
+				// prefix), so the remaining bits are the event payload.
 				dispatchNodeEvent(nodeID, eZCom_EventUser, eZCom_RoleProxy, connID, &streamData);
 
 				enet_packet_destroy(event.packet);

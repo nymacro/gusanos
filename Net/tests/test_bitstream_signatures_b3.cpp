@@ -172,9 +172,8 @@ BOOST_AUTO_TEST_CASE(bitstream_allow_align_default)
 	ZCom_BitStream outer;
 	BOOST_CHECK(outer.addBitStream(&inner));      // default _allow_align=false
 	outer.resetReadState();
-	int bits = static_cast<int>(outer.getInt(16));
-	BOOST_CHECK_EQUAL(bits, 16);
-
+	// addBitStream inlines the inner bits directly (no length prefix).
+	// getBitStream reads the requested number of raw data bits.
 	ZCom_BitStream* ex = outer.getBitStream(16); // default _allow_align=false
 	BOOST_REQUIRE(ex != nullptr);
 	ex->resetReadState();
