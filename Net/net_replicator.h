@@ -209,12 +209,15 @@ public:
 	virtual ~ZCom_Replicator() {}
 
 	ZCom_ReplicatorSetup* getSetup() { return &m_setup; }
+	zU8 getFlags() const { return static_cast<zU8>(m_flags); }
+	zU16 getId() const { return m_id; }
+	bool callProcess() const { return (m_flags & ZCOM_REPLICATOR_CALLPROCESS) ? true : false; }
 
 	virtual bool checkState() { return false; }
 	virtual bool checkInitialState() { return true; }
 	virtual void packData(ZCom_BitStream* stream) {}
 	virtual void unpackData(ZCom_BitStream* stream, bool store, uint32_t estimatedTimeSent) {}
-	virtual void Process(int localRole, uint32_t simulationTimePassed) {}
+	virtual void Process(eZCom_NodeRole _localrole, zU32 _simulation_time_passed) {}
 	virtual void* peekData() { return nullptr; }
 	virtual ZCom_BitStream* getPeekStream() { return m_peekStream; }
 	virtual void setPeekStream(ZCom_BitStream* s) { m_peekStream = s; }
@@ -226,6 +229,7 @@ public:
 	ZCom_BitStream* m_peekStream = nullptr;
 	void* m_peekData = nullptr;
 	uint32_t m_flags = 0;
+	zU16 m_id = 0;
 };
 
 // ---- Basic Replicator (default implementation holder) ----
@@ -457,9 +461,9 @@ public:
 		return T();
 	}
 
-	void Process(int localRole, uint32_t simulationTimePassed) override {
-		(void)localRole;
-		(void)simulationTimePassed;
+	void Process(eZCom_NodeRole _localrole, zU32 _simulation_time_passed) override {
+		(void)_localrole;
+		(void)_simulation_time_passed;
 		// Interpolation processing would happen here
 	}
 
@@ -513,44 +517,48 @@ public:
 class ZCom_NodeReplicationInterceptor {
 public:
 	virtual ~ZCom_NodeReplicationInterceptor() {}
-	virtual void ZCom_cbNodeReplicationIntercept(ZCom_BitStream* stream, ZCom_Node* node, int mode, int event, int role, uint32_t connID) {}
+	virtual void ZCom_cbNodeReplicationIntercept(ZCom_BitStream* stream, ZCom_Node* node, int mode, int event, eZCom_NodeRole role, uint32_t connID) {}
 
 	// ZoidCom ref_tests API
-	virtual void outPreReplicateNode(ZCom_Node* node, uint32_t to, int remote_role) {}
-	virtual void outPreDereplicateNode(ZCom_Node* node, uint32_t to, int remote_role) {}
-	virtual bool outPreUpdate(ZCom_Node* node, uint32_t to, int remote_role) { return true; }
-	virtual bool outPreUpdateItem(ZCom_Node* node, uint32_t to, int remote_role, ZCom_Replicator* replicator) { return true; }
-	virtual void outPostUpdate(ZCom_Node* node, uint32_t to, int remote_role, uint32_t rep_bits, uint32_t event_bits, uint32_t meta_bits) {}
-	virtual bool inPreUpdate(ZCom_Node* node, uint32_t from, int remote_role) { return true; }
-	virtual bool inPreUpdateItem(ZCom_Node* node, uint32_t from, int remote_role, ZCom_Replicator* replicator, uint32_t estimated_time_sent) { return true; }
-	virtual void inPostUpdate(ZCom_Node* node, uint32_t from, int remote_role, uint32_t rep_bits, uint32_t event_bits, uint32_t meta_bits) {}
+	virtual void outPreReplicateNode(ZCom_Node* node, uint32_t to, eZCom_NodeRole remote_role) {}
+	virtual void outPreDereplicateNode(ZCom_Node* node, uint32_t to, eZCom_NodeRole remote_role) {}
+	virtual bool outPreUpdate(ZCom_Node* node, uint32_t to, eZCom_NodeRole remote_role) { return true; }
+	virtual bool outPreUpdateItem(ZCom_Node* node, uint32_t to, eZCom_NodeRole remote_role, ZCom_Replicator* replicator) { return true; }
+	virtual void outPostUpdate(ZCom_Node* node, uint32_t to, eZCom_NodeRole remote_role, uint32_t rep_bits, uint32_t event_bits, uint32_t meta_bits) {}
+	virtual bool inPreUpdate(ZCom_Node* node, uint32_t from, eZCom_NodeRole remote_role) { return true; }
+	virtual bool inPreUpdateItem(ZCom_Node* node, uint32_t from, eZCom_NodeRole remote_role, ZCom_Replicator* replicator, uint32_t estimated_time_sent) { return true; }
+	virtual void inPostUpdate(ZCom_Node* node, uint32_t from, eZCom_NodeRole remote_role, uint32_t rep_bits, uint32_t event_bits, uint32_t meta_bits) {}
 };
 
 // ---- Node Event Interceptor ----
 class ZCom_NodeEventInterceptor {
 public:
 	virtual ~ZCom_NodeEventInterceptor() {}
-	virtual bool recUserEvent(ZCom_Node* node, uint32_t from, int remoterole, ZCom_BitStream& data, uint32_t estimated_time_sent) { return true; }
-	virtual bool recInit(ZCom_Node* node, uint32_t from, int remoterole) { return true; }
-	virtual bool recSyncRequest(ZCom_Node* node, uint32_t from, int remoterole) { return true; }
-	virtual bool recRemoved(ZCom_Node* node, uint32_t from, int remoterole) { return true; }
-	virtual bool recFileIncoming(ZCom_Node* node, uint32_t from, int remoterole, uint32_t fid, ZCom_BitStream& request) { return true; }
-	virtual bool recFileData(ZCom_Node* node, uint32_t from, int remoterole, uint32_t fid) { return true; }
-	virtual bool recFileAborted(ZCom_Node* node, uint32_t from, int remoterole, uint32_t fid) { return true; }
-	virtual bool recFileComplete(ZCom_Node* node, uint32_t from, int remoterole, uint32_t fid) { return true; }
+	virtual bool recUserEvent(ZCom_Node* node, uint32_t from, eZCom_NodeRole remoterole, ZCom_BitStream& data, uint32_t estimated_time_sent) { return true; }
+	virtual bool recInit(ZCom_Node* node, uint32_t from, eZCom_NodeRole remoterole) { return true; }
+	virtual bool recSyncRequest(ZCom_Node* node, uint32_t from, eZCom_NodeRole remoterole) { return true; }
+	virtual bool recRemoved(ZCom_Node* node, uint32_t from, eZCom_NodeRole remoterole) { return true; }
+	virtual bool recFileIncoming(ZCom_Node* node, uint32_t from, eZCom_NodeRole remoterole, uint32_t fid, ZCom_BitStream& request) { return true; }
+	virtual bool recFileData(ZCom_Node* node, uint32_t from, eZCom_NodeRole remoterole, uint32_t fid) { return true; }
+	virtual bool recFileAborted(ZCom_Node* node, uint32_t from, eZCom_NodeRole remoterole, uint32_t fid) { return true; }
+	virtual bool recFileComplete(ZCom_Node* node, uint32_t from, eZCom_NodeRole remoterole, uint32_t fid) { return true; }
 };
 
 // ---- File transfer info struct ----
+// Reference fields (zoidcom.h:285): if id == ZCom_Invalid_ID the whole struct
+// is invalid. The game (updater.cpp) reads .path/.bps/.transferred/.size.
+// Legacy m_* fields retained for compatibility.
 struct ZCom_FileTransInfo {
+	ZCom_FileTransID id;
+	zU32 size;
+	zU32 transferred;
+	const char* path;
+	zU32 bps;
 	uint32_t m_id;
 	const char* m_filename;
 	float m_progress;
 	uint32_t m_bytes_downloaded;
 	uint32_t m_file_size;
-	const char* path;
-	uint32_t bps;
-	uint32_t transferred;
-	uint32_t size;
 };
 
 #endif // NET_REPLICATOR_H

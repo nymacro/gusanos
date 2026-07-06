@@ -41,4 +41,30 @@ BOOST_AUTO_TEST_CASE(interpolate_api)
 	delete interp;
 }
 
+class CustomProcReplicator : public ZCom_Replicator {
+public:
+	eZCom_NodeRole lastRole = eZCom_RoleUndefined;
+	zU32 lastTime = 0;
+	int callCount = 0;
+	void Process(eZCom_NodeRole _localrole, zU32 _simulation_time_passed) override {
+		lastRole = _localrole;
+		lastTime = _simulation_time_passed;
+		callCount++;
+	}
+};
+
+BOOST_AUTO_TEST_CASE(replicator_process_override_resolution)
+{
+	CustomProcReplicator rep;
+	ZCom_Replicator* basePtr = &rep;
+	basePtr->Process(eZCom_RoleAuthority, 100);
+	BOOST_CHECK_EQUAL(rep.callCount, 1);
+	BOOST_CHECK_EQUAL(rep.lastRole, eZCom_RoleAuthority);
+	BOOST_CHECK_EQUAL(rep.lastTime, 100u);
+
+	BOOST_CHECK(!rep.callProcess());
+	rep.m_flags |= ZCOM_REPLICATOR_CALLPROCESS;
+	BOOST_CHECK(rep.callProcess());
+}
+
 BOOST_AUTO_TEST_SUITE_END()

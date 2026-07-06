@@ -37,7 +37,7 @@ NetWorm::NetWorm(bool isAuthority) : BaseWorm()
 		allegro_message("ERROR: Unable to create worm node.");
 	}
 	
-	m_node->beginReplicationSetup(6);
+	m_node->beginReplicationSetup(9);
 	
 		static ZCom_ReplicatorSetup posSetup( ZCOM_REPFLAG_MOSTRECENT | ZCOM_REPFLAG_INTERCEPT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH , Position, -1, 1000);
 		
@@ -49,16 +49,19 @@ NetWorm::NetWorm(bool isAuthority) : BaseWorm()
 		
 		m_node->addReplicator(new VectorReplicator( &nrSetup, &m_ninjaRope->getPosReference(), game.level.vectorEncoding ), true);
 		
-		m_node->addReplicationFloat ((zFloat*)&m_ninjaRope->getLengthReference(), 16, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
-		//m_node->addReplicationInt ((zS32*)&m_ninjaRope->getLengthReference(), 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
-		
+m_node->addReplicationInt ((zS32*)&m_ninjaRope->getLengthReference(), 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
+
+	m_node->addReplicationInt ((zS32*)&health, 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
+
 		static ZCom_ReplicatorSetup angleSetup( ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH );
-				
-		m_node->addReplicationFloat ((zFloat*)&health, 16, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
-		//m_node->addReplicationInt ((zS32*)&health, 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
 		
 		m_node->addReplicator(new AngleReplicator( &angleSetup, &aimAngle), true );
+
+		m_node->addReplicationInt( (zS32*)&m_dir, 8, true, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
 		
+		m_node->addReplicationBool( &m_ninjaRope->active, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
+		m_node->addReplicationBool( &m_ninjaRope->attached, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
+
 		// Intercepted stuff
 		m_node->setInterceptID( PlayerID );
 		
@@ -73,19 +76,15 @@ NetWorm::NetWorm(bool isAuthority) : BaseWorm()
 	if( isAuthority)
 	{
 		m_node->setEventNotification(true, false); // Enables the eEvent_Init.
-		m_node->setRole(eZCom_RoleAuthority);
+               if( !m_node->registerNodeDynamic(classID, network.getZControl() ) )
+                       allegro_message("ERROR: Unable to register worm authority node.");
+
 	}else
 	{
-		m_node->setRole(eZCom_RoleProxy);
+               if( !m_node->registerRequestedNode( classID, network.getZControl() ) )
+		       allegro_message("ERROR: Unable to register worm requested node.");
 	}
 	m_node->applyForZoidLevel(1);
-}
-
-void NetWorm::registerNode()
-{
-	if (!m_node) return;
-	if( !m_node->registerNodeDynamic(classID, network.getZControl() ) )
-		allegro_message("ERROR: Unable to register worm node.");
 }
 
 NetWorm::~NetWorm()
@@ -342,7 +341,16 @@ void NetWorm::respawn()
 {
 	if ( m_isAuthority && m_node )
 	{
-		BaseWorm::respawn();
+		// Network-initiated respawn: honor immediately, bypassing the
+		// m_timeSinceDeath > minRespawnTime gate in BaseWorm::respawn().
+		// That gate exists for auto-respawn timing, not for explicit
+		// user-initiated respawn requests (JUMP with inactive worm).
+		std::cout << "[DEBUG] NetWorm::respawn authority nodeID=" << m_node->getNetworkID()
+			<< " m_timeSinceDeath=" << m_timeSinceDeath
+			<< " m_isActive(before)=" << m_isActive << std::endl;
+		BaseWorm::respawn( game.level.getSpawnLocation( m_owner ) );
+		std::cout << "[DEBUG] NetWorm::respawn authority nodeID=" << m_node->getNetworkID()
+			<< " m_isActive(after)=" << m_isActive << std::endl;
 		if ( m_isActive )
 		{
 			ZCom_BitStream *data = new ZCom_BitStream;

@@ -8,16 +8,17 @@
 #include <cassert>
 #include <cwchar>
 #include <climits>
+#include "net_types.h"
 
 class ZCom_BitStream {
 public:
 	// Position tracking for save/restore state
 	struct BitPos {
-		uint16_t bit;  // bit in current byte
-		uint16_t pos;  // byte position in array
+		zU16 bit;  // bit in current byte
+		zU16 pos;  // byte position in array
 	};
 
-	ZCom_BitStream();
+	ZCom_BitStream(zU16 _maxfill = 64);
 	ZCom_BitStream(const uint8_t* data, size_t bytes);
 	ZCom_BitStream(const ZCom_BitStream& other);  // copy constructor
 	~ZCom_BitStream();
@@ -25,79 +26,83 @@ public:
 	ZCom_BitStream& operator=(const ZCom_BitStream& other);
 
 	// Writing
-	void addInt(int val, int bits);
-	void addSignedInt(int val, int bits);
+	bool addInt(zU32 val, zU8 bits);
+	bool addSignedInt(zS32 val, zU8 bits);
 	void addInt64(int64_t val, int bits);
-	void addBool(bool val);
-	void addFloat(float val, int bits);
+	bool addBool(bool val);
+	bool addFloat(zFloat val, zU8 bits);
 	void addDouble(double val, int bits);
-	void addString(const char* str);
-	void addStringW(const wchar_t* str);
-	void addBuffer(const char* buf, uint16_t len);
-	void addBitStream(ZCom_BitStream* other);
+	bool addString(const char* str);
+	bool addStringW(const wchar_t* str);
+	bool addBuffer(const char* buf, zU16 len);
+	bool addBitStream(ZCom_BitStream* other, bool _allow_align = false);
 
 	// Reading
-	int getInt(int bits);
-	int getSignedInt(int bits);
+	zU32 getInt(zU8 bits);
+	zS32 getSignedInt(zU8 bits);
 	int64_t getInt64(int bits);
 	bool getBool();
-	float getFloat(int bits);
+	zFloat getFloat(zU8 bits);
 	double getDouble(int bits);
 	const char* getStringStatic();
 	char* getString();
-	uint16_t getStringSize();
-	uint16_t getStringLength();
-	void getString(char* buf, size_t bufsize);
+	zU16 getStringSize();
+	zU16 getStringLength();
+	void getString(char* buf, zU16 maxsize);
 
 	// Wide string reading
-	uint16_t getStringWLength();
-	void getStringW(wchar_t* buf, size_t bufsize);
+	zU16 getStringWLength();
+	void getStringW(wchar_t* buf, zU16 maxsize);
 	const wchar_t* getStringWStatic();
 
 	// Buffer reading
-	uint16_t getBuffer(char* buf, uint16_t len);
-	uint16_t getBufferMax();
+	zU16 getBuffer(char* buf, zU16 len);
+	zU16 getBufferMax();
 
 	// BitStream extraction
-	ZCom_BitStream* getBitStream(uint32_t bits, bool copyData);
+	ZCom_BitStream* getBitStream(zU32 bits, bool _allow_align = false);
 
 	// Skip methods
-	void skipInt(int bits);
-	void skipSignedInt(int bits);
+	void skipInt(zU8 bits);
+	void skipSignedInt(zU8 bits);
 	void skipBool();
-	void skipFloat(int bits);
+	void skipFloat(zU8 bits);
 	void skipString();
-	void skipBuffer(uint16_t len);
-	void skipBits(uint32_t amount);
+	void skipBuffer(zU16 len);
+	void skipBits(zU32 amount);
 
 	// State save/restore
 	void saveWriteState(BitPos& pos) const;
 	void restoreWriteState(const BitPos& pos);
 	void saveReadState(BitPos& pos) const;
 	void restoreReadState(const BitPos& pos);
+	void resetReadState() { m_readBit = 0; m_readPos = {0, 0}; }
+	void logReadState();
+	void logWriteState();
 
 	// Stream checks
-	bool checkMax(uint32_t bits) const;
+	bool checkMax(zU32 bits) const;
 	bool checkFull() const;
 	bool endOfStream() const;
-	uint16_t getSizeHint() const;
+	zU16 getSizeHint() const;
 
 	// Serialization
-	bool Serialize(char* ptr, uint16_t* size, uint16_t max_size);
-	bool Deserialize(char* ptr, uint16_t size);
+	bool Serialize(char* ptr, zU16* size, zU16 max_size);
+	bool Deserialize(char* ptr, zU16 size);
 
 	// Comparison
 	bool isEqual(const ZCom_BitStream& other) const;
 
 	// Other
-	ZCom_BitStream* Duplicate();
+	ZCom_BitStream* Duplicate() const;
+	void* operator new(size_t _size);
+	void operator delete(void* _p);
 
 	// Internal helpers (used by replicators etc.)
 	const uint8_t* getData() const { return m_data.data(); }
 	size_t getDataLength() const { return (m_writeBit + 7) / 8; }
-	size_t getBitCount() const { return m_writeBit; }
+	zU32 getBitCount() const { return static_cast<zU32>(m_writeBit); }
 	size_t getBitLength() const { return m_writeBit; }
-	void resetReadState() { m_readBit = 0; m_readPos = {0, 0}; }
 	void resetRead() { m_readBit = 0; m_readPos = {0, 0}; }
 	void reset() { m_data.clear(); m_writeBit = 0; m_readBit = 0; m_readPos = {0, 0}; m_fillPos = {0, 0}; }
 	void Clear() { m_data.clear(); m_writeBit = 0; m_readBit = 0; m_readPos = {0, 0}; m_fillPos = {0, 0}; }

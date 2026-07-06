@@ -234,8 +234,15 @@ BOOST_AUTO_TEST_CASE(event_interceptor_registration)
 BOOST_AUTO_TEST_CASE(event_type_constants)
 {
 	BOOST_CHECK_EQUAL(eZCom_EventNoEvent, 0);
-	BOOST_CHECK_EQUAL(eZCom_EventUser, 100);
-	BOOST_CHECK_EQUAL(eZCom_EventReplicator, 50);
+	BOOST_CHECK_EQUAL(eZCom_EventInit, 1);
+	BOOST_CHECK_EQUAL(eZCom_EventSyncRequest, 2);
+	BOOST_CHECK_EQUAL(eZCom_EventRemoved, 3);
+	BOOST_CHECK_EQUAL(eZCom_EventFile_Incoming, 4);
+	BOOST_CHECK_EQUAL(eZCom_EventFile_Data, 5);
+	BOOST_CHECK_EQUAL(eZCom_EventFile_Aborted, 6);
+	BOOST_CHECK_EQUAL(eZCom_EventFile_Complete, 7);
+	BOOST_CHECK_EQUAL(eZCom_EventReplicator, 8);
+	BOOST_CHECK_EQUAL(eZCom_EventUser, 9);
 	BOOST_CHECK(eZCom_EventUser > eZCom_EventReplicator);
 }
 

@@ -43,8 +43,6 @@ public:
 	NetWorm(bool isAuthority);
 	~NetWorm();
 
-	void registerNode();  // Register with ZoidCom (called after setup is complete)
-
 	void think();
 	void correctOwnerPosition();
 

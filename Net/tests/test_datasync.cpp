@@ -241,4 +241,64 @@ BOOST_AUTO_TEST_CASE(replicator_multiple_values)
 	}
 }
 
+// Regression test for signed-int auto-replication (worm direction bug).
+// entry.sign was stored but never consumed in pack/unpack — unsigned
+// addInt/getInt was always used. With bits<32 (e.g. 8), negative values were
+// corrupted (m_dir=-1 became 255 on the client, no sign extension).
+BOOST_AUTO_TEST_CASE(auto_replication_signed_int_roundtrip)
+{
+	static int portOffset = 0;
+	g_currentControl = nullptr;
+	int port = 19140 + (portOffset++);
+
+	{
+	SyncServer srv(port);
+
+	auto roundtrip = [&](int32_t value, int bits) {
+		ZCom_Node* source = new ZCom_Node();
+		int32_t dir = 0;
+
+		g_currentControl = &srv;
+		source->registerNodeDynamic(srv.m_syncClass, &srv);
+		source->addReplicationInt(&dir, (zU8)bits, true,
+			ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY);
+		dir = value;
+		g_currentControl = nullptr;
+
+		ZCom_BitStream packed;
+		source->packAllReplicators(&packed);
+		BOOST_REQUIRE_MESSAGE(packed.getDataLength() > 0,
+			"packAllReplicators should produce data for signed int");
+
+		ZCom_Node* target = new ZCom_Node();
+		int32_t rdir = 0;
+		g_currentControl = &srv;
+		target->registerNodeDynamic(srv.m_syncClass, &srv);
+		target->addReplicationInt(&rdir, (zU8)bits, true,
+			ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY);
+		g_currentControl = nullptr;
+
+		ZCom_BitStream copy(packed.getData(), packed.getDataLength());
+		target->unpackAllReplicators(&copy, true, 0);
+
+		BOOST_CHECK_EQUAL(rdir, value);
+
+		delete target;
+		delete source;
+	};
+
+	// 8-bit signed — the m_dir pattern (worm faces left = -1)
+	roundtrip(-1, 8);
+	// 8-bit signed boundaries
+	roundtrip(-128, 8);
+	roundtrip(127, 8);
+	// Positive control (passes even without the fix)
+	roundtrip(1, 8);
+	// 16-bit signed
+	roundtrip(-30000, 16);
+
+	srv.Shutdown();
+	}
+}
+
 BOOST_AUTO_TEST_SUITE_END()

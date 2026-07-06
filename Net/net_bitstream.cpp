@@ -2,10 +2,13 @@
 #include <cstring>
 #include <algorithm>
 #include <stdexcept>
+#include <new>
 
-ZCom_BitStream::ZCom_BitStream()
+ZCom_BitStream::ZCom_BitStream(zU16 _maxfill)
 	: m_writeBit(0), m_readBit(0), m_fillPos{0, 0}, m_readPos{0, 0}
 {
+	if (_maxfill)
+		m_data.reserve(_maxfill);
 }
 
 ZCom_BitStream::ZCom_BitStream(const uint8_t* data, size_t bytes)
@@ -50,9 +53,9 @@ void ZCom_BitStream::ensureCapacity(size_t neededBits)
 	}
 }
 
-void ZCom_BitStream::addInt(int val, int bits)
+bool ZCom_BitStream::addInt(zU32 val, zU8 bits)
 {
-	if (bits <= 0) return;
+	if (bits <= 0) return true;
 	ensureCapacity(m_writeBit + bits);
 
 	for (int i = 0; i < bits; ++i) {
@@ -60,20 +63,22 @@ void ZCom_BitStream::addInt(int val, int bits)
 		size_t bitIdx = m_writeBit % 8;
 		if (bitIdx == 0 && byteIdx >= m_data.size()) m_data.push_back(0);
 
-		if (val & (1 << i))
+		if (val & (1u << i))
 			m_data[byteIdx] |= (1 << bitIdx);
 
 		++m_writeBit;
 	}
 	m_fillPos.bit = static_cast<uint16_t>(m_writeBit % 8);
 	m_fillPos.pos = static_cast<uint16_t>(m_writeBit / 8);
+	return true;
 }
 
-void ZCom_BitStream::addSignedInt(int val, int bits)
+bool ZCom_BitStream::addSignedInt(zS32 val, zU8 bits)
 {
 	// Write as two's complement
-	unsigned int mask = (bits < 32) ? ((1u << bits) - 1) : 0xFFFFFFFFu;
-	addInt(static_cast<int>(static_cast<unsigned int>(val) & mask), bits);
+	zU32 mask = (bits < 32) ? ((1u << bits) - 1) : 0xFFFFFFFFu;
+	addInt(static_cast<zU32>(val) & mask, bits);
+	return true;
 }
 
 void ZCom_BitStream::addInt64(int64_t val, int bits)
@@ -96,17 +101,17 @@ void ZCom_BitStream::addInt64(int64_t val, int bits)
 	m_fillPos.pos = static_cast<uint16_t>(m_writeBit / 8);
 }
 
-int ZCom_BitStream::getInt(int bits)
+zU32 ZCom_BitStream::getInt(zU8 bits)
 {
 	if (bits <= 0) return 0;
 	if (m_readBit + static_cast<size_t>(bits) > m_writeBit) return 0;
 
-	int val = 0;
+	zU32 val = 0;
 	for (int i = 0; i < bits; ++i) {
 		size_t byteIdx = m_readBit / 8;
 		size_t bitIdx = m_readBit % 8;
 		if (byteIdx < m_data.size() && (m_data[byteIdx] & (1 << bitIdx)))
-			val |= (1 << i);
+			val |= (1u << i);
 		++m_readBit;
 	}
 	m_readPos.bit = static_cast<uint16_t>(m_readBit % 8);
@@ -114,9 +119,9 @@ int ZCom_BitStream::getInt(int bits)
 	return val;
 }
 
-int ZCom_BitStream::getSignedInt(int bits)
+zS32 ZCom_BitStream::getSignedInt(zU8 bits)
 {
-	int val = getInt(bits);
+	zS32 val = static_cast<zS32>(getInt(bits));
 	// Sign extend
 	if (bits > 0 && bits < 32 && (val & (1 << (bits - 1))))
 		val |= ~((1 << bits) - 1);
@@ -141,9 +146,10 @@ int64_t ZCom_BitStream::getInt64(int bits)
 	return static_cast<int64_t>(val);
 }
 
-void ZCom_BitStream::addBool(bool val)
+bool ZCom_BitStream::addBool(bool val)
 {
 	addInt(val ? 1 : 0, 1);
+	return true;
 }
 
 bool ZCom_BitStream::getBool()
@@ -151,13 +157,13 @@ bool ZCom_BitStream::getBool()
 	return getInt(1) != 0;
 }
 
-void ZCom_BitStream::addFloat(float val, int bits)
+bool ZCom_BitStream::addFloat(zFloat val, zU8 bits)
 {
 	// Write float as raw bits (32-bit IEEE 754)
 	if (bits >= 32) {
 		uint32_t raw;
 		memcpy(&raw, &val, sizeof(raw));
-		addInt(static_cast<int>(raw), 32);
+		addInt(raw, 32);
 	} else {
 		// Quantize float to integer range for fewer bits
 		// Maps [-1.0, 1.0] to [0, 2^bits - 1] for unsigned
@@ -166,9 +172,10 @@ void ZCom_BitStream::addFloat(float val, int bits)
 		int intVal = static_cast<int>(val * maxVal);
 		addSignedInt(intVal, bits);
 	}
+	return true;
 }
 
-float ZCom_BitStream::getFloat(int bits)
+zFloat ZCom_BitStream::getFloat(zU8 bits)
 {
 	if (bits >= 32) {
 		uint32_t raw = static_cast<uint32_t>(getInt(32));
@@ -216,17 +223,18 @@ double ZCom_BitStream::getDouble(int bits)
 	}
 }
 
-void ZCom_BitStream::addString(const char* str)
+bool ZCom_BitStream::addString(const char* str)
 {
 	if (!str) {
 		addInt(0, 16); // empty string (no terminator written for empty)
-		return;
+		return true;
 	}
 	size_t len = strlen(str);
 	addInt(static_cast<int>(len + 1), 16); // length includes null terminator (per spec §6.7)
 	for (size_t i = 0; i < len; ++i)
 		addInt(static_cast<unsigned char>(str[i]), 8);
 	addInt(0, 8); // null terminator
+	return true;
 }
 
 const char* ZCom_BitStream::getStringStatic()
@@ -273,14 +281,19 @@ uint16_t ZCom_BitStream::getStringLength()
 	return getStringSize();
 }
 
-void ZCom_BitStream::getString(char* buf, size_t bufsize)
+void ZCom_BitStream::getString(char* buf, zU16 bufsize)
 {
 	int len = getInt(16);
 	if (len <= 0) {
-		if (bufsize > 0) buf[0] = '\0';
+		if (bufsize > 0 && buf) buf[0] = '\0';
 		return;
 	}
-	size_t copyLen = static_cast<size_t>(len) < bufsize - 1 ? static_cast<size_t>(len) : bufsize - 1;
+	if (bufsize == 0) {
+		for (int i = 0; i < len; ++i) getInt(8);
+		return;
+	}
+	size_t avail = static_cast<size_t>(bufsize) - 1;
+	size_t copyLen = static_cast<size_t>(len) < avail ? static_cast<size_t>(len) : avail;
 	for (size_t i = 0; i < copyLen; ++i)
 		buf[i] = static_cast<char>(getInt(8));
 	buf[copyLen] = '\0';
@@ -289,17 +302,18 @@ void ZCom_BitStream::getString(char* buf, size_t bufsize)
 		getInt(8);
 }
 
-void ZCom_BitStream::addStringW(const wchar_t* str)
+bool ZCom_BitStream::addStringW(const wchar_t* str)
 {
 	if (!str) {
 		addInt(0, 16);
-		return;
+		return true;
 	}
 	size_t len = wcslen(str);
 	addInt(static_cast<int>(len + 1), 16); // length includes null terminator
 	for (size_t i = 0; i < len; ++i)
 		addInt(static_cast<int>(str[i]), 16);
 	addInt(0, 16); // null terminator
+	return true;
 }
 
 uint16_t ZCom_BitStream::getStringWLength()
@@ -312,14 +326,19 @@ uint16_t ZCom_BitStream::getStringWLength()
 	return static_cast<uint16_t>(len);
 }
 
-void ZCom_BitStream::getStringW(wchar_t* buf, size_t bufsize)
+void ZCom_BitStream::getStringW(wchar_t* buf, zU16 bufsize)
 {
 	int len = getInt(16);
 	if (len <= 0) {
-		if (bufsize > 0) buf[0] = L'\0';
+		if (bufsize > 0 && buf) buf[0] = L'\0';
 		return;
 	}
-	size_t copyLen = static_cast<size_t>(len) < bufsize ? static_cast<size_t>(len) : bufsize - 1;
+	if (bufsize == 0) {
+		for (int i = 0; i < len; ++i) getInt(16);
+		return;
+	}
+	size_t avail = static_cast<size_t>(bufsize) - 1;
+	size_t copyLen = static_cast<size_t>(len) < avail ? static_cast<size_t>(len) : avail;
 	for (size_t i = 0; i < copyLen; ++i)
 		buf[i] = static_cast<wchar_t>(getInt(16));
 	buf[copyLen] = L'\0';
@@ -339,11 +358,12 @@ const wchar_t* ZCom_BitStream::getStringWStatic()
 	return m_lastWString.c_str();
 }
 
-void ZCom_BitStream::addBuffer(const char* buf, uint16_t len)
+bool ZCom_BitStream::addBuffer(const char* buf, zU16 len)
 {
 	addInt(len, 16);
-	for (uint16_t i = 0; i < len; ++i)
+	for (zU16 i = 0; i < len; ++i)
 		addInt(static_cast<unsigned char>(buf[i]), 8);
+	return true;
 }
 
 uint16_t ZCom_BitStream::getBuffer(char* buf, uint16_t len)
@@ -370,15 +390,21 @@ uint16_t ZCom_BitStream::getBufferMax()
 	return len;
 }
 
-void ZCom_BitStream::addBitStream(ZCom_BitStream* other)
+bool ZCom_BitStream::addBitStream(ZCom_BitStream* other, bool _allow_align)
 {
-	if (!other) return;
-	size_t bits = other->getBitLength();
-	addInt(static_cast<int>(bits), 16);
-	const uint8_t* data = other->getData();
-	size_t bytes = (bits + 7) / 8;
-	for (size_t i = 0; i < bytes; ++i)
-		addInt(data[i], 8);
+	(void)_allow_align;
+	if (!other) return false;
+	// Inline the source stream's written bits directly (no length prefix),
+	// matching original Zoidcom semantics: addBitStream embeds bits that the
+	// receiver reads back with getBitStream(bits) or direct getInt/getBool
+	// calls — the application tracks how many bits to read. A length prefix
+	// would desynchronize readers that consume the embedded bits directly
+	// (e.g. NetWorm::sendWeaponMessage -> recieveMessage, LuaEvent payloads).
+	other->resetReadState();
+	zU32 n = other->getBitCount();
+	for (zU32 i = 0; i < n; ++i)
+		addBool(other->getBool());
+	return true;
 }
 
 ZCom_BitStream* ZCom_BitStream::getBitStream(uint32_t bits, bool copyData)
@@ -397,7 +423,7 @@ ZCom_BitStream* ZCom_BitStream::getBitStream(uint32_t bits, bool copyData)
 
 // ---- Skip methods ----
 
-void ZCom_BitStream::skipInt(int bits)
+void ZCom_BitStream::skipInt(zU8 bits)
 {
 	if (bits <= 0) return;
 	m_readBit += static_cast<size_t>(bits);
@@ -406,7 +432,7 @@ void ZCom_BitStream::skipInt(int bits)
 	m_readPos.pos = static_cast<uint16_t>(m_readBit / 8);
 }
 
-void ZCom_BitStream::skipSignedInt(int bits)
+void ZCom_BitStream::skipSignedInt(zU8 bits)
 {
 	skipInt(bits);
 }
@@ -416,7 +442,7 @@ void ZCom_BitStream::skipBool()
 	skipInt(1);
 }
 
-void ZCom_BitStream::skipFloat(int bits)
+void ZCom_BitStream::skipFloat(zU8 bits)
 {
 	skipInt(bits >= 32 ? 32 : bits);
 }
@@ -425,7 +451,7 @@ void ZCom_BitStream::skipString()
 {
 	int len = getInt(16);
 	if (len > 0) {
-		skipInt(len * 8);
+			skipBits(len * 8);
 	}
 }
 
@@ -435,7 +461,7 @@ void ZCom_BitStream::skipBuffer(uint16_t len)
 	// In ZoidCom reference, skipBuffer skips a *stored* buffer by given byte count
 	// We need to read the length prefix and skip
 	uint16_t actualLen = static_cast<uint16_t>(getInt(16));
-	skipInt(actualLen * 8);
+	skipBits(actualLen * 8);
 }
 
 void ZCom_BitStream::skipBits(uint32_t amount)
@@ -539,7 +565,7 @@ bool ZCom_BitStream::isEqual(const ZCom_BitStream& other) const
 
 // ---- Duplicate ----
 
-ZCom_BitStream* ZCom_BitStream::Duplicate()
+ZCom_BitStream* ZCom_BitStream::Duplicate() const
 {
 	ZCom_BitStream* dup = new ZCom_BitStream();
 	size_t byteStart = m_readBit / 8;
@@ -562,4 +588,21 @@ void ZCom_BitStream::assign(const uint8_t* data, size_t bytes)
 	m_fillPos.bit = 0;
 	m_fillPos.pos = static_cast<uint16_t>(bytes);
 	m_readPos = {0, 0};
+}
+
+// ---- Logging stubs (ref API, game-unused) ----
+
+void ZCom_BitStream::logReadState() {}
+void ZCom_BitStream::logWriteState() {}
+
+// ---- Custom allocation (delegate to global; matches ref API) ----
+
+void* ZCom_BitStream::operator new(size_t _size)
+{
+	return ::operator new(_size);
+}
+
+void ZCom_BitStream::operator delete(void* _p)
+{
+	::operator delete(_p);
 }

@@ -454,9 +454,12 @@ try
 #endif
 	}
 	
-	//network.disconnect(); // If we haven't already, it's too late
-	network.shutDown();
+	// Tear down game objects BEFORE the network control: BasePlayer::deleteThis
+	// does `delete m_node`, whose destructor calls m_control->removeNode(this).
+	// If we destroyed m_control first, that would be a use-after-free on the
+	// already-destructed unordered_set m_pendingRemove.
 	game.unload();
+	network.shutDown();
 #ifndef DEDSERV
 	OmfgGUI::menu.destroy();
 #endif
