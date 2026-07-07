@@ -120,7 +120,7 @@ bool SpriteSet::load(fs::path const& filename)
 			}
 		}
 			
-		// Fill the other 180บ with the sprites but mirrored.
+		// Fill the other 180ยบ with the sprites but mirrored.
 
 	}
 

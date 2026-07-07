@@ -97,7 +97,7 @@ if os.path.exists(brew_prefix):
 env.Append(
     CPPPATH=Split('. #http #luaapi #Console #GUI #Utility #OmfgScript #Goop #Net'),
     LIBPATH=[os.path.join('#lib', env['MY_SUBFOLDER']), os.path.join('#lib', env['MY_CONF'])],
-    CCFLAGS=Split('-pipe -fno-diagnostics-show-caret -fno-diagnostics-show-option -Wfatal-errors -Wall -Wno-reorder -Wno-register'),
+    CCFLAGS=Split('-pipe -fno-diagnostics-show-caret -fno-diagnostics-show-option -Wfatal-errors -Wall -Wno-unused -Wno-register'),
     CXXFLAGS=Split('-std=c++17'),
     CPPDEFINES=['_GNU_SOURCE', 'BOOST_TIMER_ENABLE_DEPRECATED']
 )
