@@ -7,7 +7,7 @@
 #include <list>
 #include <iostream>
 #include <algorithm>
-#include "util/macros.h"
+
 #include <boost/cstdint.hpp>
 #include <boost/filesystem.hpp>
 namespace fs = boost::filesystem;
@@ -117,7 +117,7 @@ public:
 		if(posIndependent) // crc does not depend on the filename ordering
 		{
 			boost::uint32_t v = 0;
-			const_foreach(i, m_resItems)
+			for (auto i = m_resItems.begin(); i != m_resItems.end(); ++i)
 			{
 				v ^= i->second->crc;
 			}
@@ -127,7 +127,7 @@ public:
 		{
 			boost::uint32_t v = 0;
 			
-			const_foreach(i, m_resItems)
+			for (auto i = m_resItems.begin(); i != m_resItems.end(); ++i)
 			{
 				v ^= i->second->crc;
 				++v;

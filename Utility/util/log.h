@@ -6,9 +6,7 @@
 #include <ostream>
 #include <string>
 #include <map>
-#include "util/macros.h"
 #include <cstring>
-#include <boost/preprocessor/cat.hpp>
 
 struct Location
 {
@@ -58,15 +56,15 @@ struct LogStreams
 	
 	~LogStreams()
 	{
-		foreach(i, streams)
+		for (auto i : streams)
 		{
-			delete i->second;
+			delete i.second;
 		}
 	}
 	
 	std::ostream& operator()(char const* name, char const* path)
 	{
-		let_(i, streams.find(name));
+		auto i = streams.find(name);
 		if(i == streams.end())
 		{
 			std::ostream* str = new std::ofstream(path);

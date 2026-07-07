@@ -3,7 +3,7 @@
 #include "resource_list.h"
 #include "gfx.h"
 #include "sprite.h"
-#include "util/macros.h"
+
 
 #include "allegro_compat.h"
 #include <string>
@@ -56,10 +56,10 @@ SpriteSet::SpriteSet(SpriteSet const& b, SpriteSet const& mask, int color)
 
 SpriteSet::~SpriteSet()
 {
-	foreach(frame, m_frames)
-		delete *frame;
-	foreach(frame, m_flippedFrames)
-		delete *frame;
+	for (auto frame : m_frames)
+		delete frame;
+	for (auto frame : m_flippedFrames)
+		delete frame;
 }
 
 bool SpriteSet::load(fs::path const& filename)
@@ -246,8 +246,8 @@ void SpriteSet::flipSprites()
 {
 	assert(m_flippedFrames.empty());
 
-	const_foreach(src, m_frames)
+	for (auto const& src : m_frames)
 	{
-		m_flippedFrames.push_back(new Sprite(**src, Sprite::MirrorTag()));
+		m_flippedFrames.push_back(new Sprite(*src, Sprite::MirrorTag()));
 	}
 }

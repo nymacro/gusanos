@@ -90,9 +90,9 @@ public:
 	~LuaSocket()
 	{
 		delete dataSender;
-		foreach(i, sendQueue)
+		for (auto i : sendQueue)
 		{
-			delete[] i->first;
+			delete[] i.first;
 		}
 	}
 	

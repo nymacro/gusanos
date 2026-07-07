@@ -5,7 +5,6 @@
 #include "game.h"
 #include "util/vec.h"
 #include "util/angle.h"
-#include "util/macros.h"
 #include "util/log.h"
 #include "timer_event.h"
 #include "sprite_set.h"
@@ -33,14 +32,14 @@ Weapon::Weapon(WeaponType* type, BaseWorm* owner)
 	sentOutOfAmmo = false;
 	outOfAmmoCheck = false;
 	
-	foreach(i, m_type->timer)
+	for (auto t : m_type->timer)
 	{
-		timer.push_back( (*i)->createState() );
+		timer.push_back(t->createState());
 	}
 	
-	foreach(i, m_type->activeTimer)
+	for (auto t : m_type->activeTimer)
 	{
-		activeTimer.push_back( (*i)->createState() );
+		activeTimer.push_back(t->createState());
 	}
 }
 
@@ -58,17 +57,17 @@ void Weapon::reset()
 	reloadTime = 0;
 	m_outOfAmmo = false;
 	
-	foreach(t, timer)
+	for (auto& t : timer)
 	{
-		t->completeReset();
+		t.completeReset();
 	}
-	foreach(t, activeTimer)
+	for (auto& t : activeTimer)
 	{
-		t->completeReset();
+		t.completeReset();
 	}
-	foreach(t, shootTimer)
+	for (auto& t : shootTimer)
 	{
-		t->completeReset();
+		t.completeReset();
 	}
 }
 
@@ -83,28 +82,28 @@ void Weapon::think( bool isFocused, size_t index )
 	// desync where the server shows particles the client never sees and the
 	// client's ammo bar sticks at 0.
 	bool localPredict = !network.isClient() || !m_type->syncHax;
-	foreach(t, timer)
+	for (auto& t : timer)
 	{
-		if ( t->tick() )
+		if ( t.tick() )
 		{
-			t->event->run(m_owner,0,0,this);
+			t.event->run(m_owner,0,0,this);
 		}
 	}
 	
 	if ( isFocused )
 	{
-		foreach(t, activeTimer)
+		for (auto& t : activeTimer)
 		{
-			if ( t->tick() )
+			if ( t.tick() )
 			{
-				t->event->run(m_owner,0,0,this);
+				t.event->run(m_owner,0,0,this);
 			}
 		}
 	}else
 	{
-		foreach(t, activeTimer)
+		for (auto& t : activeTimer)
 		{
-			t->completeReset();
+			t.completeReset();
 		}
 	}
 	

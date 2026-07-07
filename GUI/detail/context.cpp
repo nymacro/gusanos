@@ -2,7 +2,6 @@
 
 #include "renderer.h"
 #include "wnd.h"
-#include "util/macros.h"
 #include <iostream>
 using std::cerr;
 using std::endl;
@@ -209,10 +208,12 @@ void Context::deregisterWindow(Wnd* wnd)
 	if(m_mouseFocusWnd == wnd)
 		m_mouseFocusWnd = 0;
 	//deregisterNamedWindow(wnd->m_id);
-	foreach_delete(i, m_namedWindows)
+	for (auto it = m_namedWindows.begin(); it != m_namedWindows.end(); )
 	{
-		if(i->second == wnd)
-			m_namedWindows.erase(i);
+		if(it->second == wnd)
+			it = m_namedWindows.erase(it);
+		else
+			++it;
 	}
 }
 
@@ -220,36 +221,36 @@ int Context::GSSselector::matchesWindow(Wnd* w) const
 {
 	int matchLevel = 1;
 	
-	foreach(c, cond)
+	for (const auto& c : cond)
 	{
-		switch(c->type)
+		switch(c.type)
 		{
 			case Condition::Tag:
-				if(w->m_tagLabel != c->v)
+				if(w->m_tagLabel != c.v)
 					return 0;
 				matchLevel += 1;
 			break;
 
 			case Condition::Class:
-				if(w->m_className != c->v)
+				if(w->m_className != c.v)
 					return 0;
 				matchLevel += 2;
 			break;
 			
 			case Condition::ID:
-				if(w->m_id != c->v)
+				if(w->m_id != c.v)
 					return 0;
 				matchLevel += 4;
 			break;
 			
 			case Condition::State:
-				if(w->m_state != c->v)
+				if(w->m_state != c.v)
 					return 0;
 				matchLevel += 8;
 			break;
 			
 			case Condition::Group:
-				if(w->m_group != c->v)
+				if(w->m_group != c.v)
 					return 0;
 				matchLevel += 16;
 			break;

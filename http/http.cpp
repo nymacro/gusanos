@@ -11,7 +11,6 @@
 #include <sstream>
 #include <list>
 #include <utility>
-#include "util/macros.h"
 #include "util/text.h"
 #include "util/log.h"
 #include <boost/lexical_cast.hpp>
@@ -204,9 +203,8 @@ char Host::hexDigit(int v)
 std::string Host::urlencode(std::string const& v)
 {
 	std::string ret;
-	const_foreach(i, v)
+	for (char c : v)
 	{
-		char c = *i;
 		if(isalnum(c))
 			ret += c;
 		else if(c == ' ')
@@ -229,15 +227,15 @@ std::string Host::urlencode(std::list<std::pair<std::string, std::string> > cons
 {
 	std::string ret;
 	bool first = true;
-	const_foreach(i, values)
+	for (auto const& i : values)
 	{
 		if(!first)
 			ret += '&';
 		else
 			first = false;
-		ret += urlencode(i->first);
+		ret += urlencode(i.first);
 		ret += '=';
-		ret += urlencode(i->second);
+		ret += urlencode(i.second);
 	}
 	
 	return ret;

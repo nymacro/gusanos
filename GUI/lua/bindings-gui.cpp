@@ -8,7 +8,6 @@
 #include "omfggui.h"
 #include "omfggui_windows.h"
 #endif
-#include "util/macros.h"
 
 #include <cmath>
 #include <string>
@@ -543,9 +542,9 @@ LMETHODC(OmfgGUI::List, gui_list_selection,
 		return 0;
 		
 	int c = 0;
-	const_foreach(i, p->getMainSel()->getFields())
+	for (auto const& i : p->getMainSel()->getFields())
 	{
-		context.push(*i); ++c;
+		context.push(i); ++c;
 	}
 	return c;
 )

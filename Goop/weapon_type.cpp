@@ -7,7 +7,6 @@
 #include "resource_base.h"
 #include "game_actions.h"
 #include "omfg_script.h"
-#include "util/macros.h"
 #include "timer_event.h"
 #include "luaapi/context.h"
 
@@ -57,19 +56,19 @@ WeaponType::~WeaponType()
 	delete outOfAmmo;
 	delete reloadEnd;
 	
-	foreach( t, timer )
+	for (auto t : timer)
 	{
-		delete (*t);
+		delete t;
 	}
 	
-	foreach( t, activeTimer )
+	for (auto t : activeTimer)
 	{
-		delete (*t);
+		delete t;
 	}
 	
-	foreach( t, shootTimer )
+	for (auto t : shootTimer)
 	{
-		delete (*t);
+		delete t;
 	}
 }
 
@@ -210,21 +209,21 @@ void WeaponType::finalize()
 	delete outOfAmmo; outOfAmmo = 0;
 	delete reloadEnd; reloadEnd = 0;
 	
-	foreach( t, timer )
+	for (auto t : timer)
 	{
-		delete (*t);
+		delete t;
 	}
 	timer.clear();
 	
-	foreach( t, activeTimer )
+	for (auto t : activeTimer)
 	{
-		delete (*t);
+		delete t;
 	}
 	activeTimer.clear();
 	
-	foreach( t, shootTimer )
+	for (auto t : shootTimer)
 	{
-		delete (*t);
+		delete t;
 	}
 	shootTimer.clear();
 }

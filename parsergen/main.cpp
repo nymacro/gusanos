@@ -11,7 +11,6 @@
 #include <utility>
 #include <boost/lexical_cast.hpp>
 #include <boost/array.hpp>
-#include "util/macros.h"
 #include "util/stringbuild.h"
 
 using std::cout;
@@ -77,10 +76,10 @@ struct Handler
 	
 	Token* findToken(std::string const& name)
 	{
-		foreach(i, tokens)
+		for (auto i : tokens)
 		{
-			if((*i)->name == name)
-				return *i;
+			if(i->name == name)
+				return i;
 		}
 		
 		return 0;
@@ -88,11 +87,11 @@ struct Handler
 	
 	int indexFirstSet(std::set<int>& s)
 	{
-		foreach(i, tokensets)
+		for (auto i : tokensets)
 		{
-			if(*i->s == s)
+			if(*i.s == s)
 			{
-				return i->idx;
+				return i.idx;
 			}
 		}
 		
@@ -110,12 +109,12 @@ struct Handler
 		}
 		else if(!self.child.empty() && self.func == Element::NoFunc)
 		{
-			let_(i, rules_.find(self.child));
+			auto i = rules_.find(self.child);
 			if(i != rules_.end())
 				firstSet(*i->second, s);
 			else
 			{
-				let_(j, findToken(self.child));
+				auto j = findToken(self.child);
 				if(j)
 					s.insert(j->idx);
 				else
@@ -133,9 +132,9 @@ struct Handler
 	
 	void firstSet(Option& self, std::set<int>& s)
 	{
-		foreach(i, self.elements)
+		for (auto i : self.elements)
 		{
-			if(firstSet(**i, s) && !(*i)->optional)
+			if(firstSet(*i, s) && !(i->optional))
 				return;
 		}
 	}
@@ -147,9 +146,9 @@ struct Handler
 
 		self.inProgress = true;
 		
-		foreach(i, self.options)
+		for (auto i : self.options)
 		{
-			firstSet(**i, s);
+			firstSet(*i, s);
 		}
 		
 		self.inProgress = false;
@@ -228,12 +227,12 @@ struct Handler
 			{
 				case Element::NoFunc:
 				{
-					let_(i, rules_.find(self.child));
+					auto i = rules_.find(self.child);
 					if(i != rules_.end())
 						s << "rule_" << i->first << "(" << self.code << ");\n";
 					else
 					{
-						let_(j, findToken(self.child));
+						auto j = findToken(self.child);
 						if(j)
 						{
 							Token& token = *j;
@@ -271,7 +270,7 @@ struct Handler
 				
 				case Element::SkipTo:
 				{
-					let_(j, findToken(self.child));
+					auto j = findToken(self.child);
 					if(!j)
 					{
 						error("Token '" + self.child + "' not declared");
@@ -285,7 +284,7 @@ struct Handler
 				
 				case Element::SkipAfter:
 				{
-					let_(j, findToken(self.child));
+					auto j = findToken(self.child);
 					if(!j)
 					{
 						error("Token '" + self.child + "' not declared");
@@ -322,9 +321,9 @@ struct Handler
 	
 	void output(std::ostream& s, Option& self)
 	{
-		foreach(i, self.elements)
+		for (auto i : self.elements)
 		{
-			output(s, **i);
+			output(s, *i);
 		}
 	}
 	
@@ -335,14 +334,14 @@ struct Handler
 		{
 			bool first = true;
 			
-			foreach(i, self.options)
+			for (auto i : self.options)
 			{
 				if(first)
 					first = false;
 				else
 					s << "else ";
-				s << "if(" << firstSetTest(**i, true) << ") {\n";
-				output(s, **i);
+				s << "if(" << firstSetTest(*i, true) << ") {\n";
+				output(s, *i);
 				s << "}\n";
 			}
 			
@@ -411,9 +410,9 @@ struct Handler
 		"};\n\n"
 		;
 		
-		foreach(i, tokens)
+		for (auto i : tokens)
 		{
-			Token& token = **i;
+			Token& token = *i;
 
 			output(s, token);
 		}
@@ -429,23 +428,23 @@ struct Handler
 		"begin = curp;\n"
 		"goto append; append:\n"
 		"/*!re2c\n";
-		foreach(i, aliases)
+		for (auto i : aliases)
 		{
-			s << i->first << " = " << i->second << ";\n";
+			s << i.first << " = " << i.second << ";\n";
 		}
 		s <<
 		"*/\nswitch(state) {";
 		
-		foreach(state, states)
+		for (auto state : states)
 		{
 			s <<
-			"case " << state->first << ":\n"
+			"case " << state.first << ":\n"
 			"/*!re2c\n"
 			;
 
-			foreach(i, state->second)
+			for (auto i : state.second)
 			{
-				Token& token = **i;
+				Token& token = *i;
 				
 				s << token.def << "{ ";
 					
@@ -469,7 +468,7 @@ struct Handler
 				
 				if(!token.copy.empty())
 				{
-					let_(j, findToken(token.copy));
+					auto j = findToken(token.copy);
 					if(!j)
 					{
 						error("Token not found");
@@ -610,37 +609,31 @@ struct Handler
 		
 		"bool full() { return cur == 0 && !error; }\n";
 
-		foreach(i, rules_)
+		for (auto i : rules_)
 		{
-			Rule& rule = *i->second;
+			Rule& rule = *i.second;
 
 			output(s, rule);
 		}
 		
-		/*
-		foreach(i, sets)
+		for (auto i : tokensets)
 		{
-			s << "bool " << i->first << "[" << tokenNumber << "];\n";
-		}*/
-		
-		foreach(i, tokensets)
-		{
-			if(i->s->size() > 1)
-				s << "bool " << firstSetName(i->idx) << "[" << tokenNumber << "];\n";
+			if(i.s->size() > 1)
+				s << "bool " << firstSetName(i.idx) << "[" << tokenNumber << "];\n";
 		}
 		
 		s <<
 		name << "() : cur(-1), begin(0), marker(0), buffer(0), curp(0), limit(0), line(1), syncTokens(false), error(false), state(0) {\n";
 		
-		foreach(i, tokensets)
+		for (auto i : tokensets)
 		{
-			if(i->s->size() > 1)
+			if(i.s->size() > 1)
 			{
-				std::string name = firstSetName(i->idx);
+				std::string name = firstSetName(i.idx);
 				s << "memset(" << name << ", 0, sizeof(bool)*" << tokenNumber << ");\n";
-				foreach(j, *i->s)
+				for (auto j : *i.s)
 				{
-					s << name << "[" << *j << "] = true;\n";
+					s << name << "[" << j << "] = true;\n";
 				}
 			}
 		}

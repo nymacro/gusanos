@@ -4,7 +4,6 @@
 #include "special_command.h"
 #include "alias.h"
 #include "util/text.h"
-#include "util/macros.h"
 #include "consoleitem.h"
 
 #include "console-grammar.h"
@@ -14,6 +13,7 @@
 #include <string>
 #include <stack>
 #include <cctype>
+#include <iterator>
 
 #include <sstream>
 #include <iostream>
@@ -50,7 +50,7 @@ Console::~Console()
 		tempvar++;
 	}*/
 	
-	foreach(i, items)
+	for (auto i = items.begin(), end = items.end(); i != end; ++i)
 	{
 		delete i->second;
 	}
@@ -136,13 +136,15 @@ void Console::clearTemporaries()
 {
 	//std::remove_if(items.begin(), items.end(), IsTemporary());
 
-	foreach_delete(i, items)
-	{	
-		if(i->second->temp)
+	for (auto it = items.begin(); it != items.end(); )
+	{
+		auto next = std::next(it);
+		if(it->second->temp)
 		{
-			delete i->second;
-			items.erase(i);
+			delete it->second;
+			items.erase(it);
 		}
+		it = next;
 	}
 }
 

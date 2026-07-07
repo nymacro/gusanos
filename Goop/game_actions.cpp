@@ -13,7 +13,7 @@
 #include "util/text.h"
 #include "util/angle.h"
 #include "util/vec.h"
-#include "util/macros.h"
+
 #include "util/log.h"
 #include "base_object.h"
 #include "weapon.h"
@@ -438,10 +438,10 @@ PlaySound::PlaySound( vector<OmfgScript::TokenBase*> const& params )
 		sounds.push_back( soundList.load(params[0]->toString()) );
 	}else if(params[0]->assertList())
 	{
-		const_foreach(s, params[0]->toList())
+		for (auto s : params[0]->toList())
 		{
-			if((*s)->assertString())
-				sounds.push_back(soundList.load((*s)->toString()));
+			if(s->assertString())
+				sounds.push_back(soundList.load(s->toString()));
 		}
 	}
 	loudness = params[1]->toDouble(100.0);
@@ -480,10 +480,10 @@ PlaySoundStatic::PlaySoundStatic( vector<OmfgScript::TokenBase*> const& params )
 		sounds.push_back( soundList.load(params[0]->toString()) );
 	}else if(params[0]->assertList())
 	{
-		const_foreach(s, params[0]->toList())
+		for (auto s : params[0]->toList())
 		{
-			if((*s)->assertString())
-				sounds.push_back(soundList.load((*s)->toString()));
+			if(s->assertString())
+				sounds.push_back(soundList.load(s->toString()));
 		}
 	}
 	loudness = params[1]->toDouble(100.0);
@@ -523,10 +523,10 @@ PlayGlobalSound::PlayGlobalSound( vector<OmfgScript::TokenBase*> const& params )
 		sounds.push_back( sound1DList.load(params[0]->toString()) );
 	}else if(params[0]->assertList())
 	{
-		const_foreach(s, params[0]->toList())
+		for (auto s : params[0]->toList())
 		{
-			if((*s)->assertString())
-				sounds.push_back(sound1DList.load((*s)->toString()));
+			if(s->assertString())
+				sounds.push_back(sound1DList.load(s->toString()));
 		}
 	}
 	volume = params[1]->toDouble(1.0);

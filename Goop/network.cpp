@@ -11,7 +11,6 @@
 #include "base_player.h"
 #include "particle.h"
 #include "http.h"
-#include "util/macros.h"
 #include "util/log.h"
 #include "util/text.h"
 #include "lua/bindings-network.h"
@@ -154,10 +153,10 @@ namespace
 		void encode(ZCom_BitStream* data)
 		{
 			data->addInt(events.size(), 8);
-			foreach(i, events)
+			for (auto i : events)
 			{
-				DLOG("Encoding lua event: " << (*i)->name);
-				data->addString((*i)->name.c_str());
+				DLOG("Encoding lua event: " << i->name);
+				data->addString(i->name.c_str());
 			}
 		}
 	};
@@ -186,17 +185,19 @@ namespace
 	
 	void processHttpRequests()
 	{
-		foreach_delete(i, requests)
+	for (auto i = requests.begin(), i_end = requests.end(); i != i_end; )
+	{
+		auto next = i; ++next;
+		if(!i->req || i->req->think())
 		{
-			if(!i->req || i->req->think())
-			{
-				if(i->handler)
-					i->handler(i->req);
-				else
-					delete i->req;
-				requests.erase(i);
-			}
+			if(i->handler)
+				i->handler(i->req);
+			else
+				delete i->req;
+			requests.erase(i);
 		}
+		i = next;
+	}
 	}
 	
 	void onServerRemoved(HTTP::Request* req)
@@ -282,7 +283,7 @@ namespace
 	{
 		if(args.size() >= 2)
 		{
-			let_(i, args.begin());
+			auto i = args.begin();
 			std::string const& addr = *i++;
 			int port = cast<int>(*i++);
 			

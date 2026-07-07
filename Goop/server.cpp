@@ -8,7 +8,6 @@
 #include "player_options.h"
 #include "network.h"
 #include "util/math_func.h"
-#include "util/macros.h"
 #include "util/log.h"
 #include "encoding.h"
 
@@ -76,7 +75,7 @@ void Server::ZCom_cbDataReceived( ZCom_ConnID  _id, ZCom_BitStream &_data)
 			}
 			BasePlayer* player = game.addPlayer ( Game::PROXY );
 			
-			let_(i, savedScores.find(uniqueID));
+			auto i = savedScores.find(uniqueID);
 			if(i != savedScores.end())
 			{
 				player->stats = i->second;

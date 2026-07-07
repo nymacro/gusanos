@@ -7,7 +7,6 @@
 #include "util/log.h"
 #include "message_queue.h"
 #include "util/text.h"
-#include "util/macros.h"
 #include <list>
 #include <string>
 #include <map>
@@ -61,7 +60,7 @@ namespace
 	
 	ConnData& getConnection(ZCom_ConnID connID)
 	{
-		let_(i, connections.find(connID));
+		auto i = connections.find(connID);
 		if(i != connections.end())
 		{
 			return i->second;
@@ -186,9 +185,9 @@ void Updater::think()
 			mq_end_process_messages();
 		}
 		
-		foreach(i, connections)
+		for (auto& i : connections)
 		{
-			i->second.sendOne();
+			i.second.sendOne();
 		}
 	
 		while ( node->checkEventWaiting() )
@@ -219,9 +218,9 @@ void Updater::think()
 					{
 						fs::path p(info.path);
 						
-						foreach(i, p)
+						for (auto c : p)
 						{
-							if(*i == "..")
+							if(c == "..")
 								accept = false;
 						}
 						

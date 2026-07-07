@@ -11,7 +11,6 @@
 #include "particle.h"
 #include "worm.h"
 #include "player.h"
-#include "util/macros.h"
 //#include "util/log.h"
 #ifndef DEDSERV
 #include "mouse.h"
@@ -261,40 +260,44 @@ try
 			sfx.think(); // WARNING: THIS �MUST! BE PLACED BEFORE THE OBJECT DELETE LOOP
 #endif
 			
-			//for ( list<BasePlayer*>::iterator iter = game.players.begin(); iter != game.players.end();)
-			foreach_delete(iter, game.players)
+			for (auto it = game.players.begin(); it != game.players.end(); )
 			{
-				if ( (*iter)->deleteMe )
+				BasePlayer* iter = *it;
+				if ( iter->deleteMe )
 				{
 /* Done in deleteThis()
 #ifdef USE_GRID
 					for (Grid::iterator objIter = game.objects.beginAll(); objIter; ++objIter)
 					{
-						objIter->removeRefsToPlayer(*iter);
+						objIter->removeRefsToPlayer(iter);
 					}
 #else
 					for ( ObjectsList::Iterator objIter = game.objects.begin(); (bool)objIter; ++objIter)
 					{
-						(*objIter)->removeRefsToPlayer(*iter);
+						(*objIter)->removeRefsToPlayer(iter);
 					}
 #endif
 */
-					if ( Player* player = dynamic_cast<Player*>(*iter) )
+					if ( Player* player = dynamic_cast<Player*>(iter) )
 					{
-						foreach ( p, game.localPlayers )
+						for (auto lit = game.localPlayers.begin(); lit != game.localPlayers.end(); ++lit)
 						{
-							if ( player == *p )
+							if ( player == *lit )
 							{
-								game.localPlayers.erase(p);
+								game.localPlayers.erase(lit);
 								break;
 							}
 						}
 					}
 /*
-					(*iter)->removeWorm();
+					iter->removeWorm();
 */
-					(*iter)->deleteThis();
-					game.players.erase(iter);
+					iter->deleteThis();
+					it = game.players.erase(it);
+				}
+				else
+				{
+					++it;
 				}
 			}
 

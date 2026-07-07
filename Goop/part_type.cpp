@@ -13,7 +13,6 @@
 #include "util/text.h"
 #include "util/vec.h"
 #include "util/angle.h"
-#include "util/macros.h"
 #include "util/log.h"
 #include "parser.h"
 #include "detect_event.h"
@@ -493,9 +492,9 @@ bool PartType::load(fs::path const& filename)
 				int detectFilter = 0;
 				if(p[2]->isList())
 				{
-					const_foreach(i, p[2]->toList())
+					for (auto i : p[2]->toList())
 					{
-						OmfgScript::TokenBase& v = **i;
+						OmfgScript::TokenBase& v = *i;
 						if ( v.isString() )
 						{
 							if( v.toString() == "worms" ) detectFilter |= 1;

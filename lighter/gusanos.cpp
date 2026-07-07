@@ -3,7 +3,6 @@
 #include "level.h"
 #include "culling.h"
 #include "loaders/gusanos.h"
-#include "util/macros.h"
 #include "util/vec.h"
 #include "util/rect.h"
 #include "util/text.h"

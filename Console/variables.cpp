@@ -1,6 +1,5 @@
 #include "variables.h"
 #include "util/text.h"
-#include "util/macros.h"
 #include "util/stringbuild.h"
 #include "console.h"
 
@@ -24,9 +23,9 @@ EnumVariable::EnumVariable(std::string name, int* src, int defaultValue, MapType
 {
 	*m_src = m_defaultValue;
 
-	foreach(i, m_mapping)
+	for (const auto& i : m_mapping)
 	{
-		m_reverseMapping[i->second] = i->first;
+		m_reverseMapping[i.second] = i.first;
 	}
 }
 
@@ -41,9 +40,9 @@ std::string EnumVariable::invoke(const std::list<std::string> &args)
 		{
 			std::string help = "INVALID VALUE, POSSIBLE VALUES: ";
 			
-			foreach(i, m_mapping)
+			for (const auto& i : m_mapping)
 			{
-				help += i->first + ' ';
+				help += i.first + ' ';
 			}
 			
 			return help;

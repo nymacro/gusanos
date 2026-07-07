@@ -10,7 +10,6 @@
 #include "sprite.h"
 #endif //DEDSERV
 #include "util/text.h"
-#include "util/macros.h"
 #include "parser.h"
 #include "detect_event.h"
 #include "object_grid.h"
@@ -164,9 +163,9 @@ bool ExpType::load(fs::path const& filename)
 				int detectFilter = 0;
 				if(p[2]->isList())
 				{
-					const_foreach(i, p[2]->toList())
+					for (auto i : p[2]->toList())
 					{
-						OmfgScript::TokenBase& v = **i;
+						OmfgScript::TokenBase& v = *i;
 						if ( v.isString() )
 						{
 							if( v.toString() == "worms" ) detectFilter |= 1;

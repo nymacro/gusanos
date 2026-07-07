@@ -19,7 +19,6 @@
 #include "proxy_player.h"
 #include "gfx.h"
 #include "sprite_set.h"
-#include "util/macros.h"
 #include "util/log.h"
 #ifndef DEDSERV
 #include "sfx.h"
@@ -97,9 +96,9 @@ namespace
 	boost::uint32_t getWeaponCRC()
 	{
 		boost::uint32_t v = 0;
-		foreach(i, game.weaponList)
+		for (auto i : game.weaponList)
 		{
-			v ^= (*i)->crc;
+			v ^= i->crc;
 			++v;
 		}
 		
@@ -245,11 +244,11 @@ BasePlayer* findPlayerByName(std::string const& name)
 {
 	//BasePlayer* player2Kick = 0;
 	//for ( std::list<BasePlayer*>::iterator iter = game.players.begin(); iter != game.players.end(); iter++)
-	foreach(iter, game.players)
+	for (auto iter : game.players)
 	{
-		if ( (*iter)->m_name == name )
+		if ( iter->m_name == name )
 		{
-			return *iter;
+			return iter;
 		}
 	}
 	
