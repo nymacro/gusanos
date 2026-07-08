@@ -108,7 +108,7 @@ inline T* assertObject(LuaContext& context, int idx, char const* errstr)
 	
 	lua_pushstring(context, errstr);
 	lua_error(context);
-	return 0;
+	__builtin_unreachable();
 }
 
 template<class T>
@@ -119,13 +119,14 @@ inline T* assertLObject(LuaContext& context, int idx, char const* errstr)
 	
 	lua_pushstring(context, errstr);
 	lua_error(context);
-	return 0;
+	__builtin_unreachable();
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
 #define ASSERT_OBJECT(type_, idx_) assertObject<type_>(context, idx_, "Expected object of type " #type_ " as parameter " #idx_)
-
 #define ASSERT_OBJECT_P(type_, idx_, place_) assertObject<type_>(context, idx_, "Expected object of type " #type_ place_)
-
 #define ASSERT_LOBJECT(type_, idx_) assertLObject<type_>(context, idx_, "Expected object of type " #type_ " as parameter " #idx_)
+#pragma GCC diagnostic pop
 
 #endif //LUA_CLASSES_H

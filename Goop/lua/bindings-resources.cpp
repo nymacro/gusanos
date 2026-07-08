@@ -309,17 +309,17 @@ METHODC(Sound, sound_play,
 	lua_Number pitch = 1.0;
 	lua_Number pitchVariation = 1.0;
 	
-	if(BaseObject* obj = getObject<BaseObject>(context, 2))
+		if(BaseObject* obj = getObject<BaseObject>(context, 2))
 	{
 		int params = lua_gettop(context);
 		switch(params)
 		{
-			default: if(params < 2) return 0;
-			case 5:  pitchVariation = lua_tonumber(context, 6);
-			case 4:  pitch = lua_tonumber(context, 5);
-			case 3:  loudness = lua_tonumber(context, 4);
-			case 2:  break;
-		}
+		default: if(params < 2) return 0; [[fallthrough]];
+		case 5:  pitchVariation = lua_tonumber(context, 6); /* fall through */
+		case 4:  pitch = lua_tonumber(context, 5); /* fall through */
+		case 3:  loudness = lua_tonumber(context, 4); /* fall through */
+		case 2:  break;
+	}
 		
 		//BaseObject* obj = *static_cast<BaseObject**>(lua_touserdata(context, 2));
 
@@ -331,10 +331,10 @@ METHODC(Sound, sound_play,
 
 		switch(params)
 		{
-			default: if(params < 3) return 0;
-			case 6:  pitchVariation = lua_tonumber(context, 6);
-			case 5:  pitch = lua_tonumber(context, 5);
-			case 4:  loudness = lua_tonumber(context, 4);
+			default: if(params < 3) return 0; [[fallthrough]];
+			case 6:  pitchVariation = lua_tonumber(context, 6); [[fallthrough]];
+			case 5:  pitch = lua_tonumber(context, 5); [[fallthrough]];
+			case 4:  loudness = lua_tonumber(context, 4); [[fallthrough]];
 			case 3:  break;
 		}
 		
@@ -573,11 +573,11 @@ METHODC(PartType, parttype_put,
 	int params = lua_gettop(context);
 	switch(params)
 	{
-		default: if(params < 3) return 0;
-		case 6:  angle = Angle(lua_tonumber(context, 6));
-		case 5:  yspd = lua_tonumber(context, 5);
-		case 4:  xspd = lua_tonumber(context, 4);
-		case 3:  y = lua_tonumber(context, 3);
+		default: if(params < 3) return 0; [[fallthrough]];
+		case 6:  angle = Angle(lua_tonumber(context, 6)); [[fallthrough]];
+		case 5:  yspd = lua_tonumber(context, 5); [[fallthrough]];
+		case 4:  xspd = lua_tonumber(context, 4); [[fallthrough]];
+		case 3:  y = lua_tonumber(context, 3); [[fallthrough]];
 		case 2:  x = lua_tonumber(context, 2);
 	}
 	

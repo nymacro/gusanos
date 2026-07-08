@@ -18,6 +18,9 @@ public:
 	Server( int _udpport );
 	~Server();
 	
+	using ZCom_Control::ZCom_cbNodeRequest_Dynamic;
+	using ZCom_Control::ZCom_cbNodeRequest_Tag;
+	
 	void preShutdown() { m_preShutdown = true; }
 	
 protected:

@@ -16,8 +16,8 @@ Player::Player(boost::shared_ptr<PlayerOptions> options, BaseWorm* worm)
 , aimingDown(false)
 , changing(false)
 , jumping(false)
-, walkingRight(false)
 , walkingLeft(false)
+, walkingRight(false)
 #ifndef DEDSERV
 , m_viewport(0)
 #endif

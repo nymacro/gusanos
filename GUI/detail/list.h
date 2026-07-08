@@ -133,8 +133,8 @@ public:
 	List(Wnd* parent, /*std::string const& tagLabel, std::string const& className,
 	  std::string const& id,*/ std::map<std::string, std::string> const& attributes)
 	: Wnd(parent, attributes, "list"), m_RootNode("root")
-	, m_Base(0), m_basePos(0), m_MainSel(0), m_visibleChildren(0)
-	, m_totalWidthFactor(0.0)
+	, m_Base(0), m_basePos(0), m_MainSel(0), m_totalWidthFactor(0.0)
+	, m_visibleChildren(0)
 	{
 		assert(!m_RootNode.parent);
 		m_RootNode.list = this;

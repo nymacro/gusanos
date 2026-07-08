@@ -27,7 +27,9 @@ inline lua_Number luaL_checknumber(lua_State *L, int narg)
 {
 	lua_Number d = lua_tonumber(L, narg);
 	if(d == 0 && !lua_isnumber(L, narg))
+	{
 		; // TODO: tag_error(L, narg, LUA_TNUMBER);
+	}
 	return d;
 }
 

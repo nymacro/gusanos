@@ -150,15 +150,19 @@ void Updater::assignNetworkRole( bool authority )
 	{
 		node->setEventNotification(true, false); // Enables the eEvent_Init.
 		if( !node->registerNodeUnique(classID, eZCom_RoleAuthority, network.getZControl() ) )
+		{
 			ELOG("Unable to register updater authority node.");
-		
+		}
+
 		node->removeFromZoidLevel(1);
 		node->applyForZoidLevel(2); // Updater operates at zoidlevel 2
 	}
 	else
 	{
 		if( !node->registerNodeUnique( classID, eZCom_RoleProxy, network.getZControl() ) )
+		{
 			ELOG("Unable to register updater requested node.");
+		}
 	}
 }
 

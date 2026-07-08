@@ -436,7 +436,7 @@ void outputC(ostream& out, istream& in)
 	}
 }
 
-int baz() { struct foo { static int bar() { return 6; } }; printf("%i\n", foo::bar()); }
+int baz() { struct foo { static int bar() { return 6; } }; printf("%i\n", foo::bar()); return 0; }
 
 int main()
 {

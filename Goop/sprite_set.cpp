@@ -33,11 +33,14 @@ SpriteSet::SpriteSet()
 #ifndef DEDSERV
 // This does not copy the colored cache naturally
 SpriteSet::SpriteSet(SpriteSet const& b, SpriteSet const& mask, int color)
-: m_frames(b.m_frames), m_angleFactor(b.m_angleFactor)
-, m_halfAngleDivisonSize(b.m_halfAngleDivisonSize)
+: m_frames(b.m_frames)
 , frameCount(b.frameCount)
 , angleCount(b.angleCount)
+#ifndef DEDSERV
 , m_coloredCache(ColorSpriteSet(*this))
+#endif
+, m_angleFactor(b.m_angleFactor)
+, m_halfAngleDivisonSize(b.m_halfAngleDivisonSize)
 {
 	std::vector<Sprite *>::const_iterator srci = b.m_frames.begin();
 	std::vector<Sprite *>::const_iterator maski = mask.m_frames.begin();

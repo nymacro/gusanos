@@ -292,7 +292,7 @@ GConsole::GConsole()
 #endif
 {
 #ifndef DEDSERV
-	m_lockRefCount.assign(0);
+	m_lockRefCount.fill(0);
 #endif
 	scrolling = false;
 }

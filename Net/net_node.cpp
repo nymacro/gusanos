@@ -20,13 +20,14 @@ zU32 ZoidCom::getTime()
 
 ZCom_Node::ZCom_Node()
 	: m_nodeID(0), m_classID(0), m_ownerID(0)
-	, m_role(0), m_eventNotification(false)
-	, m_eventNotificationRemove(false), m_authority(false)
-	, m_control(nullptr), m_announceData(nullptr)
-	, m_userData(nullptr), m_eventInterceptor(nullptr)
-	, m_replicationInterceptor(nullptr)
-	, m_isUnique(false), m_isPrivate(false), m_zoidLevel(0), m_interceptID(-1)
+	, m_role(0), m_isUnique(false), m_isPrivate(false)
+	, m_eventNotification(false), m_eventNotificationRemove(false)
+	, m_authority(false), m_control(nullptr)
+	, m_announceData(nullptr), m_userData(nullptr)
+	, m_eventInterceptor(nullptr)
 	, m_updatePriority(0), m_defaultRelevance(1.0f), m_relevantConnectionCount(0)
+	, m_zoidLevel(0), m_interceptID(-1)
+	, m_replicationInterceptor(nullptr)
 {
 }
 

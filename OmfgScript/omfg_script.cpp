@@ -51,8 +51,9 @@ struct Parameters
 	};
 	
 	Parameters(ParamDef* def, Location loc_)
-	: paramDef(def), params(def->params.size(), 0)
-	, cur(0), loc(loc_), flags(0)
+	: cur(0), flags(0)
+	, paramDef(def), params(def->params.size(), 0)
+	, loc(loc_)
 	{
 	}
 	
@@ -90,7 +91,7 @@ struct Parameters
 				}
 			}
 			
-			if(minParam >= 0 && minDist <= (name.size() + 1) / 2)
+			if(minParam >= 0 && minDist <= static_cast<int>((name.size() + 1) / 2))
 				error("Unknown parameter '" + name + "'. Did you mean '" + paramDef->params[minParam].name + "'?", loc_);
 			else
 				error("Unknown parameter '" + name + "'", loc_);
@@ -115,7 +116,7 @@ struct Parameters
 			error("Positional parameters not allowed after named parameters", loc_);
 			return;
 		}
-		if(cur >= params.size() && !(flags & MaxReachParam))
+		if(cur >= static_cast<int>(params.size()) && !(flags & MaxReachParam))
 		{
 			flags |= MaxReachParam;
 			error(S_("Too many parameters. Maximum allowed is ") << params.size() << '.', loc_);
@@ -539,7 +540,7 @@ struct ParserImpl : public TGrammar<ParserImpl>
 	struct Property
 	{
 		Property(Location loc_, TokenBase* value_)
-		: loc(loc_), value(value_), touched(false)
+		: loc(loc_), touched(false), value(value_)
 		{
 		}
 		
@@ -554,7 +555,7 @@ struct ParserImpl : public TGrammar<ParserImpl>
 	};
 	
 	ParserImpl(std::istream& str_, ActionFactory& actionFactory_, std::string const& fileName_)
-	: str(str_), actionFactory(actionFactory_), fileName(fileName_)
+	: str(str_), fileName(fileName_), actionFactory(actionFactory_)
 	{
 		this->next();
 	}
@@ -633,7 +634,7 @@ struct ParserImpl : public TGrammar<ParserImpl>
 			}
 		}
 		
-		if(!minEvent.empty() && minDist <= name.size() / 2)
+		if(!minEvent.empty() && minDist <= static_cast<int>(name.size() / 2))
 			semanticError("Unknown event '" + name + "'. Did you mean '" + minEvent + "'?");
 		else
 			semanticError("Unknown event '" + name + "'");
@@ -662,7 +663,7 @@ struct ParserImpl : public TGrammar<ParserImpl>
 			}
 		}
 		
-		if(!minAction.empty() && minDist <= name.size() / 2)
+		if(!minAction.empty() && minDist <= (int)name.size() / 2)
 			semanticError("Unknown action '" + name + "'. Did you mean '" + minAction + "'?");
 		else
 			semanticError("Unknown action '" + name + "'");

@@ -227,7 +227,7 @@ int main(int argc, char **argv)
 				int color = 0;
 				float minDistanceSqr = -1;
 				int appliedCount = 0;
-				for ( int n = 0; n < lightSources.size() ; ++n )
+				for ( int n = 0; n < (int)lightSources.size() ; ++n )
 				{
 					if ( true ) //rnd() < prob )
 					{

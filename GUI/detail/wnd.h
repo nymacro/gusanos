@@ -43,9 +43,8 @@ public:
 	
 	Wnd(Wnd* parent, std::map<std::string, std::string> const& attributes, std::string const& tagLabel = "window")
 	: m_focusable(true)/*, m_text(text)*/, m_parent(0), m_lastChildFocus(0)
-	, m_font(0), m_tagLabel(tagLabel)/*, m_className(className), m_id(id)*/
+	, m_context(0), m_font(0), m_tagLabel(tagLabel)/*, m_className(className), m_id(id)*/
 	, m_attributes(attributes), m_visible(true), m_active(false)
-	, m_context(0)
 	{
 		getAttrib("label", m_text);
 		getAttrib("class", m_id);

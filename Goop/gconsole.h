@@ -29,7 +29,7 @@ public:
 	{
 		BindingLock()
 		{
-			enable.assign(true);
+			enable.fill(true);
 		}
 		
 		array<bool, 256> enable;

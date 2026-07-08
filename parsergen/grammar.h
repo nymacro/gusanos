@@ -43,7 +43,7 @@ struct Def;
 struct Element
 {
 	Element()
-	: sub(0), optional(false), mult(Once)
+	: mult(Once), optional(false), sub(0)
 	, func(NoFunc), firstSetIdx(0)
 	{
 	}
@@ -110,7 +110,7 @@ struct Def
 struct Rule
 {
 	Rule(std::string name_)
-	: def(0), name(name_)
+	: name(name_), def(0)
 	{
 	}
 	

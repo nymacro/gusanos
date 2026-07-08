@@ -478,7 +478,9 @@ void Network::update()
 			if(requests.size() == 0 && (connCount == 0 || stateTimeOut <= 0))
 			{
 				if(connCount != 0)
+				{
 					WLOG(connCount << " connection(s) might not have disconnected properly.");
+				}
 				setLuaState(StateDisconnected);
 				SET_STATE(Disconnected);
 
@@ -506,6 +508,12 @@ void Network::update()
 		}
 		break;
 
+		default:
+			// Pseudo-states (StateConnecting, StateHosting) are transient and
+			// should never be observed here; they get replaced by the next real
+			// state transition before update() processes them.
+			assert(false && "Network::update called with pseudo-state");
+		break;
 	}
 	
 	if( reconnectTimer > 0 )

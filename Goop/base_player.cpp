@@ -36,15 +36,14 @@ LuaReference BasePlayer::metaTable()
 */
 
 BasePlayer::BasePlayer(boost::shared_ptr<PlayerOptions> options, BaseWorm* worm)
-: m_options(options), stats(new Stats), deleteMe(false)
-, m_worm(0), m_id(0) // TODO: make a invalid_connection_id define thingy
-, m_wormID(INVALID_NODE_ID)
+: stats(new Stats), deleteMe(false)
+, colour(options->colour), team(options->team)
+, local(false), luaData(0)
+, m_worm(0), m_options(options)
+, m_isAuthority(false), m_processingNetworkEvent(false)
 , m_node(0), m_interceptor(0)
-	, m_isAuthority(false)
-	, m_processingNetworkEvent(false)
-, colour(options->colour)
-, team(options->team)
-, luaData(0), local(false), deleted(false)
+, m_wormID(INVALID_NODE_ID), m_id(0) // TODO: make a invalid_connection_id define thingy
+, deleted(false)
 {
 	localChangeName(m_options->name);
 	m_options->clearChangeFlags();

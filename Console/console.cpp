@@ -188,7 +188,7 @@ void Console::parseLine(const string &text, bool parseRelease)
 	{
 		addLogMsg(handler.block());
 	}
-	catch(SyntaxError error)
+	catch(SyntaxError const& error)
 	{
 		addLogMsg(text);
 		std::streamoff pos = handler.str.tellg();
@@ -316,8 +316,9 @@ struct CompletionHandler : public ConsoleGrammarBase
 		}
 		
 		State(string::const_iterator b_)
-		: argumentIdx(0), commandComplete(false), argumentComplete(false)
-		, beginCommand(b_), beginArgument(b_)
+		: commandComplete(false), argumentComplete(false)
+		, beginArgument(b_), beginCommand(b_)
+		, argumentIdx(0)
 		{
 		}
 		
@@ -335,8 +336,8 @@ struct CompletionHandler : public ConsoleGrammarBase
 		string::const_iterator e_,
 		Console& console_
 	)
-	: b(b_), e(e_), console(console_), current(b_), endPrefix(b_)
-	, beginPrefix(b_)
+	: beginPrefix(b_), b(b_), e(e_), endPrefix(b_)
+	, current(b_), console(console_)
 	{
 		c = (unsigned char)*b;
 	}
@@ -473,7 +474,7 @@ string Console::autoComplete(string const& text)
 				return handler.prefix() + completeCommand(result.command);
 			}
 		}
-		catch(SyntaxError error)
+		catch(SyntaxError const& error)
 		{
 			return text;
 		}

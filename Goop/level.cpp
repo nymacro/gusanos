@@ -29,15 +29,15 @@ struct AddCuller : Culler<AddCuller>
 {
 	AddCuller( Level& level, BITMAP* dest, BITMAP* source, int alpha,int dOffx, int dOffy, int sOffx, int sOffy, Rect const& rect )
 	:
+		Culler<AddCuller>(rect),
 		m_level(level),
 		m_dest( dest ),
 		m_source( source),
-		m_alpha(alpha),
 		m_destOffx(dOffx),
 		m_destOffy(dOffy),
 		m_sourceOffx(sOffx),
 		m_sourceOffy(sOffy),
-		Culler<AddCuller>(rect)
+		m_alpha(alpha)
 	{
 	}
 	

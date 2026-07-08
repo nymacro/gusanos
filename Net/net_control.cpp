@@ -62,12 +62,12 @@ void pushFileEvent(ZCom_Node* node, eZCom_Event type, ZCom_ConnID connID,
 } // namespace
 
 ZCom_Control::ZCom_Control()
-	: m_host(nullptr)
+	: m_logFn(nullptr)
+	, m_host(nullptr)
 	, m_isServer(false)
 	, m_nextConnID(1)
 	, m_nextNodeID(1)
 	, m_nextClassID(1)
-	, m_logFn(nullptr)
 {
 	g_currentControl = this;
 }

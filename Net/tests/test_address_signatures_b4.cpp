@@ -15,6 +15,8 @@ BOOST_AUTO_TEST_SUITE(address_signatures_b4)
 // ---------------------------------------------------------------------------
 BOOST_AUTO_TEST_CASE(signature_alignment)
 {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Waddress"
 	// setAddress(eZCom_AddressType, zU8, const char*)
 	static_assert(static_cast<bool (ZCom_Address::*)(eZCom_AddressType, zU8, const char*)>(
 	                  &ZCom_Address::setAddress),
@@ -71,6 +73,7 @@ BOOST_AUTO_TEST_CASE(signature_alignment)
 	// computeHashKey(zU32) const -> zU32
 	static_assert(static_cast<zU32 (ZCom_Address::*)(zU32) const>(&ZCom_Address::computeHashKey),
 	              "computeHashKey signature");
+#pragma GCC diagnostic pop
 	BOOST_CHECK(true);
 }
 

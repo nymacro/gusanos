@@ -46,11 +46,12 @@ LuaReference BaseWorm::metaTable;
 
 BaseWorm::BaseWorm()
 : BaseObject(), aimSpeed(0.0), aimAngle(90.0)
+, m_lastHurt(0)
 #ifndef DEDSERV
 , m_animator(0)
 #endif
-, animate(false), movable(false), changing(false), m_dir(1)
-, m_lastHurt(0)
+, animate(false), movable(false), changing(false)
+, m_dir(1)
 {
 #ifndef DEDSERV
 	skin = spriteList.load("skin");
@@ -682,7 +683,7 @@ int BaseWorm::getWeaponIndexOffset( int offset )
 		int i = currentWeapon;
 		do
 			i = (i + offset + m_weaponCount) % m_weaponCount;
-		while(!m_weapons[i] && i != currentWeapon);
+		while(!m_weapons[i] && (size_t)i != currentWeapon);
 		
 		return i;
 	}

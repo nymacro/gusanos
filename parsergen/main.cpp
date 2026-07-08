@@ -32,8 +32,9 @@ struct TokenSet
 struct Handler
 {
 	Handler(std::istream& str_, std::string const& file_)
-	: str(str_), tokenNumber(1), setNumber(1), assumeset(0)
-	, line(1), file(file_)
+	: str(str_), file(file_)
+	, assumeset(0), setNumber(1), tokenNumber(1)
+	, line(1)
 	{
 		/*
 		Token* t = new Token("EOF");
@@ -623,7 +624,7 @@ struct Handler
 		}
 		
 		s <<
-		name << "() : cur(-1), begin(0), marker(0), buffer(0), curp(0), limit(0), line(1), syncTokens(false), error(false), state(0) {\n";
+		name << "() : cur(-1), curp(0), limit(0), marker(0), begin(0), buffer(0), line(1), state(0), syncTokens(false), error(false) {\n";
 		
 		for (auto i : tokensets)
 		{

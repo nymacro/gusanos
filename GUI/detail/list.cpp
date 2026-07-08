@@ -409,7 +409,7 @@ bool List::keyDown(int key)
 			break;
 			
 			case KEY_RIGHT:
-				if(checkSelection());
+				if(checkSelection())
 					expand(m_MainSel);
 			break;
 			

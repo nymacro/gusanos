@@ -262,11 +262,13 @@ Request* Host::query(
     TCP::createAddr(server, hp, options.hasProxy ? options.proxyPort : port);
     
     int s;
-    if((s = TCP::socketNonBlock()) < 0)
+    if((s = TCP::socketNonBlock()) < 0) {
     	return 0;
-    	
-    if(!TCP::connect(s, server))
+    }
+
+    if(!TCP::connect(s, server)) {
     	return 0;
+    }
     
 	std::stringstream ss;
 	if (options.hasProxy)

@@ -18,7 +18,7 @@
 
 
 Server::Server( int _udpport )
-: m_preShutdown(false), socketsInited(false), port(_udpport)
+: m_preShutdown(false), port(_udpport), socketsInited(false)
 {
 	if(network.simLag > 0)
 		ZCom_simulateLag(0, network.simLag);

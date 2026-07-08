@@ -37,8 +37,8 @@ struct Socket
 	
 	Socket(int s_, int timeOut_ = 10)
 	: s(s_), connected(false), connecting(true)
-	, error(ErrorNone), timeOut(timeOut_)
-	, dataBegin(0), dataEnd(0)
+	, dataBegin(0), dataEnd(0), error(ErrorNone)
+	, timeOut(timeOut_)
 	{
 		resetTimer();
 	}

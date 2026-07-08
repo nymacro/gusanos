@@ -122,8 +122,8 @@ Particle::Particle(PartType *type, Vec pos_, Vec spd_, int dir, BasePlayer* owne
 : BaseObject(owner, pos_, spd_), /*m_dir(dir), */m_type(type)
 , m_health(type->health), m_angle(angle), m_angleSpeed(0)
 #ifndef DEDSERV
-, m_alpha(m_type->alpha), m_fadeSpeed(0), m_animator(0)
-, m_alphaDest(255), m_sprite(m_type->sprite)
+, m_fadeSpeed(0), m_alpha(m_type->alpha), m_alphaDest(255), m_sprite(m_type->sprite)
+, m_animator(0)
 #endif
 , m_origin(pos_)
 , m_node(0), interceptor(0)

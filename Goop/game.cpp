@@ -1058,11 +1058,15 @@ void Game::assignNetworkRole( bool authority )
 	{
 		m_node->setEventNotification(true, false); // Enables the eEvent_Init.
 		if( !m_node->registerNodeUnique(classID, eZCom_RoleAuthority, network.getZControl() ) )
+		{
 			ELOG("Unable to register game authority node.");
+		}
 	}else
 	{
 		if( !m_node->registerNodeUnique( classID, eZCom_RoleProxy, network.getZControl() ) )
+		{
 			ELOG("Unable to register game requested node.");
+		}
 	}
 
 	m_node->applyForZoidLevel(1);
