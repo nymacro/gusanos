@@ -28,8 +28,9 @@
 #include "menu.h"
 #include "keyboard.h"
 #include "mouse.h"
-#include "player_input.h"
+#include "gamepad.h"
 #include "viewport.h"
+#include "player_input.h"
 #endif //DEDSERV
 #include "player_ai.h"
 #include "net_worm.h"
@@ -459,9 +460,10 @@ void Game::init(int argc, char** argv)
 	gfx.init();
 #ifndef DEDSERV
 	sfx.init();
-
 	keyHandler.init();
 	mouseHandler.init();
+	gamepadHandler.init();
+	gamepadHandler.registerInConsole();
 #endif
 
 	network.init();

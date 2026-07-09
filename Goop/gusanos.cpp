@@ -8,6 +8,9 @@
 #include "game.h"
 #include "updater.h"
 #include "part_type.h"
+#ifndef DEDSERV
+#include "gamepad.h"
+#endif
 #include "particle.h"
 #include "worm.h"
 #include "player.h"
@@ -304,8 +307,10 @@ try
 			network.update();
 
 #ifndef DEDSERV
-			console.checkInput();
-			mouseHandler.poll();
+		console.checkInput();
+		mouseHandler.poll();
+		/* Poll gamepad */
+		gamepadHandler.poll();
 #endif
 			console.think();
 			
@@ -468,8 +473,11 @@ try
 #endif
 	console.shutDown();
 #ifndef DEDSERV
-	sfx.shutDown();
-#endif
+		sfx.shutDown();
+
+		/* Shut down gamepad */
+		gamepadHandler.shutDown();
+	#endif
 	gfx.shutDown();
 	lua.close();
 

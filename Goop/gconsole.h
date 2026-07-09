@@ -55,6 +55,8 @@ public:
 	bool eventPrintableChar(char c, int k);
 	bool eventKeyDown(int k);
 	bool eventKeyUp(int k);
+	bool eventGamepadDown(int k);
+	bool eventGamepadUp(int k);
 	
 	std::string setConsoleKey(std::list<std::string> const& args);
 	
@@ -126,6 +128,7 @@ private:
 };
 
 std::string bindCmd(const std::list<std::string> &args);
+std::string gpInfoCmd(const std::list<std::string> &args);
 
 extern GConsole console;
 
