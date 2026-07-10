@@ -49,7 +49,7 @@ public:
 		sendQueue.push_back(std::make_pair(m, m+len));
 	}
 	
-	void think()
+	bool think() override
 	{
 		if(error)
 		{
@@ -57,6 +57,7 @@ public:
 			error = ErrorNone;
 		}
 		
+		// Let the base class handle connection state
 		TCP::Socket::think();
 		
 		if(connected)
@@ -83,8 +84,10 @@ public:
 			}
 			
 			if(readChunk())
-				return;
+				return error != ErrorNone;
 		}
+		
+		return error != ErrorNone;
 	}
 	
 	~LuaSocket()

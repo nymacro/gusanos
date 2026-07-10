@@ -22,6 +22,13 @@ using std::endl;
 namespace HTTP
 {
 
+TCP::Socket::Error Request::getErrorForRequest(Request* req)
+{
+	if(!req)
+		return TCP::Socket::ErrorConnect;
+	return req->getError();
+}
+
 void Request::addHeader(std::string const& header)
 {
 	if(header.find("200 OK") != std::string::npos)
@@ -56,7 +63,12 @@ char const* Request::parseHeaders(char const* b, char const* e)
 			header.insert(header.end(), oldb, b);
 			
 			if(header.empty())
-				return b + 2; // No more headers, return pointer to the first piece of data
+			{
+				// Return pointer to the first byte after \r\n (body start).
+				// If past buffer end, return e (empty body).
+				char const* after = b + 2;
+				return (after <= e) ? after : e;
+			}
 				
 			addHeader(header);
 			header.clear();
@@ -144,11 +156,11 @@ bool Request::think()
 				if(char const* d = parseHeaders(dataBegin, dataEnd))
 				{
 					dataBegin = d; // Cut off the end of the header
-					if(dataEnd < dataBegin) // Safe-guard if the HTTP header is malformed
+					if(dataBegin >= dataEnd) // Safe-guard if the HTTP header is malformed or no body
 					{
-						success = false;
+						success = true; // No body is still a success
 						switchState(Done);
-						return true; // Error
+						return true; // Done
 					}
 					
 					if(concat)

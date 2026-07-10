@@ -10,6 +10,8 @@
 	char:         [^"], epsilon
 	escape:       '\', '{', '}', '"'
 	ident:        [A-Za-z0-9_]
+
+	comment:      '#'
 */
 
 #include <cctype>
@@ -99,7 +101,7 @@ struct ConsoleGrammar : public BaseT
 	
 	bool firstIdent()
 	{
-		return cur() != '}' && cur() != ';' && cur() != '"' && cur() != ' ' && cur() != -1;
+		return cur() != '}' && cur() != ';' && cur() != '"' && cur() != ' ' && cur() != '#' && cur() != -1;
 	}
 	
 	bool firstArgument()

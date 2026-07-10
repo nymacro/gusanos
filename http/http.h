@@ -41,11 +41,17 @@ struct Request : public TCP::Socket
 	
 	// Returns true if this request is done.
 	bool think();
+	
+	// Safe error retrieval — handles null requests.
+	static TCP::Socket::Error getErrorForRequest(Request* req);
+	
+	// Get the current request state.
+	State getState() const { return state; }
 
 	std::string data;
 	bool success;
 	
-private:
+protected:
 	State state;
 	TCP::Socket::ResumeSend* dataSender;
 	std::string outData;

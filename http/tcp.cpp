@@ -25,6 +25,12 @@ void Socket::close()
 
 bool Socket::think()
 {
+	if(s <= 0)
+	{
+		error = ErrorConnect;
+		return true;
+	}
+	
 	if(connecting)
 	{
 		fd_set monitor;

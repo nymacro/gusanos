@@ -1,3 +1,21 @@
 Import('env')
 
 env.StaticLibrary(env.getLibName('omfgconsole'), env.getObjects())
+
+# Build console tests alongside the library for debug builds
+if env['MY_BUILD'] == 'debug':
+    testEnv = env.Clone()
+
+    brew_prefix = '/home/linuxbrew/.linuxbrew'
+    testEnv.Append(
+        CPPPATH=[brew_prefix + '/include', '#Console'],
+        LIBPATH=[brew_prefix + '/lib', '#/lib/' + testEnv['MY_SUBFOLDER']],
+        LIBS=['omfgconsole', 'boost_unit_test_framework'],
+        LINKFLAGS=['-pthread'],
+        CPPDEFINES=['BOOST_TEST_DYN_LINK']
+    )
+
+    testEnv.Program(
+        testEnv.getBinName('ctests'),
+        testEnv.getObjects('tests')
+    )

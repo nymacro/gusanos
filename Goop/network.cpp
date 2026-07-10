@@ -188,7 +188,11 @@ namespace
 	for (auto i = requests.begin(), i_end = requests.end(); i != i_end; )
 	{
 		auto next = i; ++next;
-		if(!i->req || i->req->think())
+		if(!i->req)
+		{
+			requests.erase(i);
+		}
+		else if(i->req->think())
 		{
 			if(i->handler)
 				i->handler(i->req);
@@ -202,6 +206,11 @@ namespace
 	
 	void onServerRemoved(HTTP::Request* req)
 	{
+		if(!req)
+		{
+			serverAdded = false;
+			return;
+		}
 		if(req->success)
 		{
 			cout << "Unregistered from master server" << endl;
@@ -219,6 +228,11 @@ namespace
 	
 	void onServerAdded(HTTP::Request* req)
 	{
+		if(!req)
+		{
+			serverAdded = false;
+			return;
+		}
 		if(req->success)
 		{
 			serverAdded = true;
@@ -237,6 +251,11 @@ namespace
 	
 	void onServerUpdate(HTTP::Request* req)
 	{
+		if(!req)
+		{
+			serverAdded = false;
+			return;
+		}
 		if(req->success)
 		{
 			cout << "Sent update to master server" << endl;
@@ -672,6 +691,8 @@ int Network::getServerPing()
 
 void Network::addHttpRequest(HTTP::Request* req, HttpRequestCallback handler)
 {
+	if(!req)
+		return;
 	requests.push_back(HttpRequest(req, handler));
 }
 

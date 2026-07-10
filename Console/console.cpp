@@ -14,7 +14,6 @@
 #include <stack>
 #include <cctype>
 #include <iterator>
-
 #include <sstream>
 #include <iostream>
 #include <algorithm>
@@ -181,7 +180,19 @@ struct TestHandler : public ConsoleGrammarBase
 
 void Console::parseLine(const string &text, bool parseRelease)
 {
-	std::istringstream ss(text);
+	// Strip comments: '#' starts a comment (respects quoted strings).
+	// Lines that become empty after stripping are silently ignored.
+	string line = stripComment(text);
+	// Trim trailing whitespace
+	size_t end = line.find_last_not_of(" \t\r\n");
+	if (end != string::npos)
+		line = line.substr(0, end + 1);
+	else
+		line = "";
+	if(line.empty())
+		return;
+
+	std::istringstream ss(line);
 	ConsoleGrammar<TestHandler> handler((TestHandler(ss, *this, parseRelease)));
 
 	try
@@ -202,6 +213,50 @@ void Console::parseLine(const string &text, bool parseRelease)
 			addLogMsg(error.what() + string(" at end of input"));
 		}
 	}
+}
+
+//============================= PRIVATE ======================================
+
+// Strip a '#' comment from a line, respecting quoted strings.
+// Characters inside double-quoted strings are not treated as comments.
+// Leading whitespace before '#' is also stripped (full-line comments).
+// Escaped characters (preceded by '\') are skipped so that \' doesn't
+// toggle the quote state.
+string Console::stripComment(string const& text)
+{
+	bool inQuotes = false;
+	size_t firstNonSpace = 0;
+	for(size_t i = 0; i < text.size(); ++i)
+	{
+		char c = text[i];
+		if(!inQuotes && c == '#')
+		{
+			// Check if this is a full-line comment (only whitespace before #)
+			if(firstNonSpace == 0 || firstNonSpace > i)
+			{
+				// Full-line comment: strip entire line
+				return "";
+			}
+			// Inline comment: strip from # onwards
+			return text.substr(0, i);
+		}
+		if(c == '\\')
+		{
+			++i; // skip the escaped character
+			continue;
+		}
+		if(c == '"')
+		{
+			inQuotes = !inQuotes;
+			continue;
+		}
+		if(c != ' ' && c != '\t' && c != '\n' && c != '\r')
+		{
+			if(firstNonSpace == 0)
+				firstNonSpace = i;
+		}
+	}
+	return text;
 }
 
 std::string Console::invoke(string const& name, list<string> const& args, bool parseRelease)

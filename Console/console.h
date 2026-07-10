@@ -130,7 +130,7 @@ public:
 	std::string completeCommand(std::string const& b);
 	
 protected:
-	
+
 	BindTable bindTable;
 	ItemMap items;
 	std::list<std::string> log;
@@ -139,6 +139,16 @@ protected:
 	unsigned int m_logMaxSize;
 	//unsigned int m_MaxMsgLength;
 	int m_mode;
+
+public:
+
+	// Exposed for testing
+	std::list<std::string> const& getLog() const { return log; }
+
+private:
+
+	// Strip a '#' comment from a line, respecting quoted strings.
+	std::string stripComment(std::string const& text);
 };
 
 struct ConsoleAddLines
