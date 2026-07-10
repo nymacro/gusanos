@@ -11,9 +11,11 @@
 using boost::array;
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <sstream>
 #include <iomanip>
+#include "util/text.h"
 
 static struct GamepadInputInfo
 {
@@ -47,6 +49,79 @@ static struct GamepadInputInfo
 	{ "rstick_up",    { "rstick_up",    nullptr } },
 	{ "rstick_down",  { "rstick_down",  nullptr } },
 };
+
+namespace {
+	bool matchesInputName(std::string const& name, int inputIndex)
+	{
+		if(inputIndex < 0 || inputIndex >= GP_INPUT_COUNT)
+			return false;
+		std::string lower;
+		lower.reserve(name.size());
+		for(char c : name)
+			lower += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+		// Check primary name
+		if(istrCmp(lower, g_inputInfo[inputIndex].primary))
+			return true;
+		// Check aliases
+		for(int i = 0; i < 10; ++i)
+		{
+			const char* alias = g_inputInfo[inputIndex].aliases[i];
+			if(!alias)
+				break;
+			if(istrCmp(lower, alias))
+				return true;
+		}
+		return false;
+	}
+}
+
+std::string gamepadBindName(int slot, GamepadInput input)
+{
+	std::ostringstream oss;
+	oss << "GP" << slot << "_";
+	if(input >= 0 && input < GP_INPUT_COUNT)
+		oss << g_inputInfo[input].primary;
+	else
+		oss << "UNKNOWN";
+	return oss.str();
+}
+
+int gamepadName2Int(std::string const& name)
+{
+	// Parse "GP{slot}_{input_name}"
+	if(name.size() < 4 || name[0] != 'G' || name[1] != 'P')
+		return -1;
+
+	int slot = 0;
+	size_t i = 2;
+	while(i < name.size() && name[i] >= '0' && name[i] <= '9')
+	{
+		slot = slot * 10 + (name[i] - '0');
+		++i;
+	}
+	if(i >= name.size() || name[i] != '_' || slot < 0 || slot >= MAX_GAMEPADS)
+		return -1;
+	++i;
+
+	std::string inputName = name.substr(i);
+	for(int input = 0; input < GP_INPUT_COUNT; ++input)
+	{
+		if(matchesInputName(inputName, input))
+			return GAMEPAD_KEY_BASE + slot * GP_INPUT_COUNT + input;
+	}
+	return -1;
+}
+
+void appendGamepadBindNames(std::vector<std::string>& names)
+{
+	for(int slot = 0; slot < MAX_GAMEPADS; ++slot)
+	{
+		for(int input = 0; input < GP_INPUT_COUNT; ++input)
+		{
+			names.push_back(gamepadBindName(slot, static_cast<GamepadInput>(input)));
+		}
+	}
+}
 
 constexpr int TRIGGER_THRESHOLD = 1000;
 
@@ -186,6 +261,9 @@ void GamepadHandler::registerInConsole()
 			((std::string(prefix) + "lt").c_str(),    &m_axis[slot][4], 0.0f)
 			((std::string(prefix) + "rt").c_str(),    &m_axis[slot][5], 0.0f);
 	}
+
+	console.registerCommands()
+		("gpinfo", [&](std::list<std::string> const&) { return info(); });
 }
 
 void GamepadHandler::poll()
@@ -241,17 +319,17 @@ void GamepadHandler::poll()
 
 			if(slot >= 0 && m_pad[slot])
 			{
-				m_axis[slot][0] = (float)SDL_GetGamepadAxis(m_pad[slot], SDL_GAMEPAD_AXIS_LEFTX);
+				m_axis[slot][0] = (float)SDL_GetGamepadAxis(m_pad[slot], SDL_GAMEPAD_AXIS_LEFTX) / 32767.0f;
 				m_axis[slot][0] = m_axis[slot][0] < -1.0f ? -1.0f : (m_axis[slot][0] > 1.0f ? 1.0f : m_axis[slot][0]);
-				m_axis[slot][1] = (float)SDL_GetGamepadAxis(m_pad[slot], SDL_GAMEPAD_AXIS_LEFTY);
+				m_axis[slot][1] = (float)SDL_GetGamepadAxis(m_pad[slot], SDL_GAMEPAD_AXIS_LEFTY) / 32767.0f;
 				m_axis[slot][1] = m_axis[slot][1] < -1.0f ? -1.0f : (m_axis[slot][1] > 1.0f ? 1.0f : m_axis[slot][1]);
-				m_axis[slot][2] = (float)SDL_GetGamepadAxis(m_pad[slot], SDL_GAMEPAD_AXIS_RIGHTX);
+				m_axis[slot][2] = (float)SDL_GetGamepadAxis(m_pad[slot], SDL_GAMEPAD_AXIS_RIGHTX) / 32767.0f;
 				m_axis[slot][2] = m_axis[slot][2] < -1.0f ? -1.0f : (m_axis[slot][2] > 1.0f ? 1.0f : m_axis[slot][2]);
-				m_axis[slot][3] = (float)SDL_GetGamepadAxis(m_pad[slot], SDL_GAMEPAD_AXIS_RIGHTY);
+				m_axis[slot][3] = (float)SDL_GetGamepadAxis(m_pad[slot], SDL_GAMEPAD_AXIS_RIGHTY) / 32767.0f;
 				m_axis[slot][3] = m_axis[slot][3] < -1.0f ? -1.0f : (m_axis[slot][3] > 1.0f ? 1.0f : m_axis[slot][3]);
-				m_axis[slot][4] = (float)SDL_GetGamepadAxis(m_pad[slot], SDL_GAMEPAD_AXIS_LEFT_TRIGGER);
+				m_axis[slot][4] = (float)SDL_GetGamepadAxis(m_pad[slot], SDL_GAMEPAD_AXIS_LEFT_TRIGGER) / 32767.0f;
 				m_axis[slot][4] = m_axis[slot][4] < 0.0f ? 0.0f : (m_axis[slot][4] > 1.0f ? 1.0f : m_axis[slot][4]);
-				m_axis[slot][5] = (float)SDL_GetGamepadAxis(m_pad[slot], SDL_GAMEPAD_AXIS_RIGHT_TRIGGER);
+				m_axis[slot][5] = (float)SDL_GetGamepadAxis(m_pad[slot], SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) / 32767.0f;
 				m_axis[slot][5] = m_axis[slot][5] < 0.0f ? 0.0f : (m_axis[slot][5] > 1.0f ? 1.0f : m_axis[slot][5]);
 			}
 		}
@@ -397,32 +475,10 @@ void GamepadHandler::poll()
 				buttonUp(GAMEPAD_KEY_BASE + slot * GP_INPUT_COUNT + GP_RT);
 		}
 
-		bool d_up = false, d_down = false, d_left = false, d_right = false;
-
-		bool dpad_up_btn = SDL_GetGamepadButton(m_pad[slot], SDL_GAMEPAD_BUTTON_DPAD_UP);
-		bool dpad_down_btn = SDL_GetGamepadButton(m_pad[slot], SDL_GAMEPAD_BUTTON_DPAD_DOWN);
-		bool dpad_left_btn = SDL_GetGamepadButton(m_pad[slot], SDL_GAMEPAD_BUTTON_DPAD_LEFT);
-		bool dpad_right_btn = SDL_GetGamepadButton(m_pad[slot], SDL_GAMEPAD_BUTTON_DPAD_RIGHT);
-
-		if(dpad_up_btn || dpad_down_btn)
-		{
-			int up = SDL_GetGamepadAxis(m_pad[slot], SDL_GAMEPAD_AXIS_LEFTY);
-			int down = SDL_GetGamepadAxis(m_pad[slot], SDL_GAMEPAD_AXIS_RIGHTY);
-			int left = SDL_GetGamepadAxis(m_pad[slot], SDL_GAMEPAD_AXIS_LEFTX);
-			int right = SDL_GetGamepadAxis(m_pad[slot], SDL_GAMEPAD_AXIS_RIGHTX);
-
-			d_up = up < -m_deadzone;
-			d_down = down < -m_deadzone;
-			d_left = left < -m_deadzone;
-			d_right = right < -m_deadzone;
-		}
-		else
-		{
-			d_up = dpad_up_btn;
-			d_down = dpad_down_btn;
-			d_left = dpad_left_btn;
-			d_right = dpad_right_btn;
-		}
+		bool d_up = SDL_GetGamepadButton(m_pad[slot], SDL_GAMEPAD_BUTTON_DPAD_UP);
+		bool d_down = SDL_GetGamepadButton(m_pad[slot], SDL_GAMEPAD_BUTTON_DPAD_DOWN);
+		bool d_left = SDL_GetGamepadButton(m_pad[slot], SDL_GAMEPAD_BUTTON_DPAD_LEFT);
+		bool d_right = SDL_GetGamepadButton(m_pad[slot], SDL_GAMEPAD_BUTTON_DPAD_RIGHT);
 
 		if(d_up != m_old[slot][GP_DPAD_UP])
 		{
@@ -460,10 +516,10 @@ void GamepadHandler::poll()
 		float l_x = m_axis[slot][0];
 		float l_y = m_axis[slot][1];
 
-		bool lst_left = l_x < -m_deadzone;
-		bool lst_right = l_x > m_deadzone;
-		bool lst_up = l_y < -m_deadzone;
-		bool lst_down = l_y > m_deadzone;
+		bool lst_left  = l_x * 32767.0f < -m_deadzone;
+		bool lst_right = l_x * 32767.0f >  m_deadzone;
+		bool lst_up    = l_y * 32767.0f < -m_deadzone;
+		bool lst_down  = l_y * 32767.0f >  m_deadzone;
 
 		if(lst_left != m_old[slot][GP_LSTICK_LEFT])
 		{
@@ -501,10 +557,10 @@ void GamepadHandler::poll()
 		float r_x = m_axis[slot][2];
 		float r_y = m_axis[slot][3];
 
-		bool rst_left = r_x < -m_deadzone;
-		bool rst_right = r_x > m_deadzone;
-		bool rst_up = r_y < -m_deadzone;
-		bool rst_down = r_y > m_deadzone;
+		bool rst_left  = r_x * 32767.0f < -m_deadzone;
+		bool rst_right = r_x * 32767.0f >  m_deadzone;
+		bool rst_up    = r_y * 32767.0f < -m_deadzone;
+		bool rst_down  = r_y * 32767.0f >  m_deadzone;
 
 		if(rst_left != m_old[slot][GP_RSTICK_LEFT])
 		{
@@ -542,5 +598,30 @@ void GamepadHandler::poll()
 }
 
 GamepadHandler gamepadHandler;
+
+bool GamepadHandler::isPressed(int slot, GamepadInput input) const
+{
+	if(slot < 0 || slot >= MAX_GAMEPADS)
+		return false;
+	if(input < 0 || input >= GP_INPUT_COUNT)
+		return false;
+	return m_old[slot][input];
+}
+
+bool GamepadHandler::isConnected(int slot) const
+{
+	if(slot < 0 || slot >= MAX_GAMEPADS)
+		return false;
+	return m_pad[slot] != nullptr;
+}
+
+float GamepadHandler::getAxis(int slot, int axis) const
+{
+	if(slot < 0 || slot >= MAX_GAMEPADS)
+		return 0.0f;
+	if(axis < 0 || axis >= 6)
+		return 0.0f;
+	return m_axis[slot][axis];
+}
 
 #endif

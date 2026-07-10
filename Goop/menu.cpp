@@ -13,7 +13,8 @@
 #include "omfggui_windows.h"
 #include "gconsole.h"
 #include "glua.h"
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
+using namespace boost::placeholders;
 #include <iostream>
 #include <list>
 #include <string>

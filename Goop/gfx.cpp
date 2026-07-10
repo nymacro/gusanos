@@ -10,7 +10,6 @@
 #include "sprite_set.h"
 #include "sprite.h"
 #endif
-#include <boost/bind.hpp>
 #include <boost/assign/list_inserter.hpp>
 using namespace boost::assign;
 

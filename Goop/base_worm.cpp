@@ -51,6 +51,7 @@ BaseWorm::BaseWorm()
 , m_animator(0)
 #endif
 , animate(false), movable(false), changing(false)
+, showingWeaponText(false)
 , m_dir(1)
 {
 #ifndef DEDSERV
@@ -110,6 +111,11 @@ void BaseWorm::assignOwner( BasePlayer* owner)
 NinjaRope* BaseWorm::getNinjaRopeObj()
 {
 	return m_ninjaRope;
+}
+
+void BaseWorm::setShowingWeaponText(bool show)
+{
+	showingWeaponText = show;
 }
 
 Weapon* BaseWorm::getCurrentWeapon()
@@ -859,16 +865,15 @@ void BaseWorm::draw(Viewport* viewport)
 						draw(where, renderX+static_cast<int>(distance.x)*m_dir, renderY+static_cast<int>(distance.y));
 			}
 				
-			/*
-			if(changing && m_weapons[currentWeapon])
+			if (showingWeaponText && m_weapons[currentWeapon])
 			{
 				std::string const& weaponName = m_weapons[currentWeapon]->m_type->name;
 				std::pair<int, int> dim = game.infoFont->getDimensions(weaponName);
 				int wx = x - dim.first / 2;
 				int wy = y - dim.second / 2 - 10;
-							
+
 				game.infoFont->draw(where, weaponName, wx, wy);
-			}*/
+			}
 			
 			/*
 			if ( false && m_owner && !dynamic_cast<Player*>(m_owner) )

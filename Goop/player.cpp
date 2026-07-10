@@ -212,6 +212,36 @@ void Player::actionStart ( Actions action )
 		}
 		break;
 		
+		case WEAPON_NEXT:
+		{
+			if ( m_worm )
+			{
+				m_worm->setShowingWeaponText(true);
+				m_worm->changeWeaponTo( m_worm->getWeaponIndexOffset(1) );
+			}
+		}
+		break;
+		
+		case WEAPON_PREV:
+		{
+			if ( m_worm )
+			{
+				m_worm->setShowingWeaponText(true);
+				m_worm->changeWeaponTo( m_worm->getWeaponIndexOffset(-1) );
+			}
+		}
+		break;
+		
+		case NINJAROPE:
+		{
+			if ( m_worm && m_worm->isActive() )
+			{
+				BasePlayer::baseActionStart(BasePlayer::NINJAROPE);
+				m_worm->actionStart(Worm::NINJAROPE);
+			}
+		}
+		break;
+		
 		case ACTION_COUNT: break;
 	}
 }
@@ -285,6 +315,20 @@ void Player::actionStop ( Actions action )
 
 				changing = false;
 			}
+		}
+		break;
+		
+		case NINJAROPE:
+		{
+			// One-shot action, no cleanup needed
+		}
+		break;
+		
+		case WEAPON_NEXT:
+		case WEAPON_PREV:
+		{
+			if ( m_worm )
+				m_worm->setShowingWeaponText(false);
 		}
 		break;
 		

@@ -77,6 +77,10 @@ public:
 
 	void registerInConsole();
 
+	bool isPressed(int slot, GamepadInput input) const;
+	bool isConnected(int slot) const;
+	float getAxis(int slot, int axis) const;
+
 	boost::signals2::signal<bool(int), StopEarly> buttonDown;
 	boost::signals2::signal<bool(int), StopEarly> buttonUp;
 

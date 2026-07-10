@@ -2,6 +2,7 @@
 #ifndef DEDSERV
 #include "keyboard.h"
 #include "keys.h"
+#include "gamepad.h"
 #include "font.h"
 #include "sprite_set.h"
 #include "sprite.h"
@@ -14,7 +15,8 @@
 #include "network.h" //TEMP
 
 #include "allegro_compat.h"
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
+using namespace boost::placeholders;
 #include <boost/lexical_cast.hpp>
 using boost::lexical_cast;
 
@@ -31,19 +33,21 @@ string bindCmd(const list<string> &args)
 	// and made it print out the help text when too
 	// few arguments are passed.
 
-	if (args.size() >= 2) 
+	if (args.size() >= 2)
 	{
 		std::list<string>::const_iterator arguments = args.begin();
-		
+
 		std::string const& keyName = *arguments++;
 		int key = kName2Int(keyName);
+		if(key < 0)
+			key = gamepadName2Int(keyName);
 		TEST_KEY(key, keyName);
 
 		console.bind(key, *arguments++);
-	
+
 		return "";
 	}
-	
+
 	return "BIND <KEY> [COMMAND] : ATTACH A COMMAND TO A KEY";
 }
 
@@ -60,9 +64,12 @@ string bindCompleter(Console* con, int idx, std::string const& beginning)
 {
 	if(idx != 0)
 		return beginning;
-		
+
+	std::vector<std::string> allKeys(keyNames.begin(), keyNames.end());
+	appendGamepadBindNames(allKeys);
+
 	return shellComplete(
-		keyNames,
+		allKeys,
 		beginning.begin(),
 		beginning.end(),
 		IdentityGetText(),
@@ -322,6 +329,10 @@ void GConsole::init()
 	keyHandler.printableChar.connect(0, boost::bind(&GConsole::eventPrintableChar, this, _1, _2));
 	keyHandler.keyDown.connect(0, boost::bind(&GConsole::eventKeyDown, this, _1));
 	keyHandler.keyUp.connect(0, boost::bind(&GConsole::eventKeyUp, this, _1));
+
+	// Wire gamepad button signals into the key handler signal chain
+	gamepadHandler.buttonDown.connect(0, [](int key) { keyHandler.keyDown(key); return false; });
+	gamepadHandler.buttonUp.connect(0, [](int key) { keyHandler.keyUp(key); return false; });
 #endif
 
 	m_mode = CONSOLE_MODE_BINDINGS;

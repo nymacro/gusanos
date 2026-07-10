@@ -59,6 +59,7 @@ using namespace std;
 bool quit = false;
 int showFps;
 int showDebug;
+int showGamepadInputs;
 
 //millisecond timer
 volatile unsigned int timer = 0;
@@ -170,8 +171,9 @@ int main(int argc, char **argv)
 try
 {
 	console.registerVariables()
-		("CL_SHOWFPS", &showFps, 1) 
+		("CL_SHOWFPS", &showFps, 1)
 		("CL_SHOWDEBUG", &showDebug, 0)
+		("CL_SHOWGAMEPADINPUTS", &showGamepadInputs, 0)
 	;
 	
 	game.init(argc, argv);
@@ -441,6 +443,76 @@ try
 
 		OmfgGUI::menu.render();
 		console.render(gfx.buffer);
+
+		// Input debug overlay (bottom-right)
+		if (showGamepadInputs)
+		{
+			int y = gfx.buffer->h - 20;
+			const int margin = 10;
+
+			for (int slot = MAX_GAMEPADS - 1; slot >= 0; --slot)
+			{
+				if (!gamepadHandler.isConnected(slot))
+					continue;
+
+				std::string line = "GP" + cast<string>(slot) + ": ";
+
+				// Trigger values
+				float lt = gamepadHandler.getAxis(slot, 4);
+				float rt = gamepadHandler.getAxis(slot, 5);
+				char buf[64];
+				std::snprintf(buf, sizeof(buf), "LT:%.2f RT:%.2f", lt, rt);
+				line += buf;
+
+				// Face buttons
+				struct BtnDef { GamepadInput gp; const char* name; };
+				static const BtnDef btns[] = {
+					{ GP_A, "A" }, { GP_B, "B" }, { GP_X, "X" }, { GP_Y, "Y" },
+					{ GP_LB, "LB" }, { GP_RB, "RB" },
+					{ GP_START, "START" }, { GP_BACK, "BACK" },
+				};
+				for (const auto& b : btns)
+				{
+					if (gamepadHandler.isPressed(slot, b.gp))
+						line += std::string(" [") + b.name + "]";
+				}
+
+				// D-pad
+				struct DpadDef { GamepadInput gp; const char* sym; };
+				static const DpadDef ddirs[] = {
+					{ GP_DPAD_UP, "^" }, { GP_DPAD_DOWN, "v" },
+					{ GP_DPAD_LEFT, "<" }, { GP_DPAD_RIGHT, ">" },
+				};
+				for (const auto& d : ddirs)
+				{
+					if (gamepadHandler.isPressed(slot, d.gp))
+						line += std::string(" ") + d.sym;
+				}
+
+				// Stick virtual directions
+				static const BtnDef stickDirs[] = {
+					{ GP_LSTICK_LEFT, "L<" }, { GP_LSTICK_RIGHT, "L>" },
+					{ GP_LSTICK_UP, "L^" }, { GP_LSTICK_DOWN, "Lv" },
+					{ GP_RSTICK_LEFT, "R<" }, { GP_RSTICK_RIGHT, "R>" },
+					{ GP_RSTICK_UP, "R^" }, { GP_RSTICK_DOWN, "Rv" },
+				};
+				for (const auto& s : stickDirs)
+				{
+					if (gamepadHandler.isPressed(slot, s.gp))
+						line += std::string(" ") + s.name;
+				}
+
+				// Right-align the line
+				pair<int, int> dim;
+				game.infoFont->fitString(line.begin(), line.end(),
+				                         gfx.buffer->w - margin, dim, 0,
+				                         Font::Formatting);
+				int x = gfx.buffer->w - dim.first - margin;
+				game.infoFont->draw(gfx.buffer, line, x, y, 0, 255, 255, 255, 255,
+				                    Font::Formatting);
+				y -= dim.second;
+			}
+		}
 
 		//show fps (on top of menu)
 		if (showFps)

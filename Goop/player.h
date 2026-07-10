@@ -25,6 +25,9 @@ public:
 		FIRE,
 		JUMP,
 		CHANGE,
+		WEAPON_NEXT,
+		WEAPON_PREV,
+		NINJAROPE,
 		ACTION_COUNT,
 	};
 			

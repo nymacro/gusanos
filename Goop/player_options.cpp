@@ -1,6 +1,7 @@
 #include "player_options.h"
 #include "gconsole.h"
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
+using namespace boost::placeholders;
 #include "util/text.h"
 #include <cmath>
 #include <list>

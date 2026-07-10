@@ -115,6 +115,8 @@ public:
 	
 	NinjaRope* getNinjaRopeObj();
 	
+	void setShowingWeaponText(bool show);
+
 	AngleDiff aimSpeed; // Useless to add setters and getters for this
 	Angle aimAngle;
 	
@@ -193,6 +195,7 @@ protected:
 	bool animate;
 	bool movable; // What do we need this for? // Dunno, did I put this here? :o
 	bool changing; // This shouldnt be in the worm class ( its player stuff >:O )
+	bool showingWeaponText;
 	int m_dir;
 };
 

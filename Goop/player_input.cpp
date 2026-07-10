@@ -9,7 +9,8 @@
 #include "util/text.h"
 #include "util/log.h"
 #include "util/stringbuild.h"
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
+using namespace boost::placeholders;
 
 #include <string>
 #include <list>
@@ -83,7 +84,8 @@ void registerPlayerInput()
 	{
 		static char const* actionNames[] =
 		{
-			"_LEFT", "_RIGHT", "_UP", "_DOWN", "_FIRE", "_JUMP", "_CHANGE"
+			"_LEFT", "_RIGHT", "_UP", "_DOWN", "_FIRE", "_JUMP", "_CHANGE",
+			"_WEAPON_NEXT", "_WEAPON_PREV", "_NINJAROPE"
 		};
 		
 		for(int action = Player::LEFT; action < Player::ACTION_COUNT; ++action)
