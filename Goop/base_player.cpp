@@ -36,15 +36,15 @@ LuaReference BasePlayer::metaTable()
 */
 
 BasePlayer::BasePlayer(boost::shared_ptr<PlayerOptions> options, BaseWorm* worm)
-: m_options(options), stats(new Stats), deleteMe(false)
-, m_worm(0), m_id(0) // TODO: make a invalid_connection_id define thingy
-, m_wormID(INVALID_NODE_ID)
+: stats(new Stats), deleteMe(false)
+, colour(options->colour), team(options->team)
+, local(false), luaData(0)
+, m_worm(0), m_options(options)
+, m_isAuthority(false), m_processingNetworkEvent(false)
+, m_lastMoveQuant()
 , m_node(0), m_interceptor(0)
-	, m_isAuthority(false)
-	, m_processingNetworkEvent(false)
-, colour(options->colour)
-, team(options->team)
-, luaData(0), local(false), deleted(false)
+, m_wormID(INVALID_NODE_ID), m_id(0) // TODO: make a invalid_connection_id define thingy
+, deleted(false)
 {
 	localChangeName(m_options->name);
 	m_options->clearChangeFlags();
@@ -163,7 +163,13 @@ void BasePlayer::think()
 #else
 							BaseActions action = (BaseActions)data->getInt(8);
 #endif
-							if ( ( action == FIRE ) && m_worm)
+							float intensity = 1.0f;
+							if (action == LEFT || action == RIGHT)
+							{
+								int q = data->getInt(8);
+								intensity = q / 255.0f;
+							}
+							else if ( ( action == FIRE ) && m_worm)
 							{
 								m_worm->aimAngle = Angle((int)data->getInt(Angle::prec));
 								if(m_worm->aimAngle > Angle(180.0))
@@ -180,7 +186,7 @@ void BasePlayer::think()
 							
 							std::cout << "[DEBUG] BasePlayer::think dispatching action=" << (int)action << " (event=" << (int)event << ")" << std::endl;
 							m_processingNetworkEvent = true;
-							baseActionStart(action);
+							baseActionStart(action, intensity);
 							m_processingNetworkEvent = false;
 						}
 						break;
@@ -191,8 +197,14 @@ void BasePlayer::think()
 #else
 							BaseActions action = (BaseActions)data->getInt(8);
 #endif
+							float intensity = 0.0f;
+							if (action == LEFT || action == RIGHT)
+							{
+								int q = data->getInt(8);
+								intensity = q / 255.0f;
+							}
 							m_processingNetworkEvent = true;
-							baseActionStop(action);
+							baseActionStop(action, intensity);
 							m_processingNetworkEvent = false;
 						}
 						break;
@@ -348,7 +360,7 @@ void BasePlayer::sendLuaEvent(LuaEventDef* event, eZCom_SendMode mode, zU8 rules
 		m_node->sendEventDirect(mode, data, connID);
 }
 
-void BasePlayer::addActionStart(ZCom_BitStream* data, BasePlayer::BaseActions action)
+void BasePlayer::addActionStart(ZCom_BitStream* data, BasePlayer::BaseActions action, float intensity)
 {
 	addEvent(data, BasePlayer::ACTION_START);
 #ifdef COMPACT_ACTIONS
@@ -356,9 +368,15 @@ void BasePlayer::addActionStart(ZCom_BitStream* data, BasePlayer::BaseActions ac
 #else
 	data->addInt(static_cast<int>(action),8 );
 #endif
+	if (action == LEFT || action == RIGHT)
+	{
+		int q = static_cast<int>(intensity * 255.0f);
+		if (q < 0) q = 0; else if (q > 255) q = 255;
+		data->addInt(q, 8);
+	}
 }
 
-void BasePlayer::addActionStop(ZCom_BitStream* data, BasePlayer::BaseActions action)
+void BasePlayer::addActionStop(ZCom_BitStream* data, BasePlayer::BaseActions action, float intensity)
 {
 	addEvent(data, BasePlayer::ACTION_STOP);
 #ifdef COMPACT_ACTIONS
@@ -366,6 +384,12 @@ void BasePlayer::addActionStop(ZCom_BitStream* data, BasePlayer::BaseActions act
 #else
 	data->addInt(static_cast<int>(action),8 );
 #endif
+	if (action == LEFT || action == RIGHT)
+	{
+		int q = static_cast<int>(intensity * 255.0f);
+		if (q < 0) q = 0; else if (q > 255) q = 255;
+		data->addInt(q, 8);
+	}
 }
 
 bool nameIsTaken( const std::string& name )
@@ -663,7 +687,7 @@ bool BasePlayerInterceptor::inPreUpdateItem (ZCom_Node *_node, ZCom_ConnID _from
 
 
 
-void BasePlayer::baseActionStart ( BaseActions action )
+void BasePlayer::baseActionStart ( BaseActions action, float intensity )
 {
 	ZCom_Node* savedNode = m_node;
 	if (m_processingNetworkEvent) m_node = nullptr;
@@ -673,13 +697,21 @@ void BasePlayer::baseActionStart ( BaseActions action )
 		{
 			if ( m_worm )
 			{
-				m_worm -> actionStart(Worm::MOVELEFT);
+				m_worm -> actionStart(Worm::MOVELEFT, intensity);
 			}
 			if ( m_node )
 			{
-				ZCom_BitStream *data = new ZCom_BitStream;
-				addActionStart(data, LEFT);
-				m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH, data);
+				int q = static_cast<int>(intensity * 255.0f);
+				if (q < 0) q = 0; else if (q > 255) q = 255;
+				// Throttle: only send when the quantized intensity changes
+				// meaningfully or crosses zero (release).
+				if (q != m_lastMoveQuant[0] && (q == 0 || std::abs(q - m_lastMoveQuant[0]) > 1))
+				{
+					m_lastMoveQuant[0] = q;
+					ZCom_BitStream *data = new ZCom_BitStream;
+					addActionStart(data, LEFT, intensity);
+					m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH, data);
+				}
 			}
 		}
 		break;
@@ -688,13 +720,19 @@ void BasePlayer::baseActionStart ( BaseActions action )
 		{
 			if ( m_worm )
 			{
-				m_worm -> actionStart(Worm::MOVERIGHT);
+				m_worm -> actionStart(Worm::MOVERIGHT, intensity);
 			}
 			if ( m_node )
 			{
-				ZCom_BitStream *data = new ZCom_BitStream;
-				addActionStart(data, RIGHT);
-				m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH, data);
+				int q = static_cast<int>(intensity * 255.0f);
+				if (q < 0) q = 0; else if (q > 255) q = 255;
+				if (q != m_lastMoveQuant[1] && (q == 0 || std::abs(q - m_lastMoveQuant[1]) > 1))
+				{
+					m_lastMoveQuant[1] = q;
+					ZCom_BitStream *data = new ZCom_BitStream;
+					addActionStart(data, RIGHT, intensity);
+					m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH, data);
+				}
 			}
 		}
 		break;
@@ -783,7 +821,7 @@ void BasePlayer::baseActionStart ( BaseActions action )
 
 
 
-void BasePlayer::baseActionStop ( BaseActions action )
+void BasePlayer::baseActionStop ( BaseActions action, float intensity )
 {
 	ZCom_Node* savedNode = m_node;
 	if (m_processingNetworkEvent) m_node = nullptr;
@@ -793,13 +831,19 @@ void BasePlayer::baseActionStop ( BaseActions action )
 		{
 			if ( m_worm )
 			{
-				m_worm -> actionStop(Worm::MOVELEFT);
+				m_worm -> actionStop(Worm::MOVELEFT, intensity);
 			}
 			if ( m_node )
 			{
-				ZCom_BitStream *data = new ZCom_BitStream;
-				addActionStop(data, LEFT);
-				m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH, data);
+				int q = static_cast<int>(intensity * 255.0f);
+				if (q < 0) q = 0; else if (q > 255) q = 255;
+				if (q != m_lastMoveQuant[0])
+				{
+					m_lastMoveQuant[0] = q;
+					ZCom_BitStream *data = new ZCom_BitStream;
+					addActionStop(data, LEFT, intensity);
+					m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH, data);
+				}
 			}
 		}
 		break;
@@ -808,13 +852,19 @@ void BasePlayer::baseActionStop ( BaseActions action )
 		{
 			if ( m_worm )
 			{
-				m_worm -> actionStop(Worm::MOVERIGHT);
+				m_worm -> actionStop(Worm::MOVERIGHT, intensity);
 			}
 			if ( m_node )
 			{
-				ZCom_BitStream *data = new ZCom_BitStream;
-				addActionStop(data, RIGHT);
-				m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH, data);
+				int q = static_cast<int>(intensity * 255.0f);
+				if (q < 0) q = 0; else if (q > 255) q = 255;
+				if (q != m_lastMoveQuant[1])
+				{
+					m_lastMoveQuant[1] = q;
+					ZCom_BitStream *data = new ZCom_BitStream;
+					addActionStop(data, RIGHT, intensity);
+					m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH, data);
+				}
 			}
 		}
 		break;

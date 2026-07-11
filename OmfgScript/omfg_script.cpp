@@ -1,5 +1,4 @@
 #include "omfg_script.h"
-#include "util/macros.h"
 #include <map>
 #include <vector>
 #include <string>
@@ -52,16 +51,17 @@ struct Parameters
 	};
 	
 	Parameters(ParamDef* def, Location loc_)
-	: paramDef(def), params(def->params.size(), 0)
-	, cur(0), loc(loc_), flags(0)
+	: cur(0), flags(0)
+	, paramDef(def), params(def->params.size(), 0)
+	, loc(loc_)
 	{
 	}
 	
 	~Parameters()
 	{
-		foreach(i, params)
+		for (auto i : params)
 		{
-			delete *i;
+			delete i;
 		}
 	}
 	
@@ -91,7 +91,7 @@ struct Parameters
 				}
 			}
 			
-			if(minParam >= 0 && minDist <= (name.size() + 1) / 2)
+			if(minParam >= 0 && minDist <= static_cast<int>((name.size() + 1) / 2))
 				error("Unknown parameter '" + name + "'. Did you mean '" + paramDef->params[minParam].name + "'?", loc_);
 			else
 				error("Unknown parameter '" + name + "'", loc_);
@@ -116,7 +116,7 @@ struct Parameters
 			error("Positional parameters not allowed after named parameters", loc_);
 			return;
 		}
-		if(cur >= params.size() && !(flags & MaxReachParam))
+		if(cur >= static_cast<int>(params.size()) && !(flags & MaxReachParam))
 		{
 			flags |= MaxReachParam;
 			error(S_("Too many parameters. Maximum allowed is ") << params.size() << '.', loc_);
@@ -143,9 +143,9 @@ struct Parameters
 	
 	void calcCRC(boost::crc_32_type& crc)
 	{
-		foreach(i, params)
+		for (auto i : params)
 		{
-			(*i)->calcCRC(crc);
+			i->calcCRC(crc);
 		}
 	}
 	
@@ -211,7 +211,7 @@ int TokenBase::toColor(int r, int g, int b)
 		std::list<TokenBase*> const& l = toList();
 		if(l.size() != 3)
 			loc.print("Expected three components in colour");
-		let_(i, l.begin());
+		auto i = l.begin();
 		r = (*i)->toInt(); ++i;
 		g = (*i)->toInt(); ++i;
 		b = (*i)->toInt(); ++i;
@@ -240,13 +240,13 @@ struct List : public TokenBase
 	{
 		s << "[";
 		bool first = true;
-		foreach(i, elements)
+		for (auto i : elements)
 		{
 			if(!first)
 				s << ", ";
 			else
 				first = false;
-			(*i)->output(s);
+			i->output(s);
 		}
 		s << "]";
 		return s;
@@ -258,16 +258,16 @@ struct List : public TokenBase
 	virtual void calcCRC(boost::crc_32_type& crc)
 	{
 		crc(0xE);
-		foreach(i, elements)
+		for (auto i : elements)
 		{
-			(*i)->calcCRC(crc);
+			i->calcCRC(crc);
 		}
 	}
 	
 	~List()
 	{
-		foreach(i, elements)
-			delete *i;
+		for (auto i : elements)
+			delete i;
 	}
 	
 	std::list<TokenBase *> elements;
@@ -280,8 +280,8 @@ Function::Function(Location loc_, std::string const& name_)
 
 Function::~Function()
 {
-	foreach(i, params)
-		delete *i;
+	for (auto i : params)
+		delete i;
 }
 
 TokenBase* Function::operator[](size_t i) const
@@ -297,9 +297,9 @@ TokenBase* Function::operator[](size_t i) const
 void Function::calcCRC(boost::crc_32_type& crc)
 {
 	crc.process_bytes(name.data(), name.size());
-	foreach(i, params)
+	for (auto i : params)
 	{
-		(*i)->calcCRC(crc);
+		i->calcCRC(crc);
 	}
 }
 
@@ -473,8 +473,8 @@ struct ActionFactoryImpl
 {
 	~ActionFactoryImpl()
 	{
-		foreach(i, actionDefs)
-			delete i->second;
+		for (auto i : actionDefs)
+			delete i.second;
 	}
 	
 	std::map<std::string, ActionDef*> actionDefs;
@@ -510,7 +510,7 @@ ParamProxy ActionFactory::add(std::string const& name, ActionFactory::CreateFunc
 
 ActionDef* ActionFactory::operator[](std::string const& name)
 {
-	let_(i, pimpl->actionDefs.find(name));
+	auto i = pimpl->actionDefs.find(name);
 	if(i == pimpl->actionDefs.end())
 		return 0;
 	return i->second;
@@ -540,7 +540,7 @@ struct ParserImpl : public TGrammar<ParserImpl>
 	struct Property
 	{
 		Property(Location loc_, TokenBase* value_)
-		: loc(loc_), value(value_), touched(false)
+		: loc(loc_), touched(false), value(value_)
 		{
 		}
 		
@@ -555,7 +555,7 @@ struct ParserImpl : public TGrammar<ParserImpl>
 	};
 	
 	ParserImpl(std::istream& str_, ActionFactory& actionFactory_, std::string const& fileName_)
-	: str(str_), actionFactory(actionFactory_), fileName(fileName_)
+	: str(str_), fileName(fileName_), actionFactory(actionFactory_)
 	{
 		this->next();
 	}
@@ -564,19 +564,19 @@ struct ParserImpl : public TGrammar<ParserImpl>
 	{
 		if(!error) // Don't bother doing this if there were errors
 		{
-			foreach(i, properties)
+			for (auto i : properties)
 			{
-				if(!i->second->touched)
-					semanticWarning("Property '" + i->first + "' defined but not used", i->second->loc);
+				if(!i.second->touched)
+					semanticWarning("Property '" + i.first + "' defined but not used", i.second->loc);
 			}
 		}
 		
-		foreach(i, properties)
-			delete i->second;
-		foreach(i, eventDef)
-			delete i->second;
-		foreach(i, events)
-			delete *i;
+		for (auto i : properties)
+			delete i.second;
+		for (auto i : eventDef)
+			delete i.second;
+		for (auto i : events)
+			delete i;
 	}
 	
 	size_t read(char* p, size_t s)
@@ -604,7 +604,7 @@ struct ParserImpl : public TGrammar<ParserImpl>
 	
 	TokenBase* getRawProperty(std::string const& name)
 	{
-		let_(i, properties.find(name));
+		auto i = properties.find(name);
 		if(i != properties.end())
 		{
 			i->second->touched = true;
@@ -616,7 +616,7 @@ struct ParserImpl : public TGrammar<ParserImpl>
 	EventDef* getEventDef(std::string const& name)
 	{
 		crc.process_bytes(name.data(), name.size());
-		let_(i, eventDef.find(name));
+		auto i = eventDef.find(name);
 		if(i != eventDef.end())
 		{
 			return i->second;
@@ -624,17 +624,17 @@ struct ParserImpl : public TGrammar<ParserImpl>
 		
 		int minDist = 1000000;
 		std::string minEvent;
-		foreach(i, eventDef)
+		for (auto i : eventDef)
 		{
-			int dist = levenshteinDistance(name, i->first);
+			int dist = levenshteinDistance(name, i.first);
 			if(dist < minDist)
 			{
 				minDist = dist;
-				minEvent = i->first;
+				minEvent = i.first;
 			}
 		}
 		
-		if(!minEvent.empty() && minDist <= name.size() / 2)
+		if(!minEvent.empty() && minDist <= static_cast<int>(name.size() / 2))
 			semanticError("Unknown event '" + name + "'. Did you mean '" + minEvent + "'?");
 		else
 			semanticError("Unknown event '" + name + "'");
@@ -644,7 +644,7 @@ struct ParserImpl : public TGrammar<ParserImpl>
 	ActionDef* getAction(std::string const& name)
 	{
 		crc.process_bytes(name.data(), name.size());
-		let_(i, actionFactory[name]);
+		auto i = actionFactory[name];
 		if(i)
 		{
 			return i;
@@ -653,17 +653,17 @@ struct ParserImpl : public TGrammar<ParserImpl>
 		
 		int minDist = 1000000;
 		std::string minAction;
-		foreach(i, actionFactory.pimpl->actionDefs)
+		for (auto i : actionFactory.pimpl->actionDefs)
 		{
-			int dist = levenshteinDistance(name, i->first);
+			int dist = levenshteinDistance(name, i.first);
 			if(dist < minDist)
 			{
 				minDist = dist;
-				minAction = i->first;
+				minAction = i.first;
 			}
 		}
 		
-		if(!minAction.empty() && minDist <= name.size() / 2)
+		if(!minAction.empty() && minDist <= (int)name.size() / 2)
 			semanticError("Unknown action '" + name + "'. Did you mean '" + minAction + "'?");
 		else
 			semanticError("Unknown action '" + name + "'");

@@ -18,7 +18,6 @@
 #include "lua/bindings-objects.h"
 #include "detect_event.h"
 #include "noise_line.h"
-#include "util/macros.h"
 #include "util/vec.h"
 #include "util/angle.h"
 #include "util/log.h"
@@ -123,8 +122,8 @@ Particle::Particle(PartType *type, Vec pos_, Vec spd_, int dir, BasePlayer* owne
 : BaseObject(owner, pos_, spd_), /*m_dir(dir), */m_type(type)
 , m_health(type->health), m_angle(angle), m_angleSpeed(0)
 #ifndef DEDSERV
-, m_alpha(m_type->alpha), m_fadeSpeed(0), m_animator(0)
-, m_alphaDest(255), m_sprite(m_type->sprite)
+, m_fadeSpeed(0), m_alpha(m_type->alpha), m_alphaDest(255), m_sprite(m_type->sprite)
+, m_animator(0)
 #endif
 , m_origin(pos_)
 , m_node(0), interceptor(0)
@@ -152,10 +151,9 @@ Particle::Particle(PartType *type, Vec pos_, Vec spd_, int dir, BasePlayer* owne
 			return;
 	}
 	
-	//for ( vector< TimerEvent* >::iterator i = m_type->timer.begin(); i != m_type->timer.end(); i++)
-	foreach(i, m_type->timer)
+	for (auto t : m_type->timer)
 	{
-		timer.push_back( (*i)->createState() );
+		timer.push_back(t->createState());
 	}
 	
 	
@@ -394,18 +392,18 @@ void Particle::think()
 		}
 
 		//for ( vector< DetectEvent* >::iterator t = m_type->detectRanges.begin(); t != m_type->detectRanges.end(); ++t )
-		foreach(t, m_type->detectRanges)
+		for (auto t : m_type->detectRanges)
 		{
-			(*t)->check(this);
+			t->check(this);
 		}
 		if ( deleteMe ) break;
 		
 		//for ( vector< TimerEvent::State* >::iterator t = timer.begin(); t != timer.end(); t++)
-		foreach(t, timer)
+		for (auto& t : timer)
 		{
-			if ( t->tick() )
+			if ( t.tick() )
 			{
-				t->event->run(this);
+				t.event->run(this);
 			}
 			if ( deleteMe ) break;
 		}
@@ -468,9 +466,11 @@ void Particle::customEvent( size_t index )
 	}
 }
 
-void Particle::damage( float amount, BasePlayer* damager )
+void Particle::damage( float amount, BasePlayer* damager, DamageCause const& cause )
 {
 	m_health -= amount;
+	(void)damager;
+	(void)cause;
 }
 
 void Particle::remove()

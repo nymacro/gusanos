@@ -18,7 +18,7 @@ public:
 	struct Item
 	{
 		Item(ValueT const& value_, int lifetime_)
-		: value(value_), lifetime(lifetime_)
+		: lifetime(lifetime_), value(value_)
 		{
 			
 		}

@@ -196,18 +196,18 @@ void Wnd::applyGSSreally(Context::GSSselectors const& style)
 {
 	std::multimap<int, Context::GSSpropertyMap const*> clauses;
 	
-	foreach(i, style)
+	for (auto const& i : style)
 	{
-		if(int level = i->matchesWindow(this))
+		if(int level = i.matchesWindow(this))
 		{
-			clauses.insert(std::make_pair(level, &i->props));
+			clauses.insert(std::make_pair(level, &i.props));
 		}
 	}
 	
 	// Activate from lowest specifity
-	foreach(i, clauses)
+	for (auto const& i : clauses)
 	{
-		applyFormatting(*(i->second));
+		applyFormatting(*(i.second));
 	}
 }
 

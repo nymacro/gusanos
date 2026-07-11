@@ -151,8 +151,8 @@ console.registerVariables()
 ## Build Verification
 
 ```bash
-# Full debug build (never build parallel)
-scons build=debug -j4
+# Full debug build (10 min timeout)
+scons build=debug -j1
 
 # Clean
 scons -c

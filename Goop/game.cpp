@@ -19,7 +19,6 @@
 #include "proxy_player.h"
 #include "gfx.h"
 #include "sprite_set.h"
-#include "util/macros.h"
 #include "util/log.h"
 #ifndef DEDSERV
 #include "sfx.h"
@@ -29,8 +28,9 @@
 #include "menu.h"
 #include "keyboard.h"
 #include "mouse.h"
-#include "player_input.h"
+#include "gamepad.h"
 #include "viewport.h"
+#include "player_input.h"
 #endif //DEDSERV
 #include "player_ai.h"
 #include "net_worm.h"
@@ -97,9 +97,9 @@ namespace
 	boost::uint32_t getWeaponCRC()
 	{
 		boost::uint32_t v = 0;
-		foreach(i, game.weaponList)
+		for (auto i : game.weaponList)
 		{
-			v ^= (*i)->crc;
+			v ^= i->crc;
 			++v;
 		}
 		
@@ -245,11 +245,11 @@ BasePlayer* findPlayerByName(std::string const& name)
 {
 	//BasePlayer* player2Kick = 0;
 	//for ( std::list<BasePlayer*>::iterator iter = game.players.begin(); iter != game.players.end(); iter++)
-	foreach(iter, game.players)
+	for (auto iter : game.players)
 	{
-		if ( (*iter)->m_name == name )
+		if ( iter->m_name == name )
 		{
-			return *iter;
+			return iter;
 		}
 	}
 	
@@ -460,9 +460,10 @@ void Game::init(int argc, char** argv)
 	gfx.init();
 #ifndef DEDSERV
 	sfx.init();
-
 	keyHandler.init();
 	mouseHandler.init();
+	gamepadHandler.init();
+	gamepadHandler.registerInConsole();
 #endif
 
 	network.init();
@@ -491,6 +492,8 @@ void Game::sendLuaEvent(LuaEventDef* event, eZCom_SendMode mode, zU8 rules, ZCom
 
 void Game::think()
 {
+	++m_tick;
+	
 	mq_process_messages(msg)
 		mq_case(ChangeLevel)
 			
@@ -1059,11 +1062,15 @@ void Game::assignNetworkRole( bool authority )
 	{
 		m_node->setEventNotification(true, false); // Enables the eEvent_Init.
 		if( !m_node->registerNodeUnique(classID, eZCom_RoleAuthority, network.getZControl() ) )
+		{
 			ELOG("Unable to register game authority node.");
+		}
 	}else
 	{
 		if( !m_node->registerNodeUnique( classID, eZCom_RoleProxy, network.getZControl() ) )
+		{
 			ELOG("Unable to register game requested node.");
+		}
 	}
 
 	m_node->applyForZoidLevel(1);
@@ -1111,15 +1118,16 @@ void Game::displayChatMsg( std::string const& owner, std::string const& message)
 #endif
 }
 
-void Game::displayKillMsg( BasePlayer* killed, BasePlayer* killer )
+void Game::displayKillMsg( BasePlayer* killed, BasePlayer* killer, std::string const& weaponName, std::string const& killerNameFallback )
 {
 	std::string str = "{" + killed->m_name + "} ";
 	
 	if(killed != killer)
 	{
 		str += "got killed by";
-		if(killer)
-			str += " {" + killer->m_name + '}';
+		std::string killerName = killer ? killer->m_name : killerNameFallback;
+		if(!killerName.empty())
+			str += " {" + killerName + '}';
 		else
 			str += " {\01305anonymous}";
 	}
@@ -1127,6 +1135,8 @@ void Game::displayKillMsg( BasePlayer* killed, BasePlayer* killer )
 	{
 		str += "commited suicide";
 	}
+	
+	if (!weaponName.empty()) str += " with {" + weaponName + '}';
 	
 	if ( options.showDeathMessages ) displayMessage(ScreenMessage(ScreenMessage::Death, str, 400));
 	if ( options.logDeathMessages ) console.addLogMsg(str);

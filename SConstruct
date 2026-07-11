@@ -97,7 +97,7 @@ if os.path.exists(brew_prefix):
 env.Append(
     CPPPATH=Split('. #http #luaapi #Console #GUI #Utility #OmfgScript #Goop #Net'),
     LIBPATH=[os.path.join('#lib', env['MY_SUBFOLDER']), os.path.join('#lib', env['MY_CONF'])],
-    CCFLAGS=Split('-pipe -fno-diagnostics-show-caret -fno-diagnostics-show-option -Wfatal-errors -Wall -Wno-reorder -Wno-register'),
+    CCFLAGS=Split('-pipe -fno-diagnostics-show-caret -fno-diagnostics-show-option -Wfatal-errors -Wall -Wno-unused -Wno-register -Wno-implicit-fallthrough'),
     CXXFLAGS=Split('-std=c++17'),
     CPPDEFINES=['_GNU_SOURCE', 'BOOST_TIMER_ENABLE_DEPRECATED']
 )
@@ -124,7 +124,9 @@ for lib in libs:
         print(f"Warning: Could not find {lib} via pkg-config. Error: {e}")
 
 # Boost Detection
-boost_libs = ['boost_filesystem', 'boost_system']
+# In Boost 1.70+ boost_system was merged into boost_filesystem, so only
+# link it separately for older versions.
+boost_libs = ['boost_filesystem']
 for blib in boost_libs:
     if not env.GetOption('clean'):
         # LIBPATH is already set via pkg-config and Homebrew paths above.
@@ -134,7 +136,11 @@ for blib in boost_libs:
         orig_libpath = list(env.get('LIBPATH', []))
         env.Append(LIBPATH=['/usr/lib/x86_64-linux-gnu', os.path.join(brew_prefix, 'lib')])
         if conf.CheckLib(blib, language='C++'):
+            # Force shared linking to avoid mixed-ABI issues with Boost 1.70+
+            # where v4 path algorithms are in the shared library only.
             env.Append(LINKLIBS=blib)
+            # Ensure dynamic linking for boost (shared lib takes precedence)
+            env.AppendUnique(LINKFLAGS=['-Wl,-Bdynamic'])
         else:
             print(f"Warning: Could not find boost library {blib}")
         env = conf.Finish()
@@ -157,7 +163,7 @@ def parserGenEmitter(target, source, env):
 def parserBuilderFunc(target, source, env):
     subprocess.run([parserGen[0].abspath, str(source[0]), str(target[0]) + '.re'], check=True)
     with open(str(target[0]), 'w') as out:
-        subprocess.run(['re2c', str(target[0]) + '.re'], stdout=out, check=True)
+        subprocess.run(['re2c', '-Wno-useless-escape', '-Wno-unreachable-rules', str(target[0]) + '.re'], stdout=out, check=True)
     return None
     
 parserBuilder = Builder(action=parserBuilderFunc,

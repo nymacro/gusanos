@@ -12,6 +12,12 @@ class Viewport;
 
 class BasePlayer;
 
+struct DamageCause
+{
+	int          weaponIndex = -1;  // firing WeaponType index; -1 = unattributed
+	unsigned int shooterID  = 0;    // firing player's uniqueID; 0 = none
+};
+
 class BaseObject : public LuaObject
 {
 public:
@@ -72,8 +78,15 @@ public:
 	{}
 	
 	// Effects amount damage to the object and sets the last damager to the passed BasePlayer pointer
-	virtual void damage(float amount, BasePlayer* damager )
+	virtual void damage(float amount, BasePlayer* damager, DamageCause const& cause )
 	{}
+
+	// Gets the WeaponType index of the object that caused this object (-1 if none)
+	int          getWeaponIndex() const { return m_weaponIndex; }
+	// Gets the uniqueID of the player that caused this object (0 if none)
+	unsigned int getShooterID()   const { return m_shooterID; }
+	// Sets the weapon index and shooter ID for attribution tracking
+	void         setCause(int widx, unsigned int sid) { m_weaponIndex = widx; m_shooterID = sid; }
 	
 	// Adds the speed vector to the current speed
 	virtual void addSpeed( Vec spd_ )
@@ -98,6 +111,10 @@ public:
 protected:
 	//LuaReference luaReference; //Defined in LuaObject
 	BasePlayer* m_owner;
+
+	int          m_weaponIndex = -1;  // firing WeaponType index; -1 = unattributed
+	unsigned int m_shooterID  = 0;    // firing player's uniqueID; 0 = none
+
 public:
 	// If this is true the object will be removed from the objects list in the next frame
 	bool deleteMe;

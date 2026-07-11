@@ -4,7 +4,6 @@
 #include "special_command.h"
 #include "alias.h"
 #include "util/text.h"
-#include "util/macros.h"
 #include "consoleitem.h"
 
 #include "console-grammar.h"
@@ -14,7 +13,7 @@
 #include <string>
 #include <stack>
 #include <cctype>
-
+#include <iterator>
 #include <sstream>
 #include <iostream>
 #include <algorithm>
@@ -50,7 +49,7 @@ Console::~Console()
 		tempvar++;
 	}*/
 	
-	foreach(i, items)
+	for (auto i = items.begin(), end = items.end(); i != end; ++i)
 	{
 		delete i->second;
 	}
@@ -136,13 +135,15 @@ void Console::clearTemporaries()
 {
 	//std::remove_if(items.begin(), items.end(), IsTemporary());
 
-	foreach_delete(i, items)
-	{	
-		if(i->second->temp)
+	for (auto it = items.begin(); it != items.end(); )
+	{
+		auto next = std::next(it);
+		if(it->second->temp)
 		{
-			delete i->second;
-			items.erase(i);
+			delete it->second;
+			items.erase(it);
 		}
+		it = next;
 	}
 }
 
@@ -179,14 +180,26 @@ struct TestHandler : public ConsoleGrammarBase
 
 void Console::parseLine(const string &text, bool parseRelease)
 {
-	std::istringstream ss(text);
+	// Strip comments: '#' starts a comment (respects quoted strings).
+	// Lines that become empty after stripping are silently ignored.
+	string line = stripComment(text);
+	// Trim trailing whitespace
+	size_t end = line.find_last_not_of(" \t\r\n");
+	if (end != string::npos)
+		line = line.substr(0, end + 1);
+	else
+		line = "";
+	if(line.empty())
+		return;
+
+	std::istringstream ss(line);
 	ConsoleGrammar<TestHandler> handler((TestHandler(ss, *this, parseRelease)));
 
 	try
 	{
 		addLogMsg(handler.block());
 	}
-	catch(SyntaxError error)
+	catch(SyntaxError const& error)
 	{
 		addLogMsg(text);
 		std::streamoff pos = handler.str.tellg();
@@ -200,6 +213,50 @@ void Console::parseLine(const string &text, bool parseRelease)
 			addLogMsg(error.what() + string(" at end of input"));
 		}
 	}
+}
+
+//============================= PRIVATE ======================================
+
+// Strip a '#' comment from a line, respecting quoted strings.
+// Characters inside double-quoted strings are not treated as comments.
+// Leading whitespace before '#' is also stripped (full-line comments).
+// Escaped characters (preceded by '\') are skipped so that \' doesn't
+// toggle the quote state.
+string Console::stripComment(string const& text)
+{
+	bool inQuotes = false;
+	size_t firstNonSpace = 0;
+	for(size_t i = 0; i < text.size(); ++i)
+	{
+		char c = text[i];
+		if(!inQuotes && c == '#')
+		{
+			// Check if this is a full-line comment (only whitespace before #)
+			if(firstNonSpace == 0 || firstNonSpace > i)
+			{
+				// Full-line comment: strip entire line
+				return "";
+			}
+			// Inline comment: strip from # onwards
+			return text.substr(0, i);
+		}
+		if(c == '\\')
+		{
+			++i; // skip the escaped character
+			continue;
+		}
+		if(c == '"')
+		{
+			inQuotes = !inQuotes;
+			continue;
+		}
+		if(c != ' ' && c != '\t' && c != '\n' && c != '\r')
+		{
+			if(firstNonSpace == 0)
+				firstNonSpace = i;
+		}
+	}
+	return text;
 }
 
 std::string Console::invoke(string const& name, list<string> const& args, bool parseRelease)
@@ -314,8 +371,9 @@ struct CompletionHandler : public ConsoleGrammarBase
 		}
 		
 		State(string::const_iterator b_)
-		: argumentIdx(0), commandComplete(false), argumentComplete(false)
-		, beginCommand(b_), beginArgument(b_)
+		: commandComplete(false), argumentComplete(false)
+		, beginArgument(b_), beginCommand(b_)
+		, argumentIdx(0)
 		{
 		}
 		
@@ -333,8 +391,8 @@ struct CompletionHandler : public ConsoleGrammarBase
 		string::const_iterator e_,
 		Console& console_
 	)
-	: b(b_), e(e_), console(console_), current(b_), endPrefix(b_)
-	, beginPrefix(b_)
+	: beginPrefix(b_), b(b_), e(e_), endPrefix(b_)
+	, current(b_), console(console_)
 	{
 		c = (unsigned char)*b;
 	}
@@ -471,7 +529,7 @@ string Console::autoComplete(string const& text)
 				return handler.prefix() + completeCommand(result.command);
 			}
 		}
-		catch(SyntaxError error)
+		catch(SyntaxError const& error)
 		{
 			return text;
 		}

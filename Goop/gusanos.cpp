@@ -8,10 +8,12 @@
 #include "game.h"
 #include "updater.h"
 #include "part_type.h"
+#ifndef DEDSERV
+#include "gamepad.h"
+#endif
 #include "particle.h"
 #include "worm.h"
 #include "player.h"
-#include "util/macros.h"
 //#include "util/log.h"
 #ifndef DEDSERV
 #include "mouse.h"
@@ -57,6 +59,7 @@ using namespace std;
 bool quit = false;
 int showFps;
 int showDebug;
+int showGamepadInputs;
 
 //millisecond timer
 volatile unsigned int timer = 0;
@@ -168,8 +171,9 @@ int main(int argc, char **argv)
 try
 {
 	console.registerVariables()
-		("CL_SHOWFPS", &showFps, 1) 
+		("CL_SHOWFPS", &showFps, 1)
 		("CL_SHOWDEBUG", &showDebug, 0)
+		("CL_SHOWGAMEPADINPUTS", &showGamepadInputs, 0)
 	;
 	
 	game.init(argc, argv);
@@ -261,48 +265,54 @@ try
 			sfx.think(); // WARNING: THIS �MUST! BE PLACED BEFORE THE OBJECT DELETE LOOP
 #endif
 			
-			//for ( list<BasePlayer*>::iterator iter = game.players.begin(); iter != game.players.end();)
-			foreach_delete(iter, game.players)
+			for (auto it = game.players.begin(); it != game.players.end(); )
 			{
-				if ( (*iter)->deleteMe )
+				BasePlayer* iter = *it;
+				if ( iter->deleteMe )
 				{
 /* Done in deleteThis()
 #ifdef USE_GRID
 					for (Grid::iterator objIter = game.objects.beginAll(); objIter; ++objIter)
 					{
-						objIter->removeRefsToPlayer(*iter);
+						objIter->removeRefsToPlayer(iter);
 					}
 #else
 					for ( ObjectsList::Iterator objIter = game.objects.begin(); (bool)objIter; ++objIter)
 					{
-						(*objIter)->removeRefsToPlayer(*iter);
+						(*objIter)->removeRefsToPlayer(iter);
 					}
 #endif
 */
-					if ( Player* player = dynamic_cast<Player*>(*iter) )
+					if ( Player* player = dynamic_cast<Player*>(iter) )
 					{
-						foreach ( p, game.localPlayers )
+						for (auto lit = game.localPlayers.begin(); lit != game.localPlayers.end(); ++lit)
 						{
-							if ( player == *p )
+							if ( player == *lit )
 							{
-								game.localPlayers.erase(p);
+								game.localPlayers.erase(lit);
 								break;
 							}
 						}
 					}
 /*
-					(*iter)->removeWorm();
+					iter->removeWorm();
 */
-					(*iter)->deleteThis();
-					game.players.erase(iter);
+					iter->deleteThis();
+					it = game.players.erase(it);
+				}
+				else
+				{
+					++it;
 				}
 			}
 
 			network.update();
 
 #ifndef DEDSERV
-			console.checkInput();
-			mouseHandler.poll();
+		console.checkInput();
+		mouseHandler.poll();
+		/* Poll gamepad */
+		gamepadHandler.poll();
 #endif
 			console.think();
 			
@@ -434,6 +444,76 @@ try
 		OmfgGUI::menu.render();
 		console.render(gfx.buffer);
 
+		// Input debug overlay (bottom-right)
+		if (showGamepadInputs)
+		{
+			int y = gfx.buffer->h - 20;
+			const int margin = 10;
+
+			for (int slot = MAX_GAMEPADS - 1; slot >= 0; --slot)
+			{
+				if (!gamepadHandler.isConnected(slot))
+					continue;
+
+				std::string line = "GP" + cast<string>(slot) + ": ";
+
+				// Trigger values
+				float lt = gamepadHandler.getAxis(slot, 4);
+				float rt = gamepadHandler.getAxis(slot, 5);
+				char buf[64];
+				std::snprintf(buf, sizeof(buf), "LT:%.2f RT:%.2f", lt, rt);
+				line += buf;
+
+				// Face buttons
+				struct BtnDef { GamepadInput gp; const char* name; };
+				static const BtnDef btns[] = {
+					{ GP_A, "A" }, { GP_B, "B" }, { GP_X, "X" }, { GP_Y, "Y" },
+					{ GP_LB, "LB" }, { GP_RB, "RB" },
+					{ GP_START, "START" }, { GP_BACK, "BACK" },
+				};
+				for (const auto& b : btns)
+				{
+					if (gamepadHandler.isPressed(slot, b.gp))
+						line += std::string(" [") + b.name + "]";
+				}
+
+				// D-pad
+				struct DpadDef { GamepadInput gp; const char* sym; };
+				static const DpadDef ddirs[] = {
+					{ GP_DPAD_UP, "^" }, { GP_DPAD_DOWN, "v" },
+					{ GP_DPAD_LEFT, "<" }, { GP_DPAD_RIGHT, ">" },
+				};
+				for (const auto& d : ddirs)
+				{
+					if (gamepadHandler.isPressed(slot, d.gp))
+						line += std::string(" ") + d.sym;
+				}
+
+				// Stick virtual directions
+				static const BtnDef stickDirs[] = {
+					{ GP_LSTICK_LEFT, "L<" }, { GP_LSTICK_RIGHT, "L>" },
+					{ GP_LSTICK_UP, "L^" }, { GP_LSTICK_DOWN, "Lv" },
+					{ GP_RSTICK_LEFT, "R<" }, { GP_RSTICK_RIGHT, "R>" },
+					{ GP_RSTICK_UP, "R^" }, { GP_RSTICK_DOWN, "Rv" },
+				};
+				for (const auto& s : stickDirs)
+				{
+					if (gamepadHandler.isPressed(slot, s.gp))
+						line += std::string(" ") + s.name;
+				}
+
+				// Right-align the line
+				pair<int, int> dim;
+				game.infoFont->fitString(line.begin(), line.end(),
+				                         gfx.buffer->w - margin, dim, 0,
+				                         Font::Formatting);
+				int x = gfx.buffer->w - dim.first - margin;
+				game.infoFont->draw(gfx.buffer, line, x, y, 0, 255, 255, 255, 255,
+				                    Font::Formatting);
+				y -= dim.second;
+			}
+		}
+
 		//show fps (on top of menu)
 		if (showFps)
 		{
@@ -465,8 +545,11 @@ try
 #endif
 	console.shutDown();
 #ifndef DEDSERV
-	sfx.shutDown();
-#endif
+		sfx.shutDown();
+
+		/* Shut down gamepad */
+		gamepadHandler.shutDown();
+	#endif
 	gfx.shutDown();
 	lua.close();
 

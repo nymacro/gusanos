@@ -9,7 +9,6 @@
 #endif
 #include "../game_actions.h"
 #include "../parser.h"
-#include "util/macros.h"
 #include <string>
 
 #include "omfg_script.h"
@@ -65,8 +64,8 @@ namespace{
 		OmfgScript::TokenBase* tmpProp = parser.getProperty("spawnpoints");
 		if ( tmpProp->isList() )
 		{
-			std::list<OmfgScript::TokenBase*>::const_iterator sp;
-			const_foreach(sp, tmpProp->toList())
+			std::list<OmfgScript::TokenBase*> const& tokens = tmpProp->toList();
+			for (auto sp = tokens.begin(); sp != tokens.end(); ++sp)
 			{
 				OmfgScript::TokenBase& v = **sp;
 				if ( v.assertList() )

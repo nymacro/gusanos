@@ -10,13 +10,13 @@ namespace Parser
 	
 	const vector<string> tokenize(const string &text)
 	{
-		unsigned int left = 0;
-		unsigned int right = 0;
-	
+		string::size_type left = 0;
+		string::size_type right = 0;
+
 		string lastChar = " ";
-		
+
 		vector<string> stringList;
-		
+
 		while (right != string::npos)
 		{
 			left = text.find_first_not_of(lastChar, right);

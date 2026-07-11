@@ -13,12 +13,19 @@ private:
 	// Flag to refuse connection while waiting for all players to aknowledge disconnection
 	bool m_preShutdown;
 	std::map<unsigned int, boost::shared_ptr<BasePlayer::Stats> > savedScores;
+	std::map<unsigned int, std::string> savedNames;
 	
 public:
 	Server( int _udpport );
 	~Server();
 	
+	using ZCom_Control::ZCom_cbNodeRequest_Dynamic;
+	using ZCom_Control::ZCom_cbNodeRequest_Tag;
+	
 	void preShutdown() { m_preShutdown = true; }
+	
+	BasePlayer::Stats* findSavedStats(unsigned int uniqueID);
+	std::string        findSavedName(unsigned int uniqueID);
 	
 protected:
 		

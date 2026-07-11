@@ -519,10 +519,6 @@ Logging system with severity levels.
 
 String utilities: case-insensitive compare, splitting, formatting.
 
-### Macros (`Utility/util/macros.h`)
-
-`foreach`, `foreach_delete` iteration macros.
-
 ### Math Functions (`Utility/util/math_func.h`)
 
 `rndInt()`, `rndFloat()`, `clamp()`, `lerp()`.

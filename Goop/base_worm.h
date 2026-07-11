@@ -5,6 +5,8 @@
 #include "util/vec.h"
 #include "util/angle.h"
 #include "base_object.h"
+
+#include <string>
 #include <vector>
 #include "luaapi/types.h"
 
@@ -66,8 +68,8 @@ public:
 	void processJumpingAndNinjaropeControls();
 	
 	virtual void think();
-	void actionStart( Actions action );
-	void actionStop( Actions action );
+	void actionStart( Actions action, float intensity = 1.0f );
+	void actionStop( Actions action, float intensity = 0.0f );
 	void addAimSpeed(AngleDiff speed);
 	void addRopeLength(float distance);
 	
@@ -80,7 +82,7 @@ public:
 	bool isChanging()
 	{ return changing; }
 	
-	virtual void damage( float amount, BasePlayer* damager );
+	virtual void damage( float amount, BasePlayer* damager, DamageCause const& cause );
 	
 	// This are virtual so that NetWorm can know about them and tell others over the network.
 	virtual void respawn();
@@ -115,6 +117,8 @@ public:
 	
 	NinjaRope* getNinjaRopeObj();
 	
+	void setShowingWeaponText(bool show);
+
 	AngleDiff aimSpeed; // Useless to add setters and getters for this
 	Angle aimAngle;
 	
@@ -175,6 +179,9 @@ protected:
 	int m_weaponCount;
 	
 	BasePlayer* m_lastHurt;
+	int          m_lastHurtWeapon    = -1;
+	unsigned int m_lastHurtShooterID = 0;
+	std::string  m_lastHurtName;
 	NinjaRope* m_ninjaRope;
 	
 #ifndef DEDSERV
@@ -189,10 +196,13 @@ protected:
 	bool m_isActive;
 	bool movingLeft;
 	bool movingRight;
+	float m_movingLeftIntensity;
+	float m_movingRightIntensity;
 	bool jumping;
 	bool animate;
 	bool movable; // What do we need this for? // Dunno, did I put this here? :o
 	bool changing; // This shouldnt be in the worm class ( its player stuff >:O )
+	bool showingWeaponText;
 	int m_dir;
 };
 

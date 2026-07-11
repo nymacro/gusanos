@@ -33,18 +33,25 @@ struct Request : public TCP::Socket
 	};
 	
 	Request(int s_, std::string const& header_, std::string const& data_)
-	: TCP::Socket(s_), state(SendingData), outData(header_ + data_), success(false)
-	, concat(true), dataRecieved(0), dataLength(0), dataSender(0)
+	: TCP::Socket(s_), success(false), state(SendingData), dataSender(0)
+	, outData(header_ + data_), dataRecieved(0), dataLength(0)
+	, concat(true)
 	{
 	}
 	
 	// Returns true if this request is done.
 	bool think();
+	
+	// Safe error retrieval — handles null requests.
+	static TCP::Socket::Error getErrorForRequest(Request* req);
+	
+	// Get the current request state.
+	State getState() const { return state; }
 
 	std::string data;
 	bool success;
 	
-private:
+protected:
 	State state;
 	TCP::Socket::ResumeSend* dataSender;
 	std::string outData;
@@ -63,8 +70,8 @@ struct Host
 	struct Options
 	{
 		Options()
-		: hasProxy(false), changed(true)
-		, userAgent("adlib/3 ($Date: 2005/12/16 19:36:03 $)")
+		: hasProxy(false), userAgent("adlib/3 ($Date: 2005/12/16 19:36:03 $)")
+		, changed(true)
 		{
 		}
 		
@@ -98,7 +105,7 @@ struct Host
 	};
 	
 	Host(std::string host_, int port_ = 80, Options const& options_ = Options())
-	: host(host_), port(port_), options(options_), hp(0)
+	: host(host_), options(options_), port(port_), hp(0)
 	{
 	}
 	

@@ -66,7 +66,7 @@ LazyScript::LazyScript()
 }
 
 LazyScript::LazyScript(std::string const& data)
-: data(data), type(Code)
+: type(Code), data(data)
 {
 	/* This is more of an optimization
 	std::string::size_type dot = data.find('.');

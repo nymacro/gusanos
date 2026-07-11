@@ -1,6 +1,5 @@
 #include "list.h"
 #include <cassert>
-#include "util/macros.h"
 #include "luaapi/context.h"
 #include <boost/lexical_cast.hpp>
 using boost::lexical_cast;
@@ -26,7 +25,7 @@ void ListNode::resizeColumns(size_t s)
 {
 	columns.resize(s);
 	
-	foreach_bool(i, children)
+	for (auto i = children.begin(); i; ++i)
 	{
 		i->resizeColumns(s);
 	}
@@ -354,7 +353,7 @@ bool List::verify_(node_iter_t i, node_iter_t n)
 	if(i == n)
 		return true;
 	
-	foreach(c, n->children)
+	for (node_iter_t c = n->children.begin(); c != n->children.end(); ++c)
 	{
 		if(verify_(i, c))
 			return true;
@@ -410,7 +409,7 @@ bool List::keyDown(int key)
 			break;
 			
 			case KEY_RIGHT:
-				if(checkSelection());
+				if(checkSelection())
 					expand(m_MainSel);
 			break;
 			
@@ -530,34 +529,34 @@ void List::applyFormatting(Context::GSSpropertyMap const& f)
 {
 	Wnd::applyFormatting(f);
 
-	const_foreach(i, f)
+	for (auto const& i : f)
 	{
-		if(i->first == "header-color")
+		if(i.first == "header-color")
 		{
-			const_foreach(v, i->second)
+			for (auto const& v : i.second)
 			{
-				readColor(m_listFormatting.headerColor, *v);
+				readColor(m_listFormatting.headerColor, v);
 			}
 		}
-		else if(i->first == "selection-color")
+		else if(i.first == "selection-color")
 		{
-			const_foreach(v, i->second)
+			for (auto const& v : i.second)
 			{
-				readColor(m_listFormatting.selectionColor, *v);
+				readColor(m_listFormatting.selectionColor, v);
 			}
 		}
-		else if(i->first == "selection-frame-color")
+		else if(i.first == "selection-frame-color")
 		{
-			const_foreach(v, i->second)
+			for (auto const& v : i.second)
 			{
-				readColor(m_listFormatting.selectionFrameColor, *v);
+				readColor(m_listFormatting.selectionFrameColor, v);
 			}
 		}
-		else if(i->first == "indent")
+		else if(i.first == "indent")
 		{
-			const_foreach(v, i->second)
+			for (auto const& v : i.second)
 			{
-				m_listFormatting.indent = lexical_cast<double>(*v);
+				m_listFormatting.indent = lexical_cast<double>(v);
 			}
 		}
 		

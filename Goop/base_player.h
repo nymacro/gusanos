@@ -2,6 +2,7 @@
 #define BASE_PLAYER_H
 
 #include <string>
+#include <map>
 //#include "vec.h"
 #include "luaapi/types.h"
 #include <stdexcept>
@@ -75,14 +76,17 @@ public:
 	struct Stats
 	{
 		Stats()
-		: deaths(0), kills(0)
+		: deaths(0), kills(0), damageDealt(0.f), damageTaken(0.f)
 		{
 		}
 		
 		~Stats();
 		
-		int deaths;
-		int kills;
+		int   deaths;
+		int   kills;
+		float damageDealt;                  // server-authoritative
+		float damageTaken;                  // server-authoritative
+		std::map<int, int> weaponKills;     // WeaponType index -> count (server-authoritative)
 		LuaReference luaData;
 	};
 	
@@ -114,8 +118,8 @@ public:
 	
 	void nameChangePetition(); // Asks the server to change the name to the one in the player options.
 	
-	void baseActionStart( BaseActions action );
-	void baseActionStop( BaseActions action );
+	void baseActionStart( BaseActions action, float intensity = 1.0f );
+	void baseActionStop( BaseActions action, float intensity = 0.0f );
 	
 	void addKill();
 	void addDeath();
@@ -167,8 +171,8 @@ protected:
 	LuaReference luaReference;
 	
 	void addEvent(ZCom_BitStream* data, NetEvents event);
-	void addActionStart(ZCom_BitStream* data, BaseActions action);
-	void addActionStop(ZCom_BitStream* data, BaseActions action);
+	void addActionStart(ZCom_BitStream* data, BaseActions action, float intensity = 1.0f);
+	void addActionStop(ZCom_BitStream* data, BaseActions action, float intensity = 0.0f);
 	
 	void changeName_( const std::string& name ); // Changes the name and if its server it will tell all clients about it.	
 	
@@ -182,6 +186,9 @@ protected:
 
 	bool m_isAuthority;
 	bool m_processingNetworkEvent;
+	// Slides for network throttling of analog movement intensity.
+	int m_lastMoveQuant[2];
+
 	ZCom_Node *m_node;
 	BasePlayerInterceptor* m_interceptor;
 	ZCom_NodeID m_wormID;

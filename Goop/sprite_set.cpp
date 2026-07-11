@@ -3,7 +3,7 @@
 #include "resource_list.h"
 #include "gfx.h"
 #include "sprite.h"
-#include "util/macros.h"
+
 
 #include "allegro_compat.h"
 #include <string>
@@ -33,11 +33,14 @@ SpriteSet::SpriteSet()
 #ifndef DEDSERV
 // This does not copy the colored cache naturally
 SpriteSet::SpriteSet(SpriteSet const& b, SpriteSet const& mask, int color)
-: m_frames(b.m_frames), m_angleFactor(b.m_angleFactor)
-, m_halfAngleDivisonSize(b.m_halfAngleDivisonSize)
+: m_frames(b.m_frames)
 , frameCount(b.frameCount)
 , angleCount(b.angleCount)
+#ifndef DEDSERV
 , m_coloredCache(ColorSpriteSet(*this))
+#endif
+, m_angleFactor(b.m_angleFactor)
+, m_halfAngleDivisonSize(b.m_halfAngleDivisonSize)
 {
 	std::vector<Sprite *>::const_iterator srci = b.m_frames.begin();
 	std::vector<Sprite *>::const_iterator maski = mask.m_frames.begin();
@@ -56,10 +59,10 @@ SpriteSet::SpriteSet(SpriteSet const& b, SpriteSet const& mask, int color)
 
 SpriteSet::~SpriteSet()
 {
-	foreach(frame, m_frames)
-		delete *frame;
-	foreach(frame, m_flippedFrames)
-		delete *frame;
+	for (auto frame : m_frames)
+		delete frame;
+	for (auto frame : m_flippedFrames)
+		delete frame;
 }
 
 bool SpriteSet::load(fs::path const& filename)
@@ -120,7 +123,7 @@ bool SpriteSet::load(fs::path const& filename)
 			}
 		}
 			
-		// Fill the other 180บ with the sprites but mirrored.
+		// Fill the other 180ยบ with the sprites but mirrored.
 
 	}
 
@@ -246,8 +249,8 @@ void SpriteSet::flipSprites()
 {
 	assert(m_flippedFrames.empty());
 
-	const_foreach(src, m_frames)
+	for (auto const& src : m_frames)
 	{
-		m_flippedFrames.push_back(new Sprite(**src, Sprite::MirrorTag()));
+		m_flippedFrames.push_back(new Sprite(*src, Sprite::MirrorTag()));
 	}
 }

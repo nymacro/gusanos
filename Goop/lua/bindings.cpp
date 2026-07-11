@@ -39,7 +39,8 @@
 using std::cerr;
 using std::endl;
 #include <boost/lexical_cast.hpp>
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
+using namespace boost::placeholders;
 #include <boost/filesystem/path.hpp>
 #include <boost/filesystem/fstream.hpp>
 using boost::lexical_cast;

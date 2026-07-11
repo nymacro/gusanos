@@ -25,6 +25,9 @@ public:
 		FIRE,
 		JUMP,
 		CHANGE,
+		WEAPON_NEXT,
+		WEAPON_PREV,
+		NINJAROPE,
 		ACTION_COUNT,
 	};
 			
@@ -37,7 +40,7 @@ public:
 
 	void assignViewport(Viewport* Viewport);
 #endif
-	void actionStart( Actions action );
+	void actionStart( Actions action, float intensity = 1.0f );
 	void actionStop( Actions action );
 	
 private:
@@ -48,6 +51,9 @@ private:
 	bool jumping;
 	bool walkingLeft;
 	bool walkingRight;
+	// Per-action state for analog/one-shot handling
+	bool m_actionActive[ACTION_COUNT];
+	float m_actionIntensity[ACTION_COUNT];
 #ifndef DEDSERV
 	Viewport* m_viewport;
 #endif

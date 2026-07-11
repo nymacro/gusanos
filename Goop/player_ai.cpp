@@ -94,8 +94,8 @@ bool check_materials( int x1, int y1, int x2, int y2 )
 
 PlayerAI::PlayerAI(int team_, BaseWorm* worm)
 : BasePlayer(shared_ptr<PlayerOptions>(new PlayerOptions("bot")), worm)
-, m_pathSteps(100), m_thinkTime(0)
-, m_target(0)
+, m_pathSteps(100), m_target(0)
+, m_thinkTime(0)
 , m_movingRight(false)
 , m_movingLeft(false)
 , m_shooting(false)
@@ -194,18 +194,20 @@ void PlayerAI::subThink()
 		Vec target = m_target->pos;	//Target position
 		
 		if ( m_worm->isActive() )
-		if ( pos.x < target.x )
 		{
-			if ( m_movingLeft ) baseActionStop( LEFT );
-			if ( !m_movingRight ) baseActionStart( RIGHT );
-			m_movingLeft = false;
-			m_movingRight = true;
-		}else
-		{
-			if ( m_movingRight ) baseActionStop( RIGHT );
-			if ( !m_movingLeft ) baseActionStart( LEFT );
-			m_movingRight = false;
-			m_movingLeft = true;
+			if ( pos.x < target.x )
+			{
+				if ( m_movingLeft ) baseActionStop( LEFT );
+				if ( !m_movingRight ) baseActionStart( RIGHT );
+				m_movingLeft = false;
+				m_movingRight = true;
+			}else
+			{
+				if ( m_movingRight ) baseActionStop( RIGHT );
+				if ( !m_movingLeft ) baseActionStart( LEFT );
+				m_movingRight = false;
+				m_movingLeft = true;
+			}
 		}
 		
 		randomError = maxAimErrorOffset * midrnd();

@@ -13,10 +13,13 @@
 #include "util/text.h"
 #include "util/angle.h"
 #include "util/vec.h"
-#include "util/macros.h"
+
 #include "util/log.h"
 #include "base_object.h"
+#include "base_player.h"
+#include "player_options.h"
 #include "weapon.h"
+#include "weapon_type.h"
 #include "worm.h"
 #include "level_effect.h"
 
@@ -29,6 +32,24 @@
 using namespace std;
 
 OmfgScript::ActionFactory gameActions;
+
+static void setProjectileCause(BaseObject* proj, ActionParams const& params)
+{
+	int widx = -1;
+	unsigned int sid = 0;
+	if (params.weapon)
+	{
+		widx = (int)params.weapon->getType()->getIndex();
+		if (params.object && params.object->getOwner())
+			sid = params.object->getOwner()->getOptions()->uniqueID;
+	}
+	else if (params.object)
+	{
+		widx = params.object->getWeaponIndex();
+		sid  = params.object->getShooterID();
+	}
+	proj->setCause(widx, sid);
+}
 
 template<class T>
 BaseAction* newAction(vector<OmfgScript::TokenBase*> const& params )
@@ -202,7 +223,8 @@ void ShootParticles::run( ActionParams const& params )
 				//Perhaps as an option later.
 			}
 
-			type->newParticle(type, params.object->pos + direction * distanceOffset, spd, params.object->getDir(), params.object->getOwner(), angle);
+			BaseObject* proj = type->newParticle(type, params.object->pos + direction * distanceOffset, spd, params.object->getDir(), params.object->getOwner(), angle);
+			if (proj) setProjectileCause(proj, params);
 		}
 	}
 }
@@ -250,7 +272,8 @@ void UniformShootParticles::run( ActionParams const& params )
 				//angle = spd.getAngle(); // Need to recompute angle
 			}
 
-			type->newParticle(type, params.object->pos + direction * distanceOffset, spd, params.object->getDir(), params.object->getOwner(), angle);
+			BaseObject* proj = type->newParticle(type, params.object->pos + direction * distanceOffset, spd, params.object->getDir(), params.object->getOwner(), angle);
+			if (proj) setProjectileCause(proj, params);
 		}
 	}
 }
@@ -277,7 +300,8 @@ void PutParticle::run( ActionParams const& params )
 {
 	if (type)
 	{
-		type->newParticle(type, Vec(x,y), Vec(xspd,yspd), 1, 0, angle);
+		BaseObject* proj = type->newParticle(type, Vec(x,y), Vec(xspd,yspd), 1, 0, angle);
+		if (proj) setProjectileCause(proj, params);
 	}
 }
 
@@ -298,7 +322,9 @@ void CreateExplosion::run( ActionParams const& params )
 {
 	if (type != NULL)
 	{
-		game.insertExplosion( new Explosion( type, params.object->pos, params.object->getOwner() ) );
+		Explosion* e = new Explosion( type, params.object->pos, params.object->getOwner() );
+		e->setCause(params.object->getWeaponIndex(), params.object->getShooterID());
+		game.insertExplosion( e );
 	}
 }
 
@@ -402,7 +428,13 @@ void Damage::run( ActionParams const& params )
 		else
 			damageAmount = 0;
 	}
-	params.object2->damage( damageAmount, params.object->getOwner() );
+	DamageCause cause;
+	if (params.object)
+	{
+		cause.weaponIndex = params.object->getWeaponIndex();
+		cause.shooterID   = params.object->getShooterID();
+	}
+	params.object2->damage( damageAmount, params.object ? params.object->getOwner() : 0, cause );
 }
 
 Damage::~Damage()
@@ -438,10 +470,10 @@ PlaySound::PlaySound( vector<OmfgScript::TokenBase*> const& params )
 		sounds.push_back( soundList.load(params[0]->toString()) );
 	}else if(params[0]->assertList())
 	{
-		const_foreach(s, params[0]->toList())
+		for (auto s : params[0]->toList())
 		{
-			if((*s)->assertString())
-				sounds.push_back(soundList.load((*s)->toString()));
+			if(s->assertString())
+				sounds.push_back(soundList.load(s->toString()));
 		}
 	}
 	loudness = params[1]->toDouble(100.0);
@@ -480,10 +512,10 @@ PlaySoundStatic::PlaySoundStatic( vector<OmfgScript::TokenBase*> const& params )
 		sounds.push_back( soundList.load(params[0]->toString()) );
 	}else if(params[0]->assertList())
 	{
-		const_foreach(s, params[0]->toList())
+		for (auto s : params[0]->toList())
 		{
-			if((*s)->assertString())
-				sounds.push_back(soundList.load((*s)->toString()));
+			if(s->assertString())
+				sounds.push_back(soundList.load(s->toString()));
 		}
 	}
 	loudness = params[1]->toDouble(100.0);
@@ -523,10 +555,10 @@ PlayGlobalSound::PlayGlobalSound( vector<OmfgScript::TokenBase*> const& params )
 		sounds.push_back( sound1DList.load(params[0]->toString()) );
 	}else if(params[0]->assertList())
 	{
-		const_foreach(s, params[0]->toList())
+		for (auto s : params[0]->toList())
 		{
-			if((*s)->assertString())
-				sounds.push_back(sound1DList.load((*s)->toString()));
+			if(s->assertString())
+				sounds.push_back(sound1DList.load(s->toString()));
 		}
 	}
 	volume = params[1]->toDouble(1.0);

@@ -17,7 +17,6 @@
 using std::cerr;
 using std::endl;
 #include <boost/lexical_cast.hpp>
-#include <boost/bind.hpp>
 using boost::lexical_cast;
 
 namespace LuaBindings
@@ -27,7 +26,9 @@ inline lua_Number luaL_checknumber(lua_State *L, int narg)
 {
 	lua_Number d = lua_tonumber(L, narg);
 	if(d == 0 && !lua_isnumber(L, narg))
+	{
 		; // TODO: tag_error(L, narg, LUA_TNUMBER);
+	}
 	return d;
 }
 

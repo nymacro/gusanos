@@ -3,14 +3,13 @@
 
 #ifndef DEDSERV
 #include "2xsai.h"
-#include "blitters/blitters.h"
+//#include "blitters/blitters.h"
 #include "blitters/colors.h"
 #include "blitters/macros.h"
 #include "mouse.h"
 #include "sprite_set.h"
 #include "sprite.h"
 #endif
-#include <boost/bind.hpp>
 #include <boost/assign/list_inserter.hpp>
 using namespace boost::assign;
 
@@ -107,7 +106,7 @@ Gfx::~Gfx()
 void Gfx::init()
 {
 #ifndef DEDSERV
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) < 0) {
+	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         throw std::runtime_error("Couldn't initialize SDL3");
     }
 

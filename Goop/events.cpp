@@ -4,7 +4,6 @@
 #include "base_object.h"
 #include "base_action.h"
 //#include "game_actions.h"
-#include "util/macros.h"
 #include "game.h"
 
 #include <vector>
@@ -25,9 +24,9 @@ Event::Event(std::vector<BaseAction*>& actions_)
 
 Event::~Event()
 {
-	foreach(i, actions)
+	for (auto i : actions)
 	{
-		delete *i;
+		delete i;
 	}
 }
 

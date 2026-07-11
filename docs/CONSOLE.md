@@ -225,7 +225,10 @@ each local player slot (0 to `MAX_LOCAL_PLAYERS-1`, typically 2).
 | `+P0_DOWN` / `-P0_DOWN` | Player 0 aim down / look down |
 | `+P0_FIRE` / `-P0_FIRE` | Player 0 fire weapon |
 | `+P0_JUMP` / `-P0_JUMP` | Player 0 jump |
-| `+P0_CHANGE` / `-P0_CHANGE` | Player 0 change weapon |
+| `+P0_CHANGE` / `-P0_CHANGE` | Player 0 enter weapon change mode (hold) |
+| `+P0_WEAPON_NEXT` | Player 0 switch to next weapon (one-shot) |
+| `+P0_WEAPON_PREV` | Player 0 switch to previous weapon (one-shot) |
+| `+P0_NINJAROPE` | Player 0 shoot ninja rope (one-shot) |
 
 The same pattern repeats for P1.
 

@@ -8,7 +8,6 @@
 #include "player_options.h"
 #include "network.h"
 #include "util/math_func.h"
-#include "util/macros.h"
 #include "util/log.h"
 #include "encoding.h"
 
@@ -19,7 +18,7 @@
 
 
 Server::Server( int _udpport )
-: m_preShutdown(false), socketsInited(false), port(_udpport)
+: m_preShutdown(false), port(_udpport), socketsInited(false)
 {
 	if(network.simLag > 0)
 		ZCom_simulateLag(0, network.simLag);
@@ -44,7 +43,23 @@ Server::Server( int _udpport )
 }
 
 Server::~Server()
-{	
+{
+}
+
+BasePlayer::Stats* Server::findSavedStats(unsigned int uniqueID)
+{
+	auto i = savedScores.find(uniqueID);
+	if (i != savedScores.end())
+		return i->second.get();
+	return 0;
+}
+
+std::string Server::findSavedName(unsigned int uniqueID)
+{
+	auto i = savedNames.find(uniqueID);
+	if (i != savedNames.end())
+		return i->second;
+	return std::string();
 }
 
 /*
@@ -76,7 +91,7 @@ void Server::ZCom_cbDataReceived( ZCom_ConnID  _id, ZCom_BitStream &_data)
 			}
 			BasePlayer* player = game.addPlayer ( Game::PROXY );
 			
-			let_(i, savedScores.find(uniqueID));
+			auto i = savedScores.find(uniqueID);
 			if(i != savedScores.end())
 			{
 				player->stats = i->second;
@@ -96,6 +111,7 @@ void Server::ZCom_cbDataReceived( ZCom_ConnID  _id, ZCom_BitStream &_data)
 			player->colour = colour;
 			player->team = team;
 			player->localChangeName( name );
+			savedNames[uniqueID] = player->m_name;
 			console.addLogMsg( "* " + player->m_name + " HAS JOINED THE GAME");
 			player->assignNetworkRole(true);
 			player->setOwnerId(_id);

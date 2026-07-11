@@ -1,3 +1,20 @@
 Import('env')
 
 env.StaticLibrary(env.getLibName('omfghttp'), env.getObjects())
+
+# Build http tests alongside the library for debug builds
+if env['MY_BUILD'] == 'debug':
+    testEnv = env.Clone()
+
+    brew_prefix = '/home/linuxbrew/.linuxbrew'
+    testEnv.Append(
+        CPPPATH=[brew_prefix + '/include', '#http'],
+        LIBPATH=[brew_prefix + '/lib', '#/lib/' + testEnv['MY_SUBFOLDER']],
+        LIBS=['omfghttp', 'boost_unit_test_framework'],
+        CPPDEFINES=['BOOST_TEST_DYN_LINK']
+    )
+
+    testEnv.Program(
+        testEnv.getBinName('http_tests'),
+        testEnv.getObjects('tests')
+    )

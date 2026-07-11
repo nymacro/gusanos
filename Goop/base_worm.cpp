@@ -22,6 +22,7 @@
 #endif
 #include "weapon.h"
 #include "ninjarope.h"
+#include "network.h"
 
 #include "glua.h"
 #include "luaapi/context.h"
@@ -46,11 +47,15 @@ LuaReference BaseWorm::metaTable;
 
 BaseWorm::BaseWorm()
 : BaseObject(), aimSpeed(0.0), aimAngle(90.0)
+, currentWeapon(0)
+, m_weaponCount(0)
+, m_lastHurt(0)
 #ifndef DEDSERV
 , m_animator(0)
 #endif
-, animate(false), movable(false), changing(false), m_dir(1)
-, m_lastHurt(0)
+, animate(false), movable(false), changing(false)
+, showingWeaponText(false)
+, m_dir(1)
 {
 #ifndef DEDSERV
 	skin = spriteList.load("skin");
@@ -66,15 +71,12 @@ BaseWorm::BaseWorm()
 	m_timeSinceDeath = 0;
 	
 	m_isActive = false;
-
-	health = 0;
-	aimRecoilSpeed = 0;
 	
-	currentWeapon = 0;
-	
-	m_weapons.assign(game.options.maxWeapons, 0 );
-	m_weaponCount = 0;
-	
+	m_lastHurt = NULL;
+	m_lastHurtWeapon = -1;
+	m_lastHurtShooterID = 0;
+	m_lastHurtName.clear();
+	m_weapons.resize(game.options.maxWeapons);
 	for ( size_t i = 0; i < m_weapons.size(); ++i )
 	{
 		m_weapons[i] = new Weapon(game.weaponList[rndInt(game.weaponList.size())], this);
@@ -84,6 +86,8 @@ BaseWorm::BaseWorm()
 	m_ninjaRope = new NinjaRope(game.NRPartType, this);
 	movingLeft = false;
 	movingRight = false;
+	m_movingLeftIntensity = 1.0f;
+	m_movingRightIntensity = 1.0f;
 	jumping = false;
 }
 
@@ -111,8 +115,15 @@ NinjaRope* BaseWorm::getNinjaRopeObj()
 	return m_ninjaRope;
 }
 
+void BaseWorm::setShowingWeaponText(bool show)
+{
+	showingWeaponText = show;
+}
+
 Weapon* BaseWorm::getCurrentWeapon()
 {
+	if (currentWeapon >= m_weapons.size())
+		return 0;
 	return m_weapons[currentWeapon];
 }
 
@@ -138,6 +149,8 @@ void BaseWorm::setWeapons( std::vector<WeaponType*> const& weaps )
 	for ( size_t i = 0; i < weaps.size(); ++i )
 	{
 		setWeapon( i, weaps[i] );
+		if ( weaps[i] )
+			++m_weaponCount;
 	}
 }
 
@@ -147,6 +160,7 @@ void BaseWorm::clearWeapons()
 	{
 		luaDelete(m_weapons[i]); m_weapons[i] = 0;
 	}
+	m_weaponCount = 0;
 }
 
 void BaseWorm::calculateReactionForce(BaseVec<long> origin, Direction d)
@@ -398,12 +412,16 @@ void BaseWorm::processMoveAndDig(void)
 		
 		if(reacts[Up] <= 0)
 			acc *= game.options.worm_airAccelerationFactor;
-		if(movingLeft && !movingRight)
+
+		float leftInt  = movingLeft  ? m_movingLeftIntensity  : 0.0f;
+		float rightInt = movingRight ? m_movingRightIntensity : 0.0f;
+
+		if(leftInt > 0.0f && rightInt <= 0.0f)
 		{
 			//TODO: Air acceleration
 			if(spd.x > -game.options.worm_maxSpeed)
 			{
-				spd.x -= acc;
+				spd.x -= acc * leftInt;
 			}
 			
 			if(m_dir > 0)
@@ -414,12 +432,12 @@ void BaseWorm::processMoveAndDig(void)
 			
 			animate = true;
 		}
-		else if(movingRight && !movingLeft)
+		else if(rightInt > 0.0f && leftInt <= 0.0f)
 		{
 			//TODO: Air acceleration
 			if(spd.x < game.options.worm_maxSpeed)
 			{
-				spd.x += acc;
+				spd.x += acc * rightInt;
 			}
 			
 			if(m_dir < 0)
@@ -430,7 +448,7 @@ void BaseWorm::processMoveAndDig(void)
 			
 			animate = true;
 		}
-		else if(movingRight && movingLeft)
+		else if(leftInt > 0.0f && rightInt > 0.0f)
 		{
 			// TODO: Digging
 			animate = false;
@@ -682,7 +700,7 @@ int BaseWorm::getWeaponIndexOffset( int offset )
 		int i = currentWeapon;
 		do
 			i = (i + offset + m_weaponCount) % m_weaponCount;
-		while(!m_weapons[i] && i != currentWeapon);
+		while(!m_weapons[i] && (size_t)i != currentWeapon);
 		
 		return i;
 	}
@@ -844,12 +862,12 @@ void BaseWorm::draw(Viewport* viewport)
 				, m_ninjaRope->getColour());*/
 			}
 			
-			if ( m_weapons[currentWeapon] ) m_weapons[currentWeapon]->drawBottom(where, renderX, renderY);
+			if (Weapon* w = getCurrentWeapon()) w->drawBottom(where, renderX, renderY);
 			
 			int colour = universalToLocalColor(m_owner->colour);
 			skin->getColoredSprite(m_animator->getFrame(), skinMask, colour, getAngle())->draw(where, renderX, renderY);
 			
-			if ( m_weapons[currentWeapon] ) m_weapons[currentWeapon]->drawTop(where, renderX, renderY);
+			if (Weapon* w = getCurrentWeapon()) w->drawTop(where, renderX, renderY);
 			
 			if ( m_currentFirecone )
 			{
@@ -858,16 +876,15 @@ void BaseWorm::draw(Viewport* viewport)
 						draw(where, renderX+static_cast<int>(distance.x)*m_dir, renderY+static_cast<int>(distance.y));
 			}
 				
-			/*
-			if(changing && m_weapons[currentWeapon])
+			if (showingWeaponText && m_weapons[currentWeapon])
 			{
 				std::string const& weaponName = m_weapons[currentWeapon]->m_type->name;
 				std::pair<int, int> dim = game.infoFont->getDimensions(weaponName);
 				int wx = x - dim.first / 2;
 				int wy = y - dim.second / 2 - 10;
-							
+
 				game.infoFont->draw(where, weaponName, wx, wy);
-			}*/
+			}
 			
 			/*
 			if ( false && m_owner && !dynamic_cast<Player*>(m_owner) )
@@ -938,18 +955,34 @@ void BaseWorm::dig( const Vec& digPos, Angle angle )
 
 void BaseWorm::die()
 {
+	std::string weaponName =
+		(m_lastHurtWeapon >= 0 && (size_t)m_lastHurtWeapon < game.weaponList.size())
+		? game.weaponList[m_lastHurtWeapon]->name : std::string();
+	
 	EACH_CALLBACK(i, wormDeath)
 	{
-		(lua.call(*i), getLuaReference())();
+		LuaReference killerRef = m_lastHurt ? m_lastHurt->getLuaReference() : LuaReference();
+		(lua.call(*i), getLuaReference(), killerRef, weaponName.c_str())();
 	}
 	m_isActive = false;
 	if (m_owner)
 	{
 		m_owner->stats->deaths++;
-		game.displayKillMsg(m_owner, m_lastHurt); //TODO: Record what weapon it was?
+		game.displayKillMsg(m_owner, m_lastHurt, weaponName, m_lastHurtName);
 	}
-	if (m_lastHurt && m_lastHurt != m_owner) m_lastHurt->stats->kills++;
-	
+	bool self = (m_lastHurt && m_lastHurt == m_owner);
+	if (!self)
+	{
+		BasePlayer::Stats* atk = 0;
+		if (m_lastHurt && m_lastHurt->stats) atk = m_lastHurt->stats.get();
+		else if (m_lastHurtShooterID)        atk = Network::findSavedStats(m_lastHurtShooterID);
+		if (atk)
+		{
+			atk->kills++;
+			if (m_lastHurtWeapon >= 0 && !network.isClient())
+				atk->weaponKills[m_lastHurtWeapon]++;
+		}
+	}
 	m_ninjaRope->remove();
 	m_timeSinceDeath = 0;
 	if ( game.deathObject )
@@ -961,25 +994,37 @@ void BaseWorm::die()
 
 void BaseWorm::changeWeaponTo( unsigned int weapIndex )
 {
-	if ( m_weapons[currentWeapon] )
+	if ( Weapon* w = getCurrentWeapon() )
 	{
-		m_weapons[currentWeapon]->actionStop( Weapon::PRIMARY_TRIGGER );
-		m_weapons[currentWeapon]->actionStop( Weapon::SECONDARY_TRIGGER );
+		w->actionStop( Weapon::PRIMARY_TRIGGER );
+		w->actionStop( Weapon::SECONDARY_TRIGGER );
 	}
 	if ( weapIndex < m_weapons.size() && m_weapons[weapIndex] )
 		currentWeapon = weapIndex;
 }
 
-void BaseWorm::damage( float amount, BasePlayer* damager )
+void BaseWorm::damage( float amount, BasePlayer* damager, DamageCause const& cause )
 {
-	m_lastHurt = damager;
+	m_lastHurt          = damager;
+	m_lastHurtWeapon    = cause.weaponIndex;
+	m_lastHurtShooterID = cause.shooterID;
+
+	float effective = (amount < health) ? amount : health;   // cap at remaining HP (no overkill)
+	if (effective < 0) effective = 0;
 	health -= amount;
 	if ( health < 0 )
 		health = 0;
 
-	//DBGOUT("Damage", ...);
-	(void)damager;
-	(void)amount;
+	bool self = (damager && damager == m_owner)
+	         || (m_owner && cause.shooterID == m_owner->getOptions()->uniqueID);
+	if (!self && effective > 0)
+	{
+		if (m_owner && m_owner->stats) m_owner->stats->damageTaken += effective;
+		BasePlayer::Stats* atk = 0;
+		if (damager && damager->stats) atk = damager->stats.get();
+		else if (cause.shooterID)      atk = Network::findSavedStats(cause.shooterID);
+		if (atk) atk->damageDealt += effective;
+	}
 }
 
 void BaseWorm::addAimSpeed( AngleDiff speed )
@@ -1007,21 +1052,24 @@ void BaseWorm::showFirecone( SpriteSet* sprite, int frames, float distance )
 }
 #endif
 
-void BaseWorm::actionStart( Actions action )
+void BaseWorm::actionStart( Actions action, float intensity )
 {
 	switch ( action )
 	{
 		case MOVELEFT:
 			movingLeft = true;
+			m_movingLeftIntensity = intensity;
 		break;
 		
 		case MOVERIGHT:
 			movingRight = true;
+			m_movingRightIntensity = intensity;
 		break;
 		
 		case FIRE:
-			if ( m_isActive && m_weapons[currentWeapon] )
-			m_weapons[currentWeapon]->actionStart( Weapon::PRIMARY_TRIGGER );
+			if ( m_isActive )
+				if ( Weapon* w = getCurrentWeapon() )
+					w->actionStart( Weapon::PRIMARY_TRIGGER );
 		break;
 		
 		case JUMP:
@@ -1045,21 +1093,24 @@ void BaseWorm::actionStart( Actions action )
 	}
 }
 
-void BaseWorm::actionStop( Actions action )
+void BaseWorm::actionStop( Actions action, float intensity )
 {
 	switch ( action )
 	{
 		case MOVELEFT:
 			movingLeft = false;
+			m_movingLeftIntensity = 0.0f;
 		break;
 		
 		case MOVERIGHT:
 			movingRight = false;
+			m_movingRightIntensity = 0.0f;
 		break;
 		
 		case FIRE:
-			if ( m_isActive && m_weapons[currentWeapon] )
-				m_weapons[currentWeapon]->actionStop( Weapon::PRIMARY_TRIGGER );
+			if ( m_isActive )
+				if ( Weapon* w = getCurrentWeapon() )
+					w->actionStop( Weapon::PRIMARY_TRIGGER );
 		break;
 		
 		case JUMP:

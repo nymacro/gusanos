@@ -20,6 +20,8 @@ struct Socket
 		ErrorTimeout,
 	};
 	
+	virtual ~Socket();
+	
 	struct ResumeSend
 	{
 		ResumeSend(Socket* sock_, char const* b_, char const* e_)
@@ -37,8 +39,8 @@ struct Socket
 	
 	Socket(int s_, int timeOut_ = 10)
 	: s(s_), connected(false), connecting(true)
-	, error(ErrorNone), timeOut(timeOut_)
-	, dataBegin(0), dataEnd(0)
+	, dataBegin(0), dataEnd(0), error(ErrorNone)
+	, timeOut(timeOut_)
 	{
 		resetTimer();
 	}
@@ -54,19 +56,21 @@ struct Socket
 		t = time(0);
 	}
 	
-	bool think();
+	virtual bool think();
 	
-	bool readChunk();
+	virtual bool readChunk();
 	
 	ResumeSend* send(char const* b, char const* e);
 	
 	ResumeSend* send(ResumeSend* r, char const* b, char const* e);
 	
-	bool trySend(char const*& b, char const* e);
+	virtual bool trySend(char const*& b, char const* e);
 	
 	Error getError() { return error; }
 	
-	~Socket();
+	// Getters for test access.
+	bool isConnected() const { return connected; }
+	bool isConnecting() const { return connecting; }
 	
 	void close();
 	

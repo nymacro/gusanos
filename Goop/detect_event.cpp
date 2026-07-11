@@ -3,7 +3,6 @@
 #include "events.h"
 #include "base_object.h"
 #include "game.h"
-#include "util/macros.h"
 
 DetectEvent::DetectEvent( float range, bool detectOwner, int detectFilter)
 : m_range(range), m_detectOwner(detectOwner), m_detectFilter(detectFilter)
@@ -53,7 +52,7 @@ void DetectEvent::check( BaseObject* ownerObject )
 		
 
 		//for ( Grid::iterator worm = game.objects.beginColLayer(Grid::WormColLayer); worm; ++worm)
-		forrange_bool(worm, game.objects.beginColLayer(Grid::WormColLayer))
+		for (auto worm = game.objects.beginColLayer(Grid::WormColLayer); worm; ++worm)
 		{
 			if(&*worm != ownerObject)
 			{
@@ -71,8 +70,7 @@ void DetectEvent::check( BaseObject* ownerObject )
 	{
 		if ( m_detectFilter & filterFlag )
 		{
-			//for ( Grid::area_iterator object = game.objects.beginArea(x1, y1, x2, y2, customFilter); object; ++object)
-			forrange_bool(object, game.objects.beginArea(x1, y1, x2, y2, customFilter))
+			for (auto object = game.objects.beginArea(x1, y1, x2, y2, customFilter); object; ++object)
 			{
 				//cerr << "Found: " << &*worm << endl;
 				if(&*object != ownerObject)

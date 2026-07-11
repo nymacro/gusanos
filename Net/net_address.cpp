@@ -122,7 +122,7 @@ bool ZCom_Address::operator==(const ZCom_Address& other) const
 
 const char* ZCom_Address::getAddressIP(eZCom_GetIPAddressOption with_port) const
 {
-	static char buf[64];
+	static char buf[80];
 	if (!m_valid) return nullptr;
 	char host[64];
 	if (enet_address_get_host_ip(&m_address, host, sizeof(host)) != 0)

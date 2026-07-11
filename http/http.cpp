@@ -11,7 +11,6 @@
 #include <sstream>
 #include <list>
 #include <utility>
-#include "util/macros.h"
 #include "util/text.h"
 #include "util/log.h"
 #include <boost/lexical_cast.hpp>
@@ -22,6 +21,13 @@ using std::endl;
 
 namespace HTTP
 {
+
+TCP::Socket::Error Request::getErrorForRequest(Request* req)
+{
+	if(!req)
+		return TCP::Socket::ErrorConnect;
+	return req->getError();
+}
 
 void Request::addHeader(std::string const& header)
 {
@@ -57,7 +63,12 @@ char const* Request::parseHeaders(char const* b, char const* e)
 			header.insert(header.end(), oldb, b);
 			
 			if(header.empty())
-				return b + 2; // No more headers, return pointer to the first piece of data
+			{
+				// Return pointer to the first byte after \r\n (body start).
+				// If past buffer end, return e (empty body).
+				char const* after = b + 2;
+				return (after <= e) ? after : e;
+			}
 				
 			addHeader(header);
 			header.clear();
@@ -145,11 +156,11 @@ bool Request::think()
 				if(char const* d = parseHeaders(dataBegin, dataEnd))
 				{
 					dataBegin = d; // Cut off the end of the header
-					if(dataEnd < dataBegin) // Safe-guard if the HTTP header is malformed
+					if(dataBegin >= dataEnd) // Safe-guard if the HTTP header is malformed or no body
 					{
-						success = false;
+						success = true; // No body is still a success
 						switchState(Done);
-						return true; // Error
+						return true; // Done
 					}
 					
 					if(concat)
@@ -204,9 +215,8 @@ char Host::hexDigit(int v)
 std::string Host::urlencode(std::string const& v)
 {
 	std::string ret;
-	const_foreach(i, v)
+	for (char c : v)
 	{
-		char c = *i;
 		if(isalnum(c))
 			ret += c;
 		else if(c == ' ')
@@ -229,15 +239,15 @@ std::string Host::urlencode(std::list<std::pair<std::string, std::string> > cons
 {
 	std::string ret;
 	bool first = true;
-	const_foreach(i, values)
+	for (auto const& i : values)
 	{
 		if(!first)
 			ret += '&';
 		else
 			first = false;
-		ret += urlencode(i->first);
+		ret += urlencode(i.first);
 		ret += '=';
-		ret += urlencode(i->second);
+		ret += urlencode(i.second);
 	}
 	
 	return ret;
@@ -264,11 +274,13 @@ Request* Host::query(
     TCP::createAddr(server, hp, options.hasProxy ? options.proxyPort : port);
     
     int s;
-    if((s = TCP::socketNonBlock()) < 0)
+    if((s = TCP::socketNonBlock()) < 0) {
     	return 0;
-    	
-    if(!TCP::connect(s, server))
+    }
+
+    if(!TCP::connect(s, server)) {
     	return 0;
+    }
     
 	std::stringstream ss;
 	if (options.hasProxy)

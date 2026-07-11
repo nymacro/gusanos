@@ -10,7 +10,6 @@
 #include "sprite_set.h"
 #include "sprite.h"
 #include "util/vec.h"
-#include "util/macros.h"
 #include "level_effect.h"
 #include "culling.h"
 #include "events.h"
@@ -30,15 +29,15 @@ struct AddCuller : Culler<AddCuller>
 {
 	AddCuller( Level& level, BITMAP* dest, BITMAP* source, int alpha,int dOffx, int dOffy, int sOffx, int sOffy, Rect const& rect )
 	:
+		Culler<AddCuller>(rect),
 		m_level(level),
 		m_dest( dest ),
 		m_source( source),
-		m_alpha(alpha),
 		m_destOffx(dOffx),
 		m_destOffy(dOffy),
 		m_sourceOffx(sOffx),
 		m_sourceOffy(sOffy),
-		Culler<AddCuller>(rect)
+		m_alpha(alpha)
 	{
 	}
 	
@@ -205,61 +204,75 @@ void Level::think()
 			m_config->gameStart->run(0,0,0,0);
 	}
 #ifndef DEDSERV
-	foreach_delete( wp, m_water )
-	{
-		if ( getMaterialIndex( wp->x, wp->y ) != wp->mat )
+		for (auto it = m_water.begin(); it != m_water.end(); )
 		{
-				putpixel_solid(image, wp->x, wp->y, getpixel(background, wp->x, wp->y) );
-				m_water.erase(wp);
-		}else
-		if ( rnd() > WaterSkipFactor )
-		{
-			unsigned char mat = getMaterialIndex( wp->x, wp->y+1 );
-			if ( m_materialList[mat].particle_pass && !m_materialList[mat].flows)
+			if ( getMaterialIndex( it->x, it->y ) != it->mat )
 			{
-				checkWBorders( wp->x, wp->y  );
-				putpixel_solid(image, wp->x, wp->y, getpixel(background, wp->x, wp->y) );
-				putMaterial( 1, wp->x, wp->y );
-				++wp->y;
-				putpixel_solid(image, wp->x, wp->y, getpixel(watermap, wp->x, wp->y) );
-				putMaterial( wp->mat, wp->x, wp->y );
-				wp->count = 0; // Reset stagnation counter because it moved
+					putpixel_solid(image, it->x, it->y, getpixel(background, it->x, it->y) );
+					it = m_water.erase(it);
 			}else
+			if ( rnd() > WaterSkipFactor )
 			{
-				char dir;
-				if ( wp->dir ) dir = 1;
-				else dir = -1;
-				
-				mat = getMaterialIndex( wp->x+dir, wp->y );
-				if ( m_materialList[mat].particle_pass && !m_materialList[mat].flows )
+				unsigned char mat = getMaterialIndex( it->x, it->y+1 );
+				if ( m_materialList[mat].particle_pass && !m_materialList[mat].flows)
 				{
-					checkWBorders( wp->x, wp->y );
-					putpixel_solid(image, wp->x, wp->y, getpixel(background, wp->x, wp->y) );
-					putMaterial( 1, wp->x, wp->y );
-					wp->x += dir;
-					putpixel_solid(image, wp->x, wp->y, getpixel(watermap, wp->x, wp->y) );
-					putMaterial( wp->mat, wp->x, wp->y );
-					wp->count = 0;
-					// Reset stagnation counter because it moved
-				}
-				else
+					checkWBorders( it->x, it->y  );
+					putpixel_solid(image, it->x, it->y, getpixel(background, it->x, it->y) );
+					putMaterial( 1, it->x, it->y );
+					++it->y;
+					putpixel_solid(image, it->x, it->y, getpixel(watermap, it->x, it->y) );
+					putMaterial( it->mat, it->x, it->y );
+					it->count = 0; // Reset stagnation counter because it moved
+					++it;
+				}else
 				{
-					wp->dir = !wp->dir;
-					++wp->count; // It didnt move so the stagnation counter gets incremented.
-					if ( wp->count > 1 )
+					char dir;
+					if ( it->dir ) dir = 1;
+					else dir = -1;
+					
+					mat = getMaterialIndex( it->x+dir, it->y );
+					if ( m_materialList[mat].particle_pass && !m_materialList[mat].flows )
 					{
-						mat = getMaterialIndex( wp->x-dir, wp->y );
-						if ( !m_materialList[mat].particle_pass || m_materialList[mat].flows )
+						checkWBorders( it->x, it->y );
+						putpixel_solid(image, it->x, it->y, getpixel(background, it->x, it->y) );
+						putMaterial( 1, it->x, it->y );
+						it->x += dir;
+						putpixel_solid(image, it->x, it->y, getpixel(watermap, it->x, it->y) );
+						putMaterial( it->mat, it->x, it->y );
+						it->count = 0;
+						// Reset stagnation counter because it moved
+						++it;
+					}
+					else
+					{
+						it->dir = !it->dir;
+						++it->count; // It didnt move so the stagnation counter gets incremented.
+						if ( it->count > 1 )
 						{
-							putMaterial( wp->mat+1, wp->x, wp->y );
-							putpixel_solid(image, wp->x, wp->y, getpixel(watermap, wp->x, wp->y) );
-							m_water.erase(wp);
+							mat = getMaterialIndex( it->x-dir, it->y );
+							if ( !m_materialList[mat].particle_pass || m_materialList[mat].flows )
+							{
+								putMaterial( it->mat+1, it->x, it->y );
+								putpixel_solid(image, it->x, it->y, getpixel(watermap, it->x, it->y) );
+								it = m_water.erase(it);
+							}
+							else
+							{
+								++it;
+							}
+						}
+						else
+						{
+							++it;
 						}
 					}
 				}
 			}
+			else
+			{
+				++it;
+			}
 		}
-	}
 #endif
 }
 
@@ -282,10 +295,10 @@ void Level::draw(BITMAP* where, int x, int y)
 
 		if ( game.options.showMapDebug )
 		{
-			foreach( s, m_config->spawnPoints )
+			for (auto s : m_config->spawnPoints)
 			{
-				int c = (s->team == 0 ? makecol( 255,0,0 ) : makecol( 0, 255, 0 ));
-				circle( where, s->pos.x - x, s->pos.y - y, 4, c );
+				int c = (s.team == 0 ? makecol( 255,0,0 ) : makecol( 0, 255, 0 ));
+				circle( where, s.pos.x - x, s.pos.y - y, 4, c );
 			}
 		}
 	}
@@ -414,20 +427,20 @@ Vec Level::getSpawnLocation(BasePlayer* player)
 	if(m_config)
 	{
 		int alt = 0;
-		foreach(i, m_config->spawnPoints)
+		for (auto i : m_config->spawnPoints)
 		{
-			if(canPlayerRespawn(player, *i))
+			if(canPlayerRespawn(player, i))
 				++alt;
 		}
 		
 		if(alt > 0)
 		{
 			int idx = rndInt(alt);
-			foreach(i, m_config->spawnPoints)
+			for (auto i : m_config->spawnPoints)
 			{
-				if(canPlayerRespawn(player, *i) && --idx < 0)
+				if(canPlayerRespawn(player, i) && --idx < 0)
 				{
-					return i->pos;
+					return i.pos;
 				}
 			}
 		}

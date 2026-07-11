@@ -3,7 +3,6 @@
 #include "level.h"
 #include "culling.h"
 #include "loaders/gusanos.h"
-#include "util/macros.h"
 #include "util/vec.h"
 #include "util/rect.h"
 #include "util/text.h"
@@ -228,7 +227,7 @@ int main(int argc, char **argv)
 				int color = 0;
 				float minDistanceSqr = -1;
 				int appliedCount = 0;
-				for ( int n = 0; n < lightSources.size() ; ++n )
+				for ( int n = 0; n < (int)lightSources.size() ; ++n )
 				{
 					if ( true ) //rnd() < prob )
 					{

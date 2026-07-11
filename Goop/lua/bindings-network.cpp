@@ -22,7 +22,6 @@
 using std::cerr;
 using std::endl;
 #include <boost/lexical_cast.hpp>
-#include <boost/bind.hpp>
 using boost::lexical_cast;
 
 namespace LuaBindings
@@ -49,7 +48,7 @@ public:
 		sendQueue.push_back(std::make_pair(m, m+len));
 	}
 	
-	void think()
+	bool think() override
 	{
 		if(error)
 		{
@@ -57,6 +56,7 @@ public:
 			error = ErrorNone;
 		}
 		
+		// Let the base class handle connection state
 		TCP::Socket::think();
 		
 		if(connected)
@@ -83,16 +83,18 @@ public:
 			}
 			
 			if(readChunk())
-				return;
+				return error != ErrorNone;
 		}
+		
+		return error != ErrorNone;
 	}
 	
 	~LuaSocket()
 	{
 		delete dataSender;
-		foreach(i, sendQueue)
+		for (auto i : sendQueue)
 		{
-			delete[] i->first;
+			delete[] i.first;
 		}
 	}
 	
@@ -139,11 +141,13 @@ int l_tcp_connect(lua_State* L)
     TCP::createAddr(server, hp.get(), port);
     
     int s;
-    if((s = TCP::socketNonBlock()) < 0)
+    if((s = TCP::socketNonBlock()) < 0) {
     	return 0;
-    	
-    if(!TCP::connect(s, server))
+    }
+
+    if(!TCP::connect(s, server)) {
     	return 0;
+    }
 
 	void* space = lua_newuserdata(context, sizeof(LuaSocket));
 	//lua_pushvalue(context, -1);
@@ -332,10 +336,16 @@ LMETHOD(LuaEventDef, luaEvent_##type_##_send, \
 		decl_ \
 		switch(lua_gettop(context)) \
 		{ \
-			default: if(lua_gettop(context) < params_+3) break; \
+			default: { \
+				if(lua_gettop(context) < params_+3) break; \
+				[[fallthrough]]; \
+			} \
 			case params_+5: rules = lua_tointeger(context, params_+5); \
+				[[fallthrough]]; \
 			case params_+4: mode = (eZCom_SendMode)lua_tointeger(context, params_+4); \
+				[[fallthrough]]; \
 			case params_+3: connID = (ZCom_ConnID)lua_tointeger(context, params_+3); \
+				[[fallthrough]]; \
 			case params_+2: userdata = ASSERT_OBJECT(ZCom_BitStream, params_+2); \
 			cases_ \
 		} \
@@ -419,7 +429,7 @@ LUA_EVENT_SEND_METHOD(worm, 1,
 LUA_EVENT_SEND_METHOD(particle, 1,
 	Particle* particle = 0;
 ,
-	case 2: particle = ASSERT_OBJECT(Particle, 2);
+	case 2: particle = ASSERT_OBJECT(Particle, 2); /* fall through */
 ,
 	if(particle)
 		particle->sendLuaEvent(p, mode, rules, userdata, connID);

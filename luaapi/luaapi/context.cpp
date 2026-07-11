@@ -518,7 +518,7 @@ void LuaContext::serialize(ZCom_BitStream& s, int i)
 			int tab = i < 0 ? i - 1 : i;
 			while(lua_next(m_State, tab) != 0)
 			{
-				if(!lua_isnumber(m_State, -2) || lua_tointeger(m_State, -2) >= idx)
+				if(!lua_isnumber(m_State, -2) || (size_t)lua_tointeger(m_State, -2) >= idx)
 				{
 					serialize(s, -2);
 					serialize(s, -1);
@@ -786,7 +786,7 @@ void LuaContext::serializeT(std::ostream& s, int i, int indent)
 			int tab = i < 0 ? i - 1 : i;
 			while(lua_next(m_State, tab) != 0)
 			{
-				if(!lua_isnumber(m_State, -2) || lua_tointeger(m_State, -2) >= idx)
+				if(!lua_isnumber(m_State, -2) || static_cast<size_t>(lua_tointeger(m_State, -2)) >= idx)
 				{
 					for(int j = 0; j < indent; ++j)
 						s.put('\t');

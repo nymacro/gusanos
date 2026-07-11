@@ -21,7 +21,6 @@
 using std::cerr;
 using std::endl;
 #include <boost/lexical_cast.hpp>
-#include <boost/bind.hpp>
 using boost::lexical_cast;
 
 namespace LuaBindings
@@ -63,14 +62,14 @@ int shootFromObject(lua_State* L, BaseObject* object)
 	int params = lua_gettop(L);
 	switch(params)
 	{
-		default: if(params < 3) return 0;
-		case 10: distanceOffset = lua_tonumber(L, 10);
-		case 9:  angleOffset = AngleDiff(lua_tonumber(L, 9));
-		case 8:  distribution = AngleDiff(lua_tonumber(L, 8));
-		case 7:  amountVariation = lua_tointeger(L, 7);
-		case 6:  motionInheritance = lua_tonumber(L, 6);
-		case 5:  speedVariation = lua_tonumber(L, 5);
-		case 4:  speed = lua_tonumber(L, 4);
+		default: if(params < 3) return 0; [[fallthrough]];
+		case 10: distanceOffset = lua_tonumber(L, 10); /* fall through */
+		case 9:  angleOffset = AngleDiff(lua_tonumber(L, 9)); /* fall through */
+		case 8:  distribution = AngleDiff(lua_tonumber(L, 8)); /* fall through */
+		case 7:  amountVariation = lua_tointeger(L, 7); /* fall through */
+		case 6:  motionInheritance = lua_tonumber(L, 6); /* fall through */
+		case 5:  speedVariation = lua_tonumber(L, 5); /* fall through */
+		case 4:  speed = lua_tonumber(L, 4); /* fall through */
 		case 3:  amount = lua_tointeger(L, 3);
 	}
 
@@ -383,7 +382,7 @@ METHODC(BaseObject, baseObject_damage,
 	lua_Number amount = lua_tonumber(context, 2);
 	//BasePlayer* player = *static_cast<BasePlayer **>(lua_touserdata(context, 3));
 	BasePlayer* player = getObject<BasePlayer>(context, 3);
-	p->damage(amount, player);
+	p->damage(amount, player, DamageCause());
 	return 1;
 )
 

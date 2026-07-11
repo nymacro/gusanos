@@ -11,7 +11,6 @@
 #include "base_player.h"
 #include "particle.h"
 #include "http.h"
-#include "util/macros.h"
 #include "util/log.h"
 #include "util/text.h"
 #include "lua/bindings-network.h"
@@ -154,10 +153,10 @@ namespace
 		void encode(ZCom_BitStream* data)
 		{
 			data->addInt(events.size(), 8);
-			foreach(i, events)
+			for (auto i : events)
 			{
-				DLOG("Encoding lua event: " << (*i)->name);
-				data->addString((*i)->name.c_str());
+				DLOG("Encoding lua event: " << i->name);
+				data->addString(i->name.c_str());
 			}
 		}
 	};
@@ -186,21 +185,32 @@ namespace
 	
 	void processHttpRequests()
 	{
-		foreach_delete(i, requests)
+	for (auto i = requests.begin(), i_end = requests.end(); i != i_end; )
+	{
+		auto next = i; ++next;
+		if(!i->req)
 		{
-			if(!i->req || i->req->think())
-			{
-				if(i->handler)
-					i->handler(i->req);
-				else
-					delete i->req;
-				requests.erase(i);
-			}
+			requests.erase(i);
 		}
+		else if(i->req->think())
+		{
+			if(i->handler)
+				i->handler(i->req);
+			else
+				delete i->req;
+			requests.erase(i);
+		}
+		i = next;
+	}
 	}
 	
 	void onServerRemoved(HTTP::Request* req)
 	{
+		if(!req)
+		{
+			serverAdded = false;
+			return;
+		}
 		if(req->success)
 		{
 			cout << "Unregistered from master server" << endl;
@@ -218,6 +228,11 @@ namespace
 	
 	void onServerAdded(HTTP::Request* req)
 	{
+		if(!req)
+		{
+			serverAdded = false;
+			return;
+		}
 		if(req->success)
 		{
 			serverAdded = true;
@@ -236,6 +251,11 @@ namespace
 	
 	void onServerUpdate(HTTP::Request* req)
 	{
+		if(!req)
+		{
+			serverAdded = false;
+			return;
+		}
 		if(req->success)
 		{
 			cout << "Sent update to master server" << endl;
@@ -282,7 +302,7 @@ namespace
 	{
 		if(args.size() >= 2)
 		{
-			let_(i, args.begin());
+			auto i = args.begin();
 			std::string const& addr = *i++;
 			int port = cast<int>(*i++);
 			
@@ -477,7 +497,9 @@ void Network::update()
 			if(requests.size() == 0 && (connCount == 0 || stateTimeOut <= 0))
 			{
 				if(connCount != 0)
+				{
 					WLOG(connCount << " connection(s) might not have disconnected properly.");
+				}
 				setLuaState(StateDisconnected);
 				SET_STATE(Disconnected);
 
@@ -505,6 +527,12 @@ void Network::update()
 		}
 		break;
 
+		default:
+			// Pseudo-states (StateConnecting, StateHosting) are transient and
+			// should never be observed here; they get replaced by the next real
+			// state transition before update() processes them.
+			assert(false && "Network::update called with pseudo-state");
+		break;
 	}
 	
 	if( reconnectTimer > 0 )
@@ -651,6 +679,18 @@ ZCom_Control* Network::getZControl()
 	return m_control;
 }
 
+BasePlayer::Stats* Network::findSavedStats(unsigned int uniqueID)
+{
+	if (!isHost() || !getZControl()) return 0;
+	return static_cast<Server*>(getZControl())->findSavedStats(uniqueID);
+}
+
+std::string Network::findSavedName(unsigned int uniqueID)
+{
+	if (!isHost() || !getZControl()) return std::string();
+	return static_cast<Server*>(getZControl())->findSavedName(uniqueID);
+}
+
 int Network::getServerPing()
 {
 	if( m_client )
@@ -663,6 +703,8 @@ int Network::getServerPing()
 
 void Network::addHttpRequest(HTTP::Request* req, HttpRequestCallback handler)
 {
+	if(!req)
+		return;
 	requests.push_back(HttpRequest(req, handler));
 }
 

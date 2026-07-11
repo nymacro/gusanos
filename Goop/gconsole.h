@@ -29,7 +29,7 @@ public:
 	{
 		BindingLock()
 		{
-			enable.assign(true);
+			enable.fill(true);
 		}
 		
 		array<bool, 256> enable;
@@ -55,6 +55,8 @@ public:
 	bool eventPrintableChar(char c, int k);
 	bool eventKeyDown(int k);
 	bool eventKeyUp(int k);
+	bool eventGamepadDown(int k);
+	bool eventGamepadUp(int k);
 	
 	std::string setConsoleKey(std::list<std::string> const& args);
 	
@@ -68,6 +70,7 @@ public:
 					++m_lockRefCount[i];
 			}
 		}
+		m_bindingsLocked = true;
 	}
 	
 	void releaseBindings(BindingLock const& lock)
@@ -83,6 +86,17 @@ public:
 					--m_lockRefCount[i];
 			}
 		}
+		m_bindingsLocked = false;
+	}
+	
+	// Returns true if normal key bindings are currently locked out.
+	// Gamepad button codes can exceed the 256-entry m_lockRefCount array,
+	// so bound them before indexing to avoid std::out_of_range.
+	bool bindingsLocked(int k) const
+	{
+		if(k < 0 || k >= static_cast<int>(m_lockRefCount.size()))
+			return false;
+		return m_lockRefCount[k] > 0;
 	}
 	
 	void varCbFont( std::string oldValue );
@@ -108,6 +122,12 @@ private:
 	SpriteSet *background;
 	std::set<BindingLock const*> m_locks;
 	array<int, 256> m_lockRefCount;
+
+	// Tracks whether this GContext currently holds the binding lock.
+	// Used to make lock/release idempotent (see GContext::setFocus /
+	// hiddenFocus / shownFocus), preventing the once-global lock from
+	// getting stuck on after menu navigation or chat focus churn.
+	bool m_bindingsLocked = false;
 #endif
 
 	std::list< std::string >::reverse_iterator logRenderPos; //For scrolling
@@ -126,6 +146,7 @@ private:
 };
 
 std::string bindCmd(const std::list<std::string> &args);
+std::string gpInfoCmd(const std::list<std::string> &args);
 
 extern GConsole console;
 

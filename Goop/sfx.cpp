@@ -3,7 +3,6 @@
 #include "sfx.h"
 #include "gconsole.h"
 #include "base_object.h"
-#include "util/macros.h"
 
 #include <vector>
 #include <list>
@@ -76,8 +75,9 @@ void Sfx::think()
 	}
 	
 	//Update 3d channel that follow objects positions
-	foreach_delete(obj, chanObject)
+	for (auto obj = chanObject.begin(), obj_end = chanObject.end(); obj != obj_end; )
 	{
+		auto next = obj; ++next;
 		if( !obj->second
 		||  obj->second->deleteMe
 		||  !FSOUND_IsPlaying( obj->first ) )
@@ -89,6 +89,7 @@ void Sfx::think()
 			float pos[3] = { obj->second->pos.x, obj->second->pos.y, 0 };
 			FSOUND_3D_SetAttributes(obj->first, pos, NULL);
 		}
+		obj = next;
 	}
 }
 

@@ -1,6 +1,7 @@
 #include "player_options.h"
 #include "gconsole.h"
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
+using namespace boost::placeholders;
 #include "util/text.h"
 #include <cmath>
 #include <list>
@@ -9,8 +10,8 @@
 using namespace std;
 
 PlayerOptions::PlayerOptions(std::string const& name_)
-: name(name_), m_nameChanged(false), m_colorChanged(false)
-, uniqueID(0), team(-1)
+: name(name_), uniqueID(0), team(-1)
+, m_nameChanged(false), m_colorChanged(false)
 {
 	aimAcceleration = AngleDiff(0.1);
 	//aimFriction = 0.05;
