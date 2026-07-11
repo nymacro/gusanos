@@ -70,7 +70,7 @@ public:
 	void dig();
 	void die();
 	void changeWeaponTo( unsigned int weapIndex );
-	void damage( float amount, BasePlayer* damager );
+	void damage( float amount, BasePlayer* damager, DamageCause const& cause );
 	void setWeapon(size_t index, WeaponType* type );
 	void clearWeapons();
 	

@@ -5,6 +5,8 @@
 #include "util/vec.h"
 #include "util/angle.h"
 #include "base_object.h"
+
+#include <string>
 #include <vector>
 #include "luaapi/types.h"
 
@@ -80,7 +82,7 @@ public:
 	bool isChanging()
 	{ return changing; }
 	
-	virtual void damage( float amount, BasePlayer* damager );
+	virtual void damage( float amount, BasePlayer* damager, DamageCause const& cause );
 	
 	// This are virtual so that NetWorm can know about them and tell others over the network.
 	virtual void respawn();
@@ -177,6 +179,9 @@ protected:
 	int m_weaponCount;
 	
 	BasePlayer* m_lastHurt;
+	int          m_lastHurtWeapon    = -1;
+	unsigned int m_lastHurtShooterID = 0;
+	std::string  m_lastHurtName;
 	NinjaRope* m_ninjaRope;
 	
 #ifndef DEDSERV

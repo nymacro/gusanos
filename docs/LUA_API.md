@@ -139,6 +139,14 @@ Returns the local Player object at `index` (0-based), or `nil` if invalid.
 #### `game_local_player_name(index)`
 Returns the name of the local player at `index`.
 
+#### `game_tick()` → `int`
+Returns the current game logic tick. Advances at 100 ticks per second and is
+available on both client and server.
+
+#### `game_weapon_name(index)` → `string`
+Returns the name of the weapon at the given WeaponType index, or an empty
+string if the index is invalid.
+
 ### Other
 
 #### `print(...)`
@@ -249,6 +257,22 @@ Returns the player's kill count.
 
 #### `player:deaths()` → `int`
 Returns the player's death count.
+
+#### `player:damage_dealt()` → `number`
+Returns the total damage this player has dealt to other worms.
+Server-authoritative: returns `0` on clients.
+
+#### `player:damage_taken()` → `number`
+Returns the total damage this player has received from other worms.
+Server-authoritative: returns `0` on clients.
+
+#### `player:weapon_kills()` → `table`
+Returns a table mapping weapon names to the number of kills made with each
+weapon. Server-authoritative: returns an empty table on clients.
+
+#### `player:unique_id()` → `int`
+Returns the stable unique ID for this player. The same value is kept across
+reconnects, so it can be used to track scoring events in Lua.
 
 #### `player:name()` → `string`
 Returns the player's name.
@@ -448,7 +472,7 @@ function.
 | `afterUpdate` | After logic update | — |
 | `wormRender` | Before a worm renders | `worm` |
 | `viewportRender` | Before a viewport renders | `viewport, layer` |
-| `wormDeath` | A worm dies | `worm, killer` |
+| `wormDeath` | A worm dies | `worm, killer, weapon` |
 | `wormRemoved` | A worm is removed | `worm` |
 | `playerUpdate` | Player updates each tick | `player` |
 | `playerInit` | Player is initialized | `player` |
@@ -484,8 +508,8 @@ addEventHandler("afterUpdate", function()
     -- Called every game tick
 end)
 
-addEventHandler("wormDeath", function(worm, killer)
-    print(worm:name() .. " was killed by " .. killer:name())
+addEventHandler("wormDeath", function(worm, killer, weapon)
+    print(worm:name() .. " was killed by " .. (killer and killer:name() or "?") .. (weapon ~= "" and " with " .. weapon or ""))
 end)
 
 addEventHandler("gameEnded", function(reason)
@@ -669,9 +693,9 @@ addEventHandler("afterUpdate", function()
     end
 end)
 
-addEventHandler("wormDeath", function(worm, killer)
+addEventHandler("wormDeath", function(worm, killer, weapon)
     if killer and killer:is_local() then
-        print("You killed " .. worm:name())
+        print("You killed " .. worm:name() .. (weapon ~= "" and " with " .. weapon or ""))
     end
 end)
 

@@ -201,7 +201,7 @@ public:
 	
 	void sendRConMsg( std::string const & message );
 	void displayChatMsg( std::string const& owner, std::string const& message);
-	void displayKillMsg( BasePlayer* killed, BasePlayer* killer );
+	void displayKillMsg( BasePlayer* killed, BasePlayer* killer, std::string const& weaponName, std::string const& killerNameFallback );
 	void displayMessage( ScreenMessage const& msg );
 	
 	Level level;
@@ -236,7 +236,10 @@ public:
 	Font *infoFont;
 #endif
 	std::list<ScreenMessage> messages;
-
+	
+	unsigned int m_tick = 0;
+	unsigned int getTick() const { return m_tick; }
+	
 	unsigned long stringToIndex(std::string const& str);
 	
 	std::string const& indexToString(unsigned long idx);

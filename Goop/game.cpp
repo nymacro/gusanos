@@ -492,6 +492,8 @@ void Game::sendLuaEvent(LuaEventDef* event, eZCom_SendMode mode, zU8 rules, ZCom
 
 void Game::think()
 {
+	++m_tick;
+	
 	mq_process_messages(msg)
 		mq_case(ChangeLevel)
 			
@@ -1116,15 +1118,16 @@ void Game::displayChatMsg( std::string const& owner, std::string const& message)
 #endif
 }
 
-void Game::displayKillMsg( BasePlayer* killed, BasePlayer* killer )
+void Game::displayKillMsg( BasePlayer* killed, BasePlayer* killer, std::string const& weaponName, std::string const& killerNameFallback )
 {
 	std::string str = "{" + killed->m_name + "} ";
 	
 	if(killed != killer)
 	{
 		str += "got killed by";
-		if(killer)
-			str += " {" + killer->m_name + '}';
+		std::string killerName = killer ? killer->m_name : killerNameFallback;
+		if(!killerName.empty())
+			str += " {" + killerName + '}';
 		else
 			str += " {\01305anonymous}";
 	}
@@ -1132,6 +1135,8 @@ void Game::displayKillMsg( BasePlayer* killed, BasePlayer* killer )
 	{
 		str += "commited suicide";
 	}
+	
+	if (!weaponName.empty()) str += " with {" + weaponName + '}';
 	
 	if ( options.showDeathMessages ) displayMessage(ScreenMessage(ScreenMessage::Death, str, 400));
 	if ( options.logDeathMessages ) console.addLogMsg(str);

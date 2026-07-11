@@ -12,6 +12,7 @@
 #include "../player_options.h"
 #include "../player.h"
 #include "../base_worm.h"
+#include "../weapon_type.h"
 #include "../level.h"
 #include "util/log.h"
 #include "util/stringbuild.h"
@@ -135,6 +136,31 @@ int l_game_localPlayerName(lua_State* L)
 		return 0;
 }
 
+/*! game_tick()
+
+	Returns the current game logic tick. Advances at 100 ticks per second.
+*/
+int l_game_tick(lua_State* L)
+{
+	lua.push(static_cast<int>(game.getTick()));
+	return 1;
+}
+
+/*! game_weapon_name(index)
+
+	Returns the name of the weapon at the given WeaponType index,
+	or an empty string if the index is invalid.
+*/
+int l_game_weaponName(lua_State* L)
+{
+	int idx = (int)lua_tointeger(L, 1);
+	if (idx >= 0 && (size_t)idx < game.weaponList.size())
+		lua.push(game.weaponList[idx]->name.c_str());
+	else
+		lua.push("");
+	return 1;
+}
+
 
 /*! Player:kills()
 
@@ -152,6 +178,55 @@ METHODC(BasePlayer, player_kills,
 */
 METHODC(BasePlayer, player_deaths,
 	context.push(p->stats->deaths);
+	return 1;
+)
+
+/*! Player:damage_dealt()
+
+	Returns the total damage this player has dealt to other worms.
+	This is server-authoritative: 0 on clients.
+*/
+METHODC(BasePlayer, player_damageDealt,
+	context.push(p->stats->damageDealt);
+	return 1;
+)
+
+/*! Player:damage_taken()
+
+	Returns the total damage this player has received from other worms.
+	This is server-authoritative: 0 on clients.
+*/
+METHODC(BasePlayer, player_damageTaken,
+	context.push(p->stats->damageTaken);
+	return 1;
+)
+
+/*! Player:weapon_kills()
+
+	Returns a table mapping weapon names to the number of kills made with
+	each weapon. This is server-authoritative: empty on clients.
+*/
+METHODC(BasePlayer, player_weaponKills,
+	context.newtable();
+	for (auto& kv : p->stats->weaponKills)
+	{
+		int idx = kv.first;
+		if (idx >= 0 && (size_t)idx < game.weaponList.size())
+		{
+			context.push(game.weaponList[idx]->name.c_str());
+			context.push(kv.second);
+			lua_rawset(context, -3);
+		}
+	}
+	return 1;
+)
+
+/*! Player:unique_id()
+
+	Returns the stable unique ID of this player (the same across reconnects).
+*/
+METHODC(BasePlayer, player_uniqueId,
+	context.push(static_cast<int>(p->getOptions()->uniqueID));
 	return 1;
 )
 
@@ -365,6 +440,8 @@ void initGame()
 	context.functions()
 		("game_local_player", l_game_localPlayer)
 		("game_local_player_name", l_game_localPlayerName)
+		("game_tick", l_game_tick)
+		("game_weapon_name", l_game_weaponName)
 		("console_register_control", l_console_register_control)
 		("game_get_closest_worm", l_game_getClosestWorm)
 		("map_is_blocked", l_map_isBlocked)
@@ -378,6 +455,10 @@ void initGame()
 	,
 		("kills", l_player_kills)
 		("deaths", l_player_deaths)
+		("damage_dealt", l_player_damageDealt)
+		("damage_taken", l_player_damageTaken)
+		("weapon_kills", l_player_weaponKills)
+		("unique_id", l_player_uniqueId)
 		("name", l_player_name)
 		("team", l_player_team)
 		("say", l_player_say)

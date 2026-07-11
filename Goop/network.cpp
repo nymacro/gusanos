@@ -679,6 +679,18 @@ ZCom_Control* Network::getZControl()
 	return m_control;
 }
 
+BasePlayer::Stats* Network::findSavedStats(unsigned int uniqueID)
+{
+	if (!isHost() || !getZControl()) return 0;
+	return static_cast<Server*>(getZControl())->findSavedStats(uniqueID);
+}
+
+std::string Network::findSavedName(unsigned int uniqueID)
+{
+	if (!isHost() || !getZControl()) return std::string();
+	return static_cast<Server*>(getZControl())->findSavedName(uniqueID);
+}
+
 int Network::getServerPing()
 {
 	if( m_client )

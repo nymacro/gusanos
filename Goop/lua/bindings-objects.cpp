@@ -382,7 +382,7 @@ METHODC(BaseObject, baseObject_damage,
 	lua_Number amount = lua_tonumber(context, 2);
 	//BasePlayer* player = *static_cast<BasePlayer **>(lua_touserdata(context, 3));
 	BasePlayer* player = getObject<BasePlayer>(context, 3);
-	p->damage(amount, player);
+	p->damage(amount, player, DamageCause());
 	return 1;
 )
 

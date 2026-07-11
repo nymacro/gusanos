@@ -5,6 +5,7 @@
 #include <string>
 #include <boost/function.hpp>
 #include "luaapi/types.h"
+#include "base_player.h"
 
 #include "message_queue.h"
 
@@ -147,6 +148,9 @@ public:
 	
 	static ZCom_Control* getZControl();
 	static int getServerPing();
+	
+	static BasePlayer::Stats* findSavedStats(unsigned int uniqueID);
+	static std::string        findSavedName(unsigned int uniqueID);
 
 	static void incConnCount();
 	static void decConnCount();

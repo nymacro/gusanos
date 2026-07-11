@@ -53,7 +53,7 @@ public:
 	void sendLuaEvent(LuaEventDef* event, eZCom_SendMode mode, zU8 rules, ZCom_BitStream* userdata, ZCom_ConnID connID);
 	//virtual LuaReference getLuaReference();
 	//virtual void pushLuaReference();
-	void damage(float amount, BasePlayer* damager );
+	void damage(float amount, BasePlayer* damager, DamageCause const& cause );
 	void remove();
 	//virtual void deleteThis();
 	virtual void makeReference();

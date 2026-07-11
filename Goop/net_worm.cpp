@@ -164,12 +164,15 @@ void NetWorm::think()
 						BaseWorm::dig(digPos, digAngle);
 					}
 					break;
-					case Die:
-					{
-						m_lastHurt = game.findPlayerWithID( data->getInt(32) );
-						BaseWorm::die();
-					}
-					break;
+				case Die:
+				{
+					m_lastHurt       = game.findPlayerWithID( data->getInt(32) );
+					int wcount = (int)game.weaponList.size();
+					m_lastHurtWeapon = Encoding::decode(*data, wcount + 1) - 1;
+					if (const char* s = data->getStringStatic()) m_lastHurtName = s; else m_lastHurtName.clear();
+					BaseWorm::die();
+				}
+				break;
 					case ChangeWeapon:
 					{
 						//size_t weapIndex = data->getInt(Encoding::bitsOf(game.weaponList.size() - 1));
@@ -384,6 +387,11 @@ void NetWorm::die()
 {
 	if ( m_isAuthority && m_node )
 	{
+		std::string killerName;
+		if (m_lastHurt)               killerName = m_lastHurt->m_name;
+		else if (m_lastHurtShooterID) killerName = Network::findSavedName(m_lastHurtShooterID);
+		m_lastHurtName = killerName;    // so BaseWorm::die uses it consistently
+
 		ZCom_BitStream *data = new ZCom_BitStream;
 		addEvent(data, Die);
 		if ( m_lastHurt )
@@ -394,6 +402,9 @@ void NetWorm::die()
 		{
 			data->addInt( INVALID_NODE_ID, 32 );
 		}
+		int wcount = (int)game.weaponList.size();
+		Encoding::encode(*data, m_lastHurtWeapon + 1, wcount + 1); // -1 -> 0 sentinel
+		data->addString(killerName.c_str());
 		m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, data);
 		BaseWorm::die();
 	}
@@ -446,11 +457,11 @@ void NetWorm::clearWeapons()
 	}
 }
 
-void NetWorm::damage( float amount, BasePlayer* damager )
+void NetWorm::damage( float amount, BasePlayer* damager, DamageCause const& cause )
 {
 	if ( m_isAuthority )
 	{
-		BaseWorm::damage( amount, damager );
+		BaseWorm::damage( amount, damager, cause );
 	}
 }
 

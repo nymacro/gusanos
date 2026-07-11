@@ -466,9 +466,11 @@ void Particle::customEvent( size_t index )
 	}
 }
 
-void Particle::damage( float amount, BasePlayer* damager )
+void Particle::damage( float amount, BasePlayer* damager, DamageCause const& cause )
 {
 	m_health -= amount;
+	(void)damager;
+	(void)cause;
 }
 
 void Particle::remove()

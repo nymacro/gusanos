@@ -43,7 +43,23 @@ Server::Server( int _udpport )
 }
 
 Server::~Server()
-{	
+{
+}
+
+BasePlayer::Stats* Server::findSavedStats(unsigned int uniqueID)
+{
+	auto i = savedScores.find(uniqueID);
+	if (i != savedScores.end())
+		return i->second.get();
+	return 0;
+}
+
+std::string Server::findSavedName(unsigned int uniqueID)
+{
+	auto i = savedNames.find(uniqueID);
+	if (i != savedNames.end())
+		return i->second;
+	return std::string();
 }
 
 /*
@@ -95,6 +111,7 @@ void Server::ZCom_cbDataReceived( ZCom_ConnID  _id, ZCom_BitStream &_data)
 			player->colour = colour;
 			player->team = team;
 			player->localChangeName( name );
+			savedNames[uniqueID] = player->m_name;
 			console.addLogMsg( "* " + player->m_name + " HAS JOINED THE GAME");
 			player->assignNetworkRole(true);
 			player->setOwnerId(_id);

@@ -2,6 +2,7 @@
 #define BASE_PLAYER_H
 
 #include <string>
+#include <map>
 //#include "vec.h"
 #include "luaapi/types.h"
 #include <stdexcept>
@@ -75,14 +76,17 @@ public:
 	struct Stats
 	{
 		Stats()
-		: deaths(0), kills(0)
+		: deaths(0), kills(0), damageDealt(0.f), damageTaken(0.f)
 		{
 		}
 		
 		~Stats();
 		
-		int deaths;
-		int kills;
+		int   deaths;
+		int   kills;
+		float damageDealt;                  // server-authoritative
+		float damageTaken;                  // server-authoritative
+		std::map<int, int> weaponKills;     // WeaponType index -> count (server-authoritative)
 		LuaReference luaData;
 	};
 	
