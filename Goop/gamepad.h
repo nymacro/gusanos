@@ -81,8 +81,14 @@ public:
 	bool isConnected(int slot) const;
 	float getAxis(int slot, int axis) const;
 
+	// Emits an analogInput for a stick direction and updates m_old.
+	void emitStickAnalog(int slot, GamepadInput input, float value);
+
 	boost::signals2::signal<bool(int), StopEarly> buttonDown;
 	boost::signals2::signal<bool(int), StopEarly> buttonUp;
+
+	// Carries a normalized (0..1) magnitude for analog stick directions.
+	boost::signals2::signal<void(int, float)> analogInput;
 
 private:
 	/* SDL handles */

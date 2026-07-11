@@ -86,6 +86,8 @@ BaseWorm::BaseWorm()
 	m_ninjaRope = new NinjaRope(game.NRPartType, this);
 	movingLeft = false;
 	movingRight = false;
+	m_movingLeftIntensity = 1.0f;
+	m_movingRightIntensity = 1.0f;
 	jumping = false;
 }
 
@@ -405,12 +407,16 @@ void BaseWorm::processMoveAndDig(void)
 		
 		if(reacts[Up] <= 0)
 			acc *= game.options.worm_airAccelerationFactor;
-		if(movingLeft && !movingRight)
+
+		float leftInt  = movingLeft  ? m_movingLeftIntensity  : 0.0f;
+		float rightInt = movingRight ? m_movingRightIntensity : 0.0f;
+
+		if(leftInt > 0.0f && rightInt <= 0.0f)
 		{
 			//TODO: Air acceleration
 			if(spd.x > -game.options.worm_maxSpeed)
 			{
-				spd.x -= acc;
+				spd.x -= acc * leftInt;
 			}
 			
 			if(m_dir > 0)
@@ -421,12 +427,12 @@ void BaseWorm::processMoveAndDig(void)
 			
 			animate = true;
 		}
-		else if(movingRight && !movingLeft)
+		else if(rightInt > 0.0f && leftInt <= 0.0f)
 		{
 			//TODO: Air acceleration
 			if(spd.x < game.options.worm_maxSpeed)
 			{
-				spd.x += acc;
+				spd.x += acc * rightInt;
 			}
 			
 			if(m_dir < 0)
@@ -437,7 +443,7 @@ void BaseWorm::processMoveAndDig(void)
 			
 			animate = true;
 		}
-		else if(movingRight && movingLeft)
+		else if(leftInt > 0.0f && rightInt > 0.0f)
 		{
 			// TODO: Digging
 			animate = false;
@@ -1013,16 +1019,18 @@ void BaseWorm::showFirecone( SpriteSet* sprite, int frames, float distance )
 }
 #endif
 
-void BaseWorm::actionStart( Actions action )
+void BaseWorm::actionStart( Actions action, float intensity )
 {
 	switch ( action )
 	{
 		case MOVELEFT:
 			movingLeft = true;
+			m_movingLeftIntensity = intensity;
 		break;
 		
 		case MOVERIGHT:
 			movingRight = true;
+			m_movingRightIntensity = intensity;
 		break;
 		
 		case FIRE:
@@ -1051,16 +1059,18 @@ void BaseWorm::actionStart( Actions action )
 	}
 }
 
-void BaseWorm::actionStop( Actions action )
+void BaseWorm::actionStop( Actions action, float intensity )
 {
 	switch ( action )
 	{
 		case MOVELEFT:
 			movingLeft = false;
+			m_movingLeftIntensity = 0.0f;
 		break;
 		
 		case MOVERIGHT:
 			movingRight = false;
+			m_movingRightIntensity = 0.0f;
 		break;
 		
 		case FIRE:

@@ -18,6 +18,12 @@ Context::GSSclass Context::GSSclass::standard;
 
 void Context::destroy()
 {
+	// Clear keyboard focus so derived classes (GContext) can release any
+	// focus-driven binding lock. Otherwise a window that was focused at
+	// teardown time keeps the lock held forever, swallowing keyboard input
+	// in the next session.
+	if(m_keyboardFocusWnd)
+		setFocus(0);
 	delete m_rootWnd; m_rootWnd = 0;
 }
 

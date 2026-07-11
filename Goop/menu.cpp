@@ -331,11 +331,16 @@ bool GContext::eventPrintableChar(char c, int k)
 
 void GContext::setFocus(Wnd* wnd)
 {
-	if(!wnd)
-		console.releaseBindings(bindingLock);
-	else
+	// The binding lock must reflect whether a (non-console) window currently
+	// owns keyboard focus. It is a single logical state, so we set/clear the
+	// lock based on the requested focus target rather than toggling it on
+	// every transition — otherwise moving focus window-to-window would
+	// accumulate lock count and permanently swallow keyboard input.
+	if(wnd)
 		console.lockBindings(bindingLock);
-		
+	else
+		console.releaseBindings(bindingLock);
+
 	Context::setFocus(wnd);
 }
 

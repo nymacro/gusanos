@@ -498,7 +498,7 @@ bool GConsole::eventKeyDown(int k)
 	}
 	else if ( m_mode == CONSOLE_MODE_BINDINGS )		// Only if in bindings mode
 	{
-		if(m_lockRefCount.at(k) <= 0)
+		if(!bindingsLocked(k))
 		{
 			analizeKeyEvent(true, k);
 			clear_keybuf();
@@ -600,7 +600,7 @@ bool GConsole::eventKeyUp(int k)
 {
 	if ( m_mode == CONSOLE_MODE_BINDINGS )		// Only if in bindings mode
 	{
-		if(m_lockRefCount.at(k) <= 0)
+		if(!bindingsLocked(k))
 		{
 			analizeKeyEvent(false, k);
 			clear_keybuf();

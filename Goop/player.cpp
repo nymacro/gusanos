@@ -18,6 +18,8 @@ Player::Player(boost::shared_ptr<PlayerOptions> options, BaseWorm* worm)
 , jumping(false)
 , walkingLeft(false)
 , walkingRight(false)
+, m_actionActive()
+, m_actionIntensity()
 #ifndef DEDSERV
 , m_viewport(0)
 #endif
@@ -51,11 +53,11 @@ void Player::subThink()
 		{
 			if(aimingUp)
 			{
-				m_worm->addRopeLength(-m_options->ropeAdjustSpeed);
+				m_worm->addRopeLength(-m_options->ropeAdjustSpeed * m_actionIntensity[UP]);
 			}
 			if(aimingDown)
 			{
-				m_worm->addRopeLength(m_options->ropeAdjustSpeed);
+				m_worm->addRopeLength(m_options->ropeAdjustSpeed * m_actionIntensity[DOWN]);
 			}
 		}
 		else
@@ -63,12 +65,12 @@ void Player::subThink()
 			
 			if (aimingUp && m_worm->aimSpeed > -m_options->aimMaxSpeed) 
 			{
-				m_worm->addAimSpeed(-m_options->aimAcceleration);
+				m_worm->addAimSpeed(-m_options->aimAcceleration * m_actionIntensity[UP]);
 			}
 			// No "else if" since we want to support precision aiming
 			if (aimingDown && m_worm->aimSpeed < m_options->aimMaxSpeed)
 			{
-				m_worm->addAimSpeed(m_options->aimAcceleration);
+				m_worm->addAimSpeed(m_options->aimAcceleration * m_actionIntensity[DOWN]);
 			}
 		}
 		
@@ -90,12 +92,22 @@ void Player::render()
 }
 #endif
 
-void Player::actionStart ( Actions action )
+void Player::actionStart ( Actions action, float intensity )
 {
+	m_actionIntensity[action] = intensity;
+
 	switch (action)
 	{
 		case LEFT:
 		{
+			if ( m_actionActive[action] )
+			{
+				// Continuous action: just update intensity, keep walking state.
+				if ( m_worm && !changing )
+					BasePlayer::baseActionStart(BasePlayer::LEFT, intensity);
+				return;
+			}
+			m_actionActive[action] = true;
 			if ( m_worm )
 			{
 				if(changing)
@@ -104,7 +116,7 @@ void Player::actionStart ( Actions action )
 				}
 				else
 				{
-					BasePlayer::baseActionStart(BasePlayer::LEFT);
+					BasePlayer::baseActionStart(BasePlayer::LEFT, intensity);
 					walkingLeft = true;
 					if ( walkingRight )
 						BasePlayer::baseActionStart(BasePlayer::DIG);
@@ -115,6 +127,13 @@ void Player::actionStart ( Actions action )
 		
 		case RIGHT:
 		{
+			if ( m_actionActive[action] )
+			{
+				if ( m_worm && !changing )
+					BasePlayer::baseActionStart(BasePlayer::RIGHT, intensity);
+				return;
+			}
+			m_actionActive[action] = true;
 			if ( m_worm )
 			{
 				if(changing)
@@ -123,7 +142,7 @@ void Player::actionStart ( Actions action )
 				}
 				else
 				{
-					BasePlayer::baseActionStart(BasePlayer::RIGHT);
+					BasePlayer::baseActionStart(BasePlayer::RIGHT, intensity);
 					walkingRight = true;
 					if ( walkingLeft )
 						BasePlayer::baseActionStart(BasePlayer::DIG);
@@ -134,6 +153,9 @@ void Player::actionStart ( Actions action )
 		
 		case FIRE:
 		{
+			if ( m_actionActive[action] )
+				return;
+			m_actionActive[action] = true;
 			if ( m_worm )
 			{
 				if(!changing)
@@ -144,6 +166,9 @@ void Player::actionStart ( Actions action )
 		
 		case JUMP:
 		{
+			if ( m_actionActive[action] )
+				return;
+			m_actionActive[action] = true;
 			if ( m_worm )
 			{
 				if ( m_worm->isActive() )
@@ -170,6 +195,9 @@ void Player::actionStart ( Actions action )
 		
 		case UP:
 		{
+			if ( m_actionActive[action] )
+				return;
+			m_actionActive[action] = true;
 			if ( m_worm )
 			{
 				aimingUp = true;
@@ -179,6 +207,9 @@ void Player::actionStart ( Actions action )
 		
 		case DOWN:
 		{
+			if ( m_actionActive[action] )
+				return;
+			m_actionActive[action] = true;
 			if ( m_worm )
 			{
 				aimingDown = true;
@@ -188,8 +219,15 @@ void Player::actionStart ( Actions action )
 
 		case CHANGE:
 		{
+			if ( m_actionActive[action] )
+				return;
+			m_actionActive[action] = true;
 			if ( m_worm )
 			{
+				// Stop any movement cleanly so it won't auto-resume on release.
+				if (walkingLeft) actionStop(LEFT);
+				if (walkingRight) actionStop(RIGHT);
+
 				m_worm->actionStart(Worm::CHANGEWEAPON);
 				
 				if (jumping)
@@ -214,6 +252,9 @@ void Player::actionStart ( Actions action )
 		
 		case WEAPON_NEXT:
 		{
+			if ( m_actionActive[action] )
+				return;
+			m_actionActive[action] = true;
 			if ( m_worm )
 			{
 				m_worm->setShowingWeaponText(true);
@@ -224,6 +265,9 @@ void Player::actionStart ( Actions action )
 		
 		case WEAPON_PREV:
 		{
+			if ( m_actionActive[action] )
+				return;
+			m_actionActive[action] = true;
 			if ( m_worm )
 			{
 				m_worm->setShowingWeaponText(true);
@@ -234,6 +278,9 @@ void Player::actionStart ( Actions action )
 		
 		case NINJAROPE:
 		{
+			if ( m_actionActive[action] )
+				return;
+			m_actionActive[action] = true;
 			if ( m_worm && m_worm->isActive() )
 			{
 				BasePlayer::baseActionStart(BasePlayer::NINJAROPE);
@@ -248,6 +295,10 @@ void Player::actionStart ( Actions action )
 
 void Player::actionStop ( Actions action )
 {
+	m_actionIntensity[action] = 0.0f;
+	if ( m_actionActive[action] )
+		m_actionActive[action] = false;
+
 	switch (action)
 	{
 		case LEFT:

@@ -66,8 +66,8 @@ public:
 	void processJumpingAndNinjaropeControls();
 	
 	virtual void think();
-	void actionStart( Actions action );
-	void actionStop( Actions action );
+	void actionStart( Actions action, float intensity = 1.0f );
+	void actionStop( Actions action, float intensity = 0.0f );
 	void addAimSpeed(AngleDiff speed);
 	void addRopeLength(float distance);
 	
@@ -191,6 +191,8 @@ protected:
 	bool m_isActive;
 	bool movingLeft;
 	bool movingRight;
+	float m_movingLeftIntensity;
+	float m_movingRightIntensity;
 	bool jumping;
 	bool animate;
 	bool movable; // What do we need this for? // Dunno, did I put this here? :o

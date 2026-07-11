@@ -128,6 +128,23 @@ constexpr int TRIGGER_THRESHOLD = 1000;
 namespace {
 	static bool gamepadInited = false;
 	constexpr Uint32 SDL_INVALID_JOYSTICK_ID = UINT32_MAX;
+
+	// Returns a normalized 0..1 magnitude for a raw stick axis value (already
+	// in -1..1). Values inside the deadzone map to 0.0f. The sign of the raw
+	// value is expected to be supplied so that positive raw == the direction.
+	// A quadratic ease-out curve is applied so small deflections (just outside
+	// the deadzone) produce a more usable response instead of feeling dead due
+	// to constant friction/decay. Range stays 0..1.
+	float normalizedMagnitude(float raw, int deadzone)
+	{
+		float v = raw * 32767.0f;
+		if (v < 0.0f) v = -v;
+		if (v <= static_cast<float>(deadzone)) return 0.0f;
+		float n = (v - static_cast<float>(deadzone)) / (32767.0f - static_cast<float>(deadzone));
+		if (n < 0.0f) n = 0.0f; else if (n > 1.0f) n = 1.0f;
+		// Quadratic ease-out: boosts the low/mid range (n=0.2 -> 0.36, 0.5 -> 0.75).
+		return n * (2.0f - n);
+	}
 }
 
 GamepadHandler::GamepadHandler()
@@ -516,85 +533,44 @@ void GamepadHandler::poll()
 		float l_x = m_axis[slot][0];
 		float l_y = m_axis[slot][1];
 
-		bool lst_left  = l_x * 32767.0f < -m_deadzone;
-		bool lst_right = l_x * 32767.0f >  m_deadzone;
-		bool lst_up    = l_y * 32767.0f < -m_deadzone;
-		bool lst_down  = l_y * 32767.0f >  m_deadzone;
+		// Left stick: analog magnitude per direction, no digital button events.
+		float lst_left  = normalizedMagnitude(l_x < 0.0f ? -l_x : l_x, m_deadzone);
+		float lst_right = normalizedMagnitude(l_x > 0.0f ?  l_x : l_x, m_deadzone);
+		float lst_up    = normalizedMagnitude(l_y < 0.0f ? -l_y : l_y, m_deadzone);
+		float lst_down  = normalizedMagnitude(l_y > 0.0f ?  l_y : l_y, m_deadzone);
+		if (l_x < 0.0f) lst_right = 0.0f; else lst_left = 0.0f;
+		if (l_y < 0.0f) lst_down = 0.0f; else lst_up = 0.0f;
 
-		if(lst_left != m_old[slot][GP_LSTICK_LEFT])
-		{
-			m_old[slot][GP_LSTICK_LEFT] = lst_left;
-			if(lst_left)
-				buttonDown(GAMEPAD_KEY_BASE + slot * GP_INPUT_COUNT + GP_LSTICK_LEFT);
-			else
-				buttonUp(GAMEPAD_KEY_BASE + slot * GP_INPUT_COUNT + GP_LSTICK_LEFT);
-		}
-		if(lst_right != m_old[slot][GP_LSTICK_RIGHT])
-		{
-			m_old[slot][GP_LSTICK_RIGHT] = lst_right;
-			if(lst_right)
-				buttonDown(GAMEPAD_KEY_BASE + slot * GP_INPUT_COUNT + GP_LSTICK_RIGHT);
-			else
-				buttonUp(GAMEPAD_KEY_BASE + slot * GP_INPUT_COUNT + GP_LSTICK_RIGHT);
-		}
-		if(lst_up != m_old[slot][GP_LSTICK_UP])
-		{
-			m_old[slot][GP_LSTICK_UP] = lst_up;
-			if(lst_up)
-				buttonDown(GAMEPAD_KEY_BASE + slot * GP_INPUT_COUNT + GP_LSTICK_UP);
-			else
-				buttonUp(GAMEPAD_KEY_BASE + slot * GP_INPUT_COUNT + GP_LSTICK_UP);
-		}
-		if(lst_down != m_old[slot][GP_LSTICK_DOWN])
-		{
-			m_old[slot][GP_LSTICK_DOWN] = lst_down;
-			if(lst_down)
-				buttonDown(GAMEPAD_KEY_BASE + slot * GP_INPUT_COUNT + GP_LSTICK_DOWN);
-			else
-				buttonUp(GAMEPAD_KEY_BASE + slot * GP_INPUT_COUNT + GP_LSTICK_DOWN);
-		}
+		emitStickAnalog(slot, GP_LSTICK_LEFT,  lst_left);
+		emitStickAnalog(slot, GP_LSTICK_RIGHT, lst_right);
+		emitStickAnalog(slot, GP_LSTICK_UP,    lst_up);
+		emitStickAnalog(slot, GP_LSTICK_DOWN,  lst_down);
 
 		float r_x = m_axis[slot][2];
 		float r_y = m_axis[slot][3];
 
-		bool rst_left  = r_x * 32767.0f < -m_deadzone;
-		bool rst_right = r_x * 32767.0f >  m_deadzone;
-		bool rst_up    = r_y * 32767.0f < -m_deadzone;
-		bool rst_down  = r_y * 32767.0f >  m_deadzone;
+		float rst_left  = normalizedMagnitude(r_x < 0.0f ? -r_x : r_x, m_deadzone);
+		float rst_right = normalizedMagnitude(r_x > 0.0f ?  r_x : r_x, m_deadzone);
+		float rst_up    = normalizedMagnitude(r_y < 0.0f ? -r_y : r_y, m_deadzone);
+		float rst_down  = normalizedMagnitude(r_y > 0.0f ?  r_y : r_y, m_deadzone);
+		if (r_x < 0.0f) rst_right = 0.0f; else rst_left = 0.0f;
+		if (r_y < 0.0f) rst_down = 0.0f; else rst_up = 0.0f;
 
-		if(rst_left != m_old[slot][GP_RSTICK_LEFT])
-		{
-			m_old[slot][GP_RSTICK_LEFT] = rst_left;
-			if(rst_left)
-				buttonDown(GAMEPAD_KEY_BASE + slot * GP_INPUT_COUNT + GP_RSTICK_LEFT);
-			else
-				buttonUp(GAMEPAD_KEY_BASE + slot * GP_INPUT_COUNT + GP_RSTICK_LEFT);
-		}
-		if(rst_right != m_old[slot][GP_RSTICK_RIGHT])
-		{
-			m_old[slot][GP_RSTICK_RIGHT] = rst_right;
-			if(rst_right)
-				buttonDown(GAMEPAD_KEY_BASE + slot * GP_INPUT_COUNT + GP_RSTICK_RIGHT);
-			else
-				buttonUp(GAMEPAD_KEY_BASE + slot * GP_INPUT_COUNT + GP_RSTICK_RIGHT);
-		}
-		if(rst_up != m_old[slot][GP_RSTICK_UP])
-		{
-			m_old[slot][GP_RSTICK_UP] = rst_up;
-			if(rst_up)
-				buttonDown(GAMEPAD_KEY_BASE + slot * GP_INPUT_COUNT + GP_RSTICK_UP);
-			else
-				buttonUp(GAMEPAD_KEY_BASE + slot * GP_INPUT_COUNT + GP_RSTICK_UP);
-		}
-		if(rst_down != m_old[slot][GP_RSTICK_DOWN])
-		{
-			m_old[slot][GP_RSTICK_DOWN] = rst_down;
-			if(rst_down)
-				buttonDown(GAMEPAD_KEY_BASE + slot * GP_INPUT_COUNT + GP_RSTICK_DOWN);
-			else
-				buttonUp(GAMEPAD_KEY_BASE + slot * GP_INPUT_COUNT + GP_RSTICK_DOWN);
-		}
+		emitStickAnalog(slot, GP_RSTICK_LEFT,  rst_left);
+		emitStickAnalog(slot, GP_RSTICK_RIGHT, rst_right);
+		emitStickAnalog(slot, GP_RSTICK_UP,    rst_up);
+		emitStickAnalog(slot, GP_RSTICK_DOWN,  rst_down);
 	}
+}
+
+void GamepadHandler::emitStickAnalog(int slot, GamepadInput input, float value)
+{
+	bool active = value > 0.0f;
+	if (active || m_old[slot][input])
+	{
+		analogInput(GAMEPAD_KEY_BASE + slot * GP_INPUT_COUNT + input, value);
+	}
+	m_old[slot][input] = active;
 }
 
 GamepadHandler gamepadHandler;
