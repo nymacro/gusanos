@@ -152,7 +152,7 @@ console.registerVariables()
 
 ```bash
 # Full debug build (10 min timeout)
-scons build=debug -j1
+scons build=debug -j1 | tail -20
 
 # Clean
 scons -c

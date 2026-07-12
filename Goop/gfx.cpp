@@ -6,9 +6,8 @@
 //#include "blitters/blitters.h"
 #include "blitters/colors.h"
 #include "blitters/macros.h"
+#include "game.h"
 #include "mouse.h"
-#include "sprite_set.h"
-#include "sprite.h"
 #endif
 #include <boost/assign/list_inserter.hpp>
 using namespace boost::assign;
@@ -17,6 +16,7 @@ using namespace boost::assign;
 #include <algorithm>
 #include <iostream>
 #include <list>
+#include <vector>
 #include <stdexcept>
 
 using namespace std;
@@ -51,7 +51,6 @@ namespace
 	int m_bitdepth = 32;
 
 	BITMAP* m_doubleResBuffer = 0;
-	SpriteSet* mouseCursor = 0;
 	
 	string screenShot(const list<string> &args)
 	{
@@ -133,6 +132,8 @@ void Gfx::shutDown()
 	if (buffer) { destroy_bitmap(buffer); buffer = 0; }
     if (screenTexture) { SDL_DestroyTexture(screenTexture); screenTexture = 0; }
     if (renderer) { SDL_DestroyRenderer(renderer); renderer = 0; }
+    if (sdlCursor) { SDL_DestroyCursor(sdlCursor); sdlCursor = 0; }
+    if (cursorSprite) { destroy_bitmap(cursorSprite); cursorSprite = 0; }
     if (window) { SDL_DestroyWindow(window); window = 0; }
     SDL_Quit();
 #endif
@@ -177,7 +178,39 @@ void Gfx::registerInConsole()
 void Gfx::loadResources()
 {
 #ifndef DEDSERV
-	mouseCursor = spriteList.load("cursor");
+	// Clean up a previously loaded cursor (e.g. when reloading a mod)
+	if (sdlCursor) { SDL_DestroyCursor(sdlCursor); sdlCursor = 0; }
+	if (cursorSprite) { destroy_bitmap(cursorSprite); cursorSprite = 0; }
+	cursorHotX = 0;
+	cursorHotY = 0;
+
+	// Build a list of candidate paths for the cursor sprite. The active mod
+	// directory is searched first, then the default mod directory, and finally
+	// the current working directory as a last resort.
+	std::vector<fs::path> cursorCandidates;
+	cursorCandidates.push_back(game.getModPath() / "sprites" / "cursor.png");
+	cursorCandidates.push_back(game.getModPath() / "sprites" / "cursor.bmp");
+	cursorCandidates.push_back(game.getDefaultPath() / "sprites" / "cursor.png");
+	cursorCandidates.push_back(game.getDefaultPath() / "sprites" / "cursor.bmp");
+	cursorCandidates.push_back(fs::path("cursor.png"));
+	cursorCandidates.push_back(fs::path("cursor.bmp"));
+
+	for (std::vector<fs::path>::const_iterator it = cursorCandidates.begin();
+	     it != cursorCandidates.end() && !cursorSprite; ++it)
+	{
+		BITMAP* cursorBmp = load_bitmap(it->string().c_str(), NULL);
+		if (cursorBmp && cursorBmp->sdl_surface) {
+			cursorSprite = cursorBmp;
+			cursorHotX = 3;
+			cursorHotY = 4;
+			sdlCursor = SDL_CreateColorCursor(cursorSprite->sdl_surface, cursorHotX, cursorHotY);
+			if (sdlCursor) {
+				SDL_SetCursor(sdlCursor);
+			}
+		} else if (cursorBmp) {
+			destroy_bitmap(cursorBmp);
+		}
+	}
 #endif
 }
 
@@ -185,13 +218,6 @@ void Gfx::loadResources()
 
 void Gfx::updateScreen()
 {
-	if(mouseCursor)
-	{
-		int x = mouseHandler.getX();
-		int y = mouseHandler.getY();
-		mouseCursor->getSprite()->draw(buffer, x, y);
-	}
-	
     // Apply current filter so runtime VID_FILTER changes take effect
     if (screenTexture) {
         SDL_ScaleMode mode = (m_filter == NO_FILTER || m_filter == NO_FILTER2 || m_filter == PIXELATE)

@@ -59,6 +59,11 @@ public:
 	SDL_Window* window;
 	SDL_Renderer* renderer;
 	SDL_Texture* screenTexture;
+	SDL_Cursor* sdlCursor = nullptr;
+
+	BITMAP* cursorSprite = nullptr;
+	int cursorHotX = 0;
+	int cursorHotY = 0;
 #endif
 
 	inline bool compareRGB( int c1, int c2 )

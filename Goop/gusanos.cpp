@@ -524,13 +524,22 @@ try
 		if(quit)
 			game.infoFont->draw(gfx.buffer, "Quitting...", 15, 110, 0, 255, 255, 255, 255);
 
-		EACH_CALLBACK(i, afterRender)
-		{
-			//lua.callReference(*i);
-			(lua.call(*i))();
-		}
-		
-		gfx.updateScreen();
+	EACH_CALLBACK(i, afterRender)
+	{
+		//lua.callReference(*i);
+		(lua.call(*i))();
+	}
+
+	// Draw the in-game cursor on top of everything. The OS cursor is hidden
+	// while inside the window, so this is the cursor the user actually sees.
+	if (gfx.cursorSprite)
+	{
+		draw_sprite(gfx.buffer, gfx.cursorSprite,
+		            mouseHandler.getX() - gfx.cursorHotX,
+		            mouseHandler.getY() - gfx.cursorHotY);
+	}
+
+	gfx.updateScreen();
 #endif
 	}
 	
