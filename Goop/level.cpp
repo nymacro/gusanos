@@ -401,7 +401,11 @@ bool Level::applyEffect(LevelEffect* effect, int drawX, int drawY )
 		for( int x = 0; x < tmpMask->m_bitmap->w; ++x )
 		{
 			colour = getpixel( tmpMask->m_bitmap, x, y);
-			bool isBlack = (maskDepth == 32) ? ((colour & 0x00FFFFFF) == 0) : (colour == 0);
+			// Holes are opaque-black (0xFF000000). load_bitmap converts the magenta
+			// background to transparent-black (0x00000000, alpha 0), so requiring
+			// alpha != 0 avoids carving the whole bounding box (the "square outline"
+			// bug). An RGB-black test alone matches both holes and the background.
+			bool isBlack = (maskDepth == 32) ? (((colour & 0xFF000000) != 0) && ((colour & 0x00FFFFFF) == 0)) : (colour == 0);
 			if( isBlack && getMaterial( drawX+x, drawY+y ).destroyable )
 			{
 				returnValue = true;
