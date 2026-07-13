@@ -94,6 +94,9 @@ void blit(BITMAP* src, BITMAP* dest, int s_x, int s_y, int d_x, int d_y, int w, 
 void masked_blit(BITMAP* src, BITMAP* dest, int s_x, int s_y, int d_x, int d_y, int w, int h);
 void stretch_blit(BITMAP* src, BITMAP* dest, int s_x, int s_y, int s_w, int s_h, int d_x, int d_y, int d_w, int d_h);
 void draw_sprite(BITMAP* dest, BITMAP* src, int x, int y);
+void sdlBlitBlendMode(BITMAP* dest, BITMAP* src, int dx, int dy,
+                     int sx, int sy, int sw, int sh,
+                     int fact, SDL_BlendMode mode);
 void clear_bitmap(BITMAP* bmp);
 void clear_to_color(BITMAP* bmp, int color);
 void rectfill(BITMAP* bmp, int x1, int y1, int x2, int y2, int color);
