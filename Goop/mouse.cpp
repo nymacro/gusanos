@@ -16,6 +16,14 @@ namespace
 void MouseHandler::init()
 {
 	// SDL3 initializes mouse with SDL_Init; nothing extra needed.
+	// The system cursor is hidden while the mouse is inside the game window so
+	// that Gusanos can draw its own cursor sprite on the back buffer.
+	if (gfx.window && (SDL_GetWindowFlags(gfx.window) & SDL_WINDOW_MOUSE_FOCUS)) {
+		SDL_HideCursor();
+	} else {
+		SDL_ShowCursor();
+	}
+
 	// Initialize positions from current SDL state, converting to logical coords.
 	float fx, fy;
 	SDL_GetMouseState(&fx, &fy);
@@ -37,6 +45,18 @@ void MouseHandler::poll()
 {
 	// Pump events (keyboard already does this, but double-pumping is harmless)
 	SDL_PumpEvents();
+
+	// Hide the OS cursor while the mouse is inside the game window and restore
+	// it when the pointer leaves, so the in-game rendered cursor is visible.
+	SDL_Event windowEvent;
+	while (SDL_PeepEvents(&windowEvent, 1, SDL_GETEVENT, SDL_EVENT_WINDOW_MOUSE_ENTER, SDL_EVENT_WINDOW_MOUSE_LEAVE) > 0)
+	{
+		if (windowEvent.type == SDL_EVENT_WINDOW_MOUSE_ENTER) {
+			SDL_HideCursor();
+		} else if (windowEvent.type == SDL_EVENT_WINDOW_MOUSE_LEAVE) {
+			SDL_ShowCursor();
+		}
+	}
 
 	// Save old scroll position before processing wheel events
 	int oldPosZ = posZ;

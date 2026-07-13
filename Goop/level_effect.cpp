@@ -65,7 +65,11 @@ bool LevelEffect::load(fs::path const& filename)
 		for( int x = 0; x < b->w; ++x )
 		{
 			unsigned int colour = getpixel( b, x, y);
-			if( colour == 0 )
+			// Count hole pixels (opaque-black) as set bits. load_bitmap converts the
+			// magenta background to transparent-black (alpha 0), so a bare
+			// `colour == 0` counts the background instead of the holes.
+			bool isHole = (b->format == 32) ? (((colour & 0xFF000000) != 0) && ((colour & 0x00FFFFFF) == 0)) : (colour == 0);
+			if( isHole )
 				bits = (bits << 1) + 1;
 			else
 				bits = (bits << 1);

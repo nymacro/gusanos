@@ -13,28 +13,38 @@ int current_color_conversion = 0;
 
 void draw_sprite(BITMAP* dest, BITMAP* src, int x, int y) {
     if (!dest || !src) return;
-    // For 32-bit sources, do pixel-by-pixel masked blit skipping maskcolor_32
     if (src->format == 32 && dest->format == 32) {
-        int d_x = x, d_y = y;
-        for (int row = 0; row < src->h; ++row) {
-            if (d_y + row >= dest->h) break;
-            if (d_y + row < 0) continue;
-            if (d_x >= dest->w) break;
-            int s_col = (d_x < 0) ? -d_x : 0;
-            int d_col = (d_x < 0) ? 0 : d_x;
-            unsigned int* s = (unsigned int*)(src->line[row]) + s_col;
-            unsigned int* d = (unsigned int*)(dest->line[d_y + row]) + d_col;
-            for (int col = d_col; col < dest->w && (col - d_col + s_col) < src->w; ++col) {
-                if (*s != 0xFFFF00FF)
-                    *d = *s;
-                ++s; ++d;
-            }
-        }
+        // Masked blit via alpha: load_bitmap converts the magenta maskcolor
+        // (0xFFFF00FF) to transparent black (0x00000000), so SDL_BLENDMODE_BLEND
+        // skips those alpha-0 pixels while copying opaque (alpha-255) body pixels.
+        sdlBlitBlendMode(dest, src, x, y, 0, 0, src->w, src->h, 255, SDL_BLENDMODE_BLEND);
     } else {
-        SDL_Rect src_rect = {0, 0, src->w, src->h};
+        // For sub-bitmaps, the source rect must be offset into the parent surface
+        int src_sx = src->is_sub_bitmap ? src->sub_x : 0;
+        int src_sy = src->is_sub_bitmap ? src->sub_y : 0;
+        SDL_Rect src_rect = {src_sx, src_sy, src->w, src->h};
         SDL_Rect dest_rect = {x, y, src->w, src->h};
         SDL_BlitSurface(src->sdl_surface, &src_rect, dest->sdl_surface, &dest_rect);
     }
+}
+
+void sdlBlitBlendMode(BITMAP* dest, BITMAP* src, int dx, int dy,
+                      int sx, int sy, int sw, int sh,
+                      int fact, SDL_BlendMode mode) {
+    if (!dest || !src) return;
+    if (src->format != 32 || dest->format != 32) return;
+    if (fact < 0) fact = 0;
+    if (fact > 255) fact = 255;
+    SDL_SetSurfaceAlphaMod(src->sdl_surface, (Uint8)fact);
+    SDL_SetSurfaceBlendMode(src->sdl_surface, mode);
+    // For sub-bitmaps, the source rect must be offset into the parent surface
+    int src_sx = src->is_sub_bitmap ? src->sub_x + sx : sx;
+    int src_sy = src->is_sub_bitmap ? src->sub_y + sy : sy;
+    SDL_Rect srcrect = {src_sx, src_sy, sw, sh};
+    SDL_Rect dstrect = {dx, dy, sw, sh};
+    SDL_BlitSurface(src->sdl_surface, &srcrect, dest->sdl_surface, &dstrect);
+    SDL_SetSurfaceBlendMode(src->sdl_surface, SDL_BLENDMODE_NONE);
+    SDL_SetSurfaceAlphaMod(src->sdl_surface, 255);
 }
 
 BITMAP* load_bitmap(const char* filename, RGB* pal) {
@@ -129,6 +139,32 @@ BITMAP* load_bitmap(const char* filename, RGB* pal) {
         bmp->line[i] = (unsigned char*)bmp->pixels + i * surf->pitch;
     }
     bmp->is_sub_bitmap = false;
+
+    // Convert maskcolor (0xFFFF00FF magenta) → transparent black (0x00000000)
+    // for 32-bit bitmaps. The now-alpha-0 mask pixels are skipped by
+    // SDL_BLENDMODE_BLEND/BLENDMODE_ADD (used by draw_sprite/masked_blit and
+    // the add/blend blitters), so the mask is transparent without per-pixel
+    // 0xFFFF00FF checks.
+    //
+    // IMPORTANT: SDL_SetSurfaceColorKey is deliberately NOT used. SDL color-key
+    // ignores alpha, so key 0x00000000 would also match opaque-black 0xFF000000,
+    // eating legitimate black pixels during blit() (sprite-sheet splitting) —
+    // e.g. the skin-mask's colorable markers and worm outlines. Alpha-based
+    // blending (BLEND) is used instead, since it honours the alpha channel and
+    // distinguishes 0x00000000 (mask) from 0xFF000000 (opaque black).
+    if (bmp->format == 32) {
+        SDL_LockSurface(surf);
+        for (int i = 0; i < surf->h; ++i) {
+            Uint32* row = (Uint32*)bmp->line[i];
+            for (int x = 0; x < surf->w; ++x) {
+                if (row[x] == 0xFFFF00FF)
+                    row[x] = 0x00000000;
+            }
+        }
+        SDL_UnlockSurface(surf);
+        SDL_SetSurfaceBlendMode(surf, SDL_BLENDMODE_NONE);
+    }
+
     return bmp;
 }
 
@@ -195,6 +231,8 @@ BITMAP* create_sub_bitmap(BITMAP* parent, int x, int y, int w, int h) {
         bmp->line[i] = (unsigned char*)parent->line[y + i] + x * bpp;
     }
     bmp->is_sub_bitmap = true;
+    bmp->sub_x = x;
+    bmp->sub_y = y;
     bmp->sdl_surface = parent->sdl_surface;
     return bmp;
 }
@@ -215,37 +253,37 @@ int set_display_switch_mode(int mode) { return 0; }
 
 void blit(BITMAP* src, BITMAP* dest, int s_x, int s_y, int d_x, int d_y, int w, int h) {
     if (!src || !dest) return;
-    SDL_Rect src_rect = {s_x, s_y, w, h};
+    // For sub-bitmaps, the source rect must be offset into the parent surface
+    int src_sx = src->is_sub_bitmap ? src->sub_x + s_x : s_x;
+    int src_sy = src->is_sub_bitmap ? src->sub_y + s_y : s_y;
+    SDL_Rect src_rect = {src_sx, src_sy, w, h};
     SDL_Rect dest_rect = {d_x, d_y, w, h};
     SDL_BlitSurface(src->sdl_surface, &src_rect, dest->sdl_surface, &dest_rect);
 }
 
 void masked_blit(BITMAP* src, BITMAP* dest, int s_x, int s_y, int d_x, int d_y, int w, int h) {
     if (!src || !dest) return;
-    // For 32-bit ARGB sources, do pixel-by-pixel masked blit skipping maskcolor_32
     if (src->format == 32 && dest->format == 32) {
-        for (int row = 0; row < h; ++row) {
-            if (s_y + row >= src->h || s_y + row < 0) continue;
-            if (d_y + row >= dest->h || d_y + row < 0) continue;
-            unsigned int* s = (unsigned int*)(src->line[s_y + row]) + s_x;
-            unsigned int* d = (unsigned int*)(dest->line[d_y + row]) + d_x;
-            for (int col = 0; col < w; ++col) {
-                if (s_x + col >= src->w || s_x + col < 0) continue;
-                if (d_x + col >= dest->w || d_x + col < 0) continue;
-                if (*s != 0xFFFF00FF)  // Skip magenta (maskcolor_32)
-                    *d = *s;
-                ++s; ++d;
-            }
-        }
+        // Alpha-masked blit (see draw_sprite): alpha-0 mask skipped, opaque
+        // body pixels copied. SDL_BlitSurface alone would copy the 0x00000000
+        // mask as black, so BLEND is required for masking.
+        sdlBlitBlendMode(dest, src, d_x, d_y, s_x, s_y, w, h, 255, SDL_BLENDMODE_BLEND);
     } else {
-        // Fallback to plain blit for other formats
-        blit(src, dest, s_x, s_y, d_x, d_y, w, h);
+        // For sub-bitmaps, the source rect must be offset into the parent surface
+        int src_sx = src->is_sub_bitmap ? src->sub_x + s_x : s_x;
+        int src_sy = src->is_sub_bitmap ? src->sub_y + s_y : s_y;
+        SDL_Rect src_rect = {src_sx, src_sy, w, h};
+        SDL_Rect dest_rect = {d_x, d_y, w, h};
+        SDL_BlitSurface(src->sdl_surface, &src_rect, dest->sdl_surface, &dest_rect);
     }
 }
 
 void stretch_blit(BITMAP* src, BITMAP* dest, int s_x, int s_y, int s_w, int s_h, int d_x, int d_y, int d_w, int d_h) {
     if (!src || !dest) return;
-    SDL_Rect src_rect = {s_x, s_y, s_w, s_h};
+    // For sub-bitmaps, the source rect must be offset into the parent surface
+    int src_sx = src->is_sub_bitmap ? src->sub_x + s_x : s_x;
+    int src_sy = src->is_sub_bitmap ? src->sub_y + s_y : s_y;
+    SDL_Rect src_rect = {src_sx, src_sy, s_w, s_h};
     SDL_Rect dest_rect = {d_x, d_y, d_w, d_h};
     SDL_BlitSurfaceScaled(src->sdl_surface, &src_rect, dest->sdl_surface, &dest_rect, SDL_SCALEMODE_NEAREST);
 }

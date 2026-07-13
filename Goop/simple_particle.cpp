@@ -73,7 +73,7 @@ void SimpleParticle16::draw(Viewport* viewport)
 
 	if((unsigned int)rPos.x < (unsigned int)where->w
 	&& (unsigned int)rPos.y < (unsigned int)where->h )
-		Blitters::putpixel_solid_16(where, rPos.x, rPos.y, colour);
+		Blitters::putpixel_solid_32(where, rPos.x, rPos.y, colour);
 }
 
 void SimpleParticle32wu::draw(Viewport* viewport)
@@ -85,7 +85,7 @@ void SimpleParticle32wu::draw(Viewport* viewport)
 void SimpleParticle16wu::draw(Viewport* viewport)
 {
 	Vec rPos = viewport->convertCoordsPrec( pos );
-	Blitters::putpixelwu_blend_16(viewport->dest, rPos.x, rPos.y, colour, 32);
+	Blitters::putpixelwu_blend_32(viewport->dest, rPos.x, rPos.y, colour, 256);
 }
 
 #endif

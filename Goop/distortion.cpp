@@ -377,49 +377,6 @@ void Distortion::apply( BITMAP* where, int destx, int desty, float multiply = 1.
 				}
 			}
 			break;
-			
-			case 16:
-			{
-				for ( int y = y1; h-- > 0; ++y, ++desty ) 
-				{
-					w = orgW;
-					destx = orgDestX;
-					Pixel16* dest = ((Pixel16 *)buffer_line[y]) + x1;
-					for ( ; w-- > 0; ++m, ++destx)
-					{
-						int rx = (m->first * fmag);
-						int ry = (m->second * fmag);
-						int px = destx + (rx >> 16);
-						int py = desty + (ry >> 16);
-						
-						if((unsigned int)px < where_w && (unsigned int)py < where_h)
-						{
-							rx = (rx >> 11) & 31;
-							ry = (ry >> 11) & 31;
-							Pixel16* urow = (Pixel16 *)where_line[py];
-							Pixel16* lrow = (Pixel16 *)where_line[py + 1];
-							Pixel u = *(Pixel16_2 *)(urow + px);
-							Pixel l = *(Pixel16_2 *)(lrow + px);
-							
-							// Merge the top row with the bottom row
-							Pixel v = Blitters::blendColorsFact_16_2(u, l, ry);
-							
-							// Merge both columns
-							// WARNING: Endian-assumption here, change (32-rx) to (rx) if on a big endian machine
-							// We use 32-rx rather than 31-rx to avoid ugly artifacts with identity distortions
-							Pixel p = Blitters::blendColorsFact_16(v, 32-rx);
-							
-							*dest++ = p;
-						}
-						else
-						{
-							*dest++ = 0;
-						}
-					}
-					m = (std::pair<int, int> *)(((char *)m) + wrap);
-				}
-			}
-			break;
 		}
 	}
 	
