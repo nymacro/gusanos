@@ -532,11 +532,10 @@ try
 
 	// Draw the in-game cursor on top of everything. The OS cursor is hidden
 	// while inside the window, so this is the cursor the user actually sees.
-	if (gfx.cursorSprite)
+	if (gfx.cursorSpriteSet)
 	{
-		draw_sprite(gfx.buffer, gfx.cursorSprite,
-		            mouseHandler.getX() - gfx.cursorHotX,
-		            mouseHandler.getY() - gfx.cursorHotY);
+		Sprite* sprite = gfx.cursorSpriteSet->getSprite(gfx.cursorFrame);
+		sprite->draw(gfx.buffer, mouseHandler.getX(), mouseHandler.getY());
 	}
 
 	gfx.updateScreen();

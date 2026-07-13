@@ -20,6 +20,7 @@ typedef struct BITMAP {
     int format; // bit depth: 8, 16, 32
     void* pixels;
     bool is_sub_bitmap;
+    int sub_x, sub_y; // offset within parent surface (for sub-bitmaps)
     SDL_Surface* sdl_surface; // underlying SDL surface if applicable
 } BITMAP;
 

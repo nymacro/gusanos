@@ -8,6 +8,7 @@
 #include "blitters/macros.h"
 #include "game.h"
 #include "mouse.h"
+#include "sprite_set.h"
 #endif
 #include <boost/assign/list_inserter.hpp>
 using namespace boost::assign;
@@ -132,8 +133,7 @@ void Gfx::shutDown()
 	if (buffer) { destroy_bitmap(buffer); buffer = 0; }
     if (screenTexture) { SDL_DestroyTexture(screenTexture); screenTexture = 0; }
     if (renderer) { SDL_DestroyRenderer(renderer); renderer = 0; }
-    if (sdlCursor) { SDL_DestroyCursor(sdlCursor); sdlCursor = 0; }
-    if (cursorSprite) { destroy_bitmap(cursorSprite); cursorSprite = 0; }
+    if (cursorSpriteSet) { delete cursorSpriteSet; cursorSpriteSet = 0; }
     if (window) { SDL_DestroyWindow(window); window = 0; }
     SDL_Quit();
 #endif
@@ -179,12 +179,10 @@ void Gfx::loadResources()
 {
 #ifndef DEDSERV
 	// Clean up a previously loaded cursor (e.g. when reloading a mod)
-	if (sdlCursor) { SDL_DestroyCursor(sdlCursor); sdlCursor = 0; }
-	if (cursorSprite) { destroy_bitmap(cursorSprite); cursorSprite = 0; }
-	cursorHotX = 0;
-	cursorHotY = 0;
+	if (cursorSpriteSet) { delete cursorSpriteSet; cursorSpriteSet = 0; }
+	cursorFrame = 0;
 
-	// Build a list of candidate paths for the cursor sprite. The active mod
+	// Build a list of candidate paths for the cursor sprite set. The active mod
 	// directory is searched first, then the default mod directory, and finally
 	// the current working directory as a last resort.
 	std::vector<fs::path> cursorCandidates;
@@ -196,19 +194,12 @@ void Gfx::loadResources()
 	cursorCandidates.push_back(fs::path("cursor.bmp"));
 
 	for (std::vector<fs::path>::const_iterator it = cursorCandidates.begin();
-	     it != cursorCandidates.end() && !cursorSprite; ++it)
+	     it != cursorCandidates.end() && !cursorSpriteSet; ++it)
 	{
-		BITMAP* cursorBmp = load_bitmap(it->string().c_str(), NULL);
-		if (cursorBmp && cursorBmp->sdl_surface) {
-			cursorSprite = cursorBmp;
-			cursorHotX = 3;
-			cursorHotY = 4;
-			sdlCursor = SDL_CreateColorCursor(cursorSprite->sdl_surface, cursorHotX, cursorHotY);
-			if (sdlCursor) {
-				SDL_SetCursor(sdlCursor);
-			}
-		} else if (cursorBmp) {
-			destroy_bitmap(cursorBmp);
+		cursorSpriteSet = new SpriteSet();
+		if (!cursorSpriteSet->load(*it)) {
+			delete cursorSpriteSet;
+			cursorSpriteSet = nullptr;
 		}
 	}
 #endif

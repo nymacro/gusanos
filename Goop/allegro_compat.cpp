@@ -19,7 +19,10 @@ void draw_sprite(BITMAP* dest, BITMAP* src, int x, int y) {
         // skips those alpha-0 pixels while copying opaque (alpha-255) body pixels.
         sdlBlitBlendMode(dest, src, x, y, 0, 0, src->w, src->h, 255, SDL_BLENDMODE_BLEND);
     } else {
-        SDL_Rect src_rect = {0, 0, src->w, src->h};
+        // For sub-bitmaps, the source rect must be offset into the parent surface
+        int src_sx = src->is_sub_bitmap ? src->sub_x : 0;
+        int src_sy = src->is_sub_bitmap ? src->sub_y : 0;
+        SDL_Rect src_rect = {src_sx, src_sy, src->w, src->h};
         SDL_Rect dest_rect = {x, y, src->w, src->h};
         SDL_BlitSurface(src->sdl_surface, &src_rect, dest->sdl_surface, &dest_rect);
     }
@@ -34,7 +37,10 @@ void sdlBlitBlendMode(BITMAP* dest, BITMAP* src, int dx, int dy,
     if (fact > 255) fact = 255;
     SDL_SetSurfaceAlphaMod(src->sdl_surface, (Uint8)fact);
     SDL_SetSurfaceBlendMode(src->sdl_surface, mode);
-    SDL_Rect srcrect = {sx, sy, sw, sh};
+    // For sub-bitmaps, the source rect must be offset into the parent surface
+    int src_sx = src->is_sub_bitmap ? src->sub_x + sx : sx;
+    int src_sy = src->is_sub_bitmap ? src->sub_y + sy : sy;
+    SDL_Rect srcrect = {src_sx, src_sy, sw, sh};
     SDL_Rect dstrect = {dx, dy, sw, sh};
     SDL_BlitSurface(src->sdl_surface, &srcrect, dest->sdl_surface, &dstrect);
     SDL_SetSurfaceBlendMode(src->sdl_surface, SDL_BLENDMODE_NONE);
@@ -225,6 +231,8 @@ BITMAP* create_sub_bitmap(BITMAP* parent, int x, int y, int w, int h) {
         bmp->line[i] = (unsigned char*)parent->line[y + i] + x * bpp;
     }
     bmp->is_sub_bitmap = true;
+    bmp->sub_x = x;
+    bmp->sub_y = y;
     bmp->sdl_surface = parent->sdl_surface;
     return bmp;
 }

@@ -4,6 +4,8 @@
 #include "allegro_compat.h"
 #include <string>
 
+class SpriteSet;
+
 enum Blenders
 {
 	ALPHA,
@@ -59,11 +61,9 @@ public:
 	SDL_Window* window;
 	SDL_Renderer* renderer;
 	SDL_Texture* screenTexture;
-	SDL_Cursor* sdlCursor = nullptr;
 
-	BITMAP* cursorSprite = nullptr;
-	int cursorHotX = 0;
-	int cursorHotY = 0;
+	SpriteSet* cursorSpriteSet = nullptr;
+	int cursorFrame = 0;
 #endif
 
 	inline bool compareRGB( int c1, int c2 )
