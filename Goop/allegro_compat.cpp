@@ -253,7 +253,10 @@ int set_display_switch_mode(int mode) { return 0; }
 
 void blit(BITMAP* src, BITMAP* dest, int s_x, int s_y, int d_x, int d_y, int w, int h) {
     if (!src || !dest) return;
-    SDL_Rect src_rect = {s_x, s_y, w, h};
+    // For sub-bitmaps, the source rect must be offset into the parent surface
+    int src_sx = src->is_sub_bitmap ? src->sub_x + s_x : s_x;
+    int src_sy = src->is_sub_bitmap ? src->sub_y + s_y : s_y;
+    SDL_Rect src_rect = {src_sx, src_sy, w, h};
     SDL_Rect dest_rect = {d_x, d_y, w, h};
     SDL_BlitSurface(src->sdl_surface, &src_rect, dest->sdl_surface, &dest_rect);
 }
@@ -266,7 +269,10 @@ void masked_blit(BITMAP* src, BITMAP* dest, int s_x, int s_y, int d_x, int d_y, 
         // mask as black, so BLEND is required for masking.
         sdlBlitBlendMode(dest, src, d_x, d_y, s_x, s_y, w, h, 255, SDL_BLENDMODE_BLEND);
     } else {
-        SDL_Rect src_rect = {s_x, s_y, w, h};
+        // For sub-bitmaps, the source rect must be offset into the parent surface
+        int src_sx = src->is_sub_bitmap ? src->sub_x + s_x : s_x;
+        int src_sy = src->is_sub_bitmap ? src->sub_y + s_y : s_y;
+        SDL_Rect src_rect = {src_sx, src_sy, w, h};
         SDL_Rect dest_rect = {d_x, d_y, w, h};
         SDL_BlitSurface(src->sdl_surface, &src_rect, dest->sdl_surface, &dest_rect);
     }
@@ -274,7 +280,10 @@ void masked_blit(BITMAP* src, BITMAP* dest, int s_x, int s_y, int d_x, int d_y, 
 
 void stretch_blit(BITMAP* src, BITMAP* dest, int s_x, int s_y, int s_w, int s_h, int d_x, int d_y, int d_w, int d_h) {
     if (!src || !dest) return;
-    SDL_Rect src_rect = {s_x, s_y, s_w, s_h};
+    // For sub-bitmaps, the source rect must be offset into the parent surface
+    int src_sx = src->is_sub_bitmap ? src->sub_x + s_x : s_x;
+    int src_sy = src->is_sub_bitmap ? src->sub_y + s_y : s_y;
+    SDL_Rect src_rect = {src_sx, src_sy, s_w, s_h};
     SDL_Rect dest_rect = {d_x, d_y, d_w, d_h};
     SDL_BlitSurfaceScaled(src->sdl_surface, &src_rect, dest->sdl_surface, &dest_rect, SDL_SCALEMODE_NEAREST);
 }
