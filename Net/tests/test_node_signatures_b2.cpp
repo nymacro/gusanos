@@ -20,7 +20,7 @@ BOOST_AUTO_TEST_CASE(get_next_event_fourth_param)
 	ZCom_ConnID conn = 0;
 	zU32 sent = 0xFFFFFFFF;
 
-	ZCom_BitStream* data = node.getNextEvent(&type, &role, &conn, &sent);
+	auto data = node.getNextEvent(&type, &role, &conn, &sent);
 	BOOST_CHECK_EQUAL(type, eZCom_EventUser);
 	BOOST_CHECK_EQUAL(role, eZCom_RoleAuthority);
 	BOOST_CHECK_EQUAL(conn, 5u);
@@ -38,7 +38,7 @@ BOOST_AUTO_TEST_CASE(get_next_event_three_arg_form)
 	eZCom_NodeRole role = eZCom_RoleUndefined;
 	ZCom_ConnID conn = 0;
 
-	ZCom_BitStream* data = node.getNextEvent(&type, &role, &conn);
+	auto data = node.getNextEvent(&type, &role, &conn);
 	BOOST_CHECK_EQUAL(type, eZCom_EventInit);
 	BOOST_CHECK_EQUAL(role, eZCom_RoleProxy);
 	BOOST_CHECK_EQUAL(conn, 9u);

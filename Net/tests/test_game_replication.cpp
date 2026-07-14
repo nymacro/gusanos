@@ -46,6 +46,7 @@ public:
     uint32_t cls;
     int spawned = 0;
     ZCom_Node* node = nullptr;
+    ~RepSrv() { delete node; node = nullptr; }
     RepSrv(int port) {
         g_currentControl = this;
         ZCom_initSockets(true, port, 2, 0);
@@ -64,6 +65,7 @@ public:
     ZCom_Node* node = nullptr;
     uint32_t gotNodeID = 0;
     int gotRole = -1;
+    ~RepCli() { delete node; node = nullptr; }
     RepCli(int port) {
         g_currentControl = this;
         ZCom_initSockets(false, 0, 0, 0);
@@ -149,6 +151,7 @@ BOOST_AUTO_TEST_CASE(node_event_reaches_client_queue)
     class ESrv : public ZCom_Control {
     public:
         uint32_t cls; ZCom_Node* node=nullptr; int spawned=0;
+        ~ESrv(){ delete node; node=nullptr; }
         ESrv(int p){ g_currentControl=this; ZCom_initSockets(true,p,2,0); cls=ZCom_registerClass("E",0); }
         bool ZCom_cbConnectionRequest(uint32_t,ZCom_BitStream&,ZCom_BitStream&) override { return true; }
         void ZCom_cbConnectionSpawned(uint32_t) override { spawned++; }
@@ -157,6 +160,7 @@ BOOST_AUTO_TEST_CASE(node_event_reaches_client_queue)
     class ECli : public ZCom_Control {
     public:
         uint32_t cls; bool connected=false; ZCom_Node* node=nullptr; uint32_t gotID=0;
+        ~ECli(){ delete node; node=nullptr; }
         ECli(int p){ g_currentControl=this; ZCom_initSockets(false,0,0,0); cls=ZCom_registerClass("E",0); }
         uint32_t ConnectTo(const char* h,int p){ ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p); a.setAddress(eZCom_AddressUDP,0,hp); return ZCom_Connect(a,nullptr); }
         void ZCom_cbConnectResult(uint32_t,eZCom_ConnectResult r,ZCom_BitStream&) override { connected=(r==eZCom_ConnAccepted); }
@@ -191,7 +195,7 @@ BOOST_AUTO_TEST_CASE(node_event_reaches_client_queue)
     BOOST_CHECK(cli.node->checkEventWaiting());
     if (cli.node->checkEventWaiting()) {
         eZCom_Event type; eZCom_NodeRole role; uint32_t connID;
-        ZCom_BitStream* data = cli.node->getNextEvent(&type, &role, &connID);
+        auto data = cli.node->getNextEvent(&type, &role, &connID);
         BOOST_CHECK_EQUAL(type, eZCom_EventUser);
         BOOST_REQUIRE(data);
         BOOST_CHECK_EQUAL(data->getInt(16), 0xCAFE);
@@ -211,6 +215,7 @@ BOOST_AUTO_TEST_CASE(node_event_buffered_before_node_registration)
     class BSrv : public ZCom_Control {
     public:
         uint32_t cls; ZCom_Node* node=nullptr;
+        ~BSrv(){ delete node; node=nullptr; }
         BSrv(int p){ g_currentControl=this; ZCom_initSockets(true,p,2,0); cls=ZCom_registerClass("B",0); }
         bool ZCom_cbConnectionRequest(uint32_t,ZCom_BitStream&,ZCom_BitStream&) override { return true; }
         void ZCom_cbConnectionSpawned(uint32_t) override {}
@@ -221,6 +226,7 @@ BOOST_AUTO_TEST_CASE(node_event_buffered_before_node_registration)
         uint32_t cls; bool connected=false; ZCom_Node* node=nullptr; uint32_t gotID=0;
         bool created=false; // defer node creation to simulate the race
         GameInterceptor interceptor;
+        ~BCli(){ delete node; node=nullptr; }
         BCli(int p){ g_currentControl=this; ZCom_initSockets(false,0,0,0); cls=ZCom_registerClass("B",0); }
         uint32_t ConnectTo(const char* h,int p){ ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p); a.setAddress(eZCom_AddressUDP,0,hp); return ZCom_Connect(a,nullptr); }
         void ZCom_cbConnectResult(uint32_t,eZCom_ConnectResult r,ZCom_BitStream&) override { connected=(r==eZCom_ConnAccepted); }
@@ -280,7 +286,7 @@ BOOST_AUTO_TEST_CASE(node_event_buffered_before_node_registration)
     BOOST_CHECK(cli.node->checkEventWaiting());
     if (cli.node->checkEventWaiting()) {
         eZCom_Event type; eZCom_NodeRole role; uint32_t connID;
-        ZCom_BitStream* data = cli.node->getNextEvent(&type, &role, &connID);
+        auto data = cli.node->getNextEvent(&type, &role, &connID);
         BOOST_CHECK_EQUAL(type, eZCom_EventUser);
         BOOST_REQUIRE(data);
         BOOST_CHECK_EQUAL(data->getInt(16), 0x1234);
@@ -299,6 +305,7 @@ BOOST_AUTO_TEST_CASE(client_owner_role_allows_owner_to_auth_event)
     class OSrv : public ZCom_Control {
     public:
         uint32_t cls; ZCom_Node* node=nullptr; int spawned=0; uint32_t clientID=0;
+        ~OSrv(){ delete node; node=nullptr; }
         OSrv(int p){ g_currentControl=this; ZCom_initSockets(true,p,2,0); cls=ZCom_registerClass("O",0); }
         bool ZCom_cbConnectionRequest(uint32_t,ZCom_BitStream&,ZCom_BitStream&) override { return true; }
         void ZCom_cbConnectionSpawned(uint32_t id) override { spawned++; if(clientID==0) clientID=id; }
@@ -307,6 +314,7 @@ BOOST_AUTO_TEST_CASE(client_owner_role_allows_owner_to_auth_event)
     class OCli : public ZCom_Control {
     public:
         uint32_t cls; bool connected=false; ZCom_Node* node=nullptr; uint32_t gotID=0; int gotRole=-1;
+        ~OCli(){ delete node; node=nullptr; }
         OCli(int p){ g_currentControl=this; ZCom_initSockets(false,0,0,0); cls=ZCom_registerClass("O",0); }
         uint32_t ConnectTo(const char* h,int p){ ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p); a.setAddress(eZCom_AddressUDP,0,hp); return ZCom_Connect(a,nullptr); }
         void ZCom_cbConnectResult(uint32_t,eZCom_ConnectResult r,ZCom_BitStream&) override { connected=(r==eZCom_ConnAccepted); }
@@ -345,7 +353,7 @@ BOOST_AUTO_TEST_CASE(client_owner_role_allows_owner_to_auth_event)
     if (srv.node) {
         while (srv.node->checkEventWaiting()) {
             eZCom_Event type; eZCom_NodeRole role; uint32_t connID;
-            ZCom_BitStream* data = srv.node->getNextEvent(&type, &role, &connID);
+            auto data = srv.node->getNextEvent(&type, &role, &connID);
             if (type == eZCom_EventUser && data) {
                 srvGotIt = true;
                 BOOST_CHECK_EQUAL(data->getInt(8), 0x77);
@@ -371,6 +379,7 @@ BOOST_AUTO_TEST_CASE(client_owner_role_combined_rule_reaches_authority)
     class CSrv : public ZCom_Control {
     public:
         uint32_t cls; ZCom_Node* node=nullptr; uint32_t clientID=0;
+        ~CSrv(){ delete node; node=nullptr; }
         CSrv(int p){ g_currentControl=this; ZCom_initSockets(true,p,2,0); cls=ZCom_registerClass("C",0); }
         bool ZCom_cbConnectionRequest(uint32_t,ZCom_BitStream&,ZCom_BitStream&) override { return true; }
         void ZCom_cbConnectionSpawned(uint32_t id) override { if(clientID==0) clientID=id; }
@@ -379,6 +388,7 @@ BOOST_AUTO_TEST_CASE(client_owner_role_combined_rule_reaches_authority)
     class CCli : public ZCom_Control {
     public:
         uint32_t cls; bool connected=false; ZCom_Node* node=nullptr; uint32_t gotID=0; int gotRole=-1;
+        ~CCli(){ delete node; node=nullptr; }
         CCli(int p){ g_currentControl=this; ZCom_initSockets(false,0,0,0); cls=ZCom_registerClass("C",0); }
         uint32_t ConnectTo(const char* h,int p){ ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p); a.setAddress(eZCom_AddressUDP,0,hp); return ZCom_Connect(a,nullptr); }
         void ZCom_cbConnectResult(uint32_t,eZCom_ConnectResult r,ZCom_BitStream&) override { connected=(r==eZCom_ConnAccepted); }
@@ -419,7 +429,7 @@ BOOST_AUTO_TEST_CASE(client_owner_role_combined_rule_reaches_authority)
     if (srv.node) {
         while (srv.node->checkEventWaiting()) {
             eZCom_Event type; eZCom_NodeRole role; uint32_t connID;
-            ZCom_BitStream* data = srv.node->getNextEvent(&type, &role, &connID);
+            auto data = srv.node->getNextEvent(&type, &role, &connID);
             if (type == eZCom_EventUser && data) {
                 srvGotIt = true;
                 BOOST_CHECK_EQUAL(data->getInt(8), 0x77);
@@ -445,6 +455,7 @@ BOOST_AUTO_TEST_CASE(full_sync_and_replication_flow)
     public:
         uint32_t cls; ZCom_Node* node=nullptr; uint32_t clientID=0;
         int32_t state = 7; // replicated authority state
+        ~FullSrv(){ delete node; node=nullptr; }
         FullSrv(int p){ g_currentControl=this; ZCom_initSockets(true,p,2,0); cls=ZCom_registerClass("F",0); }
         bool ZCom_cbConnectionRequest(uint32_t,ZCom_BitStream&,ZCom_BitStream&) override { return true; }
         void ZCom_cbConnectionSpawned(uint32_t id) override { if(clientID==0) clientID=id; }
@@ -454,11 +465,11 @@ BOOST_AUTO_TEST_CASE(full_sync_and_replication_flow)
             if (!node) return;
             while (node->checkEventWaiting()) {
                 eZCom_Event type; eZCom_NodeRole role; uint32_t connID;
-                ZCom_BitStream* data = node->getNextEvent(&type, &role, &connID);
+                auto data = node->getNextEvent(&type, &role, &connID);
                 if (type == eZCom_EventInit) {
-                    ZCom_BitStream* sync = new ZCom_BitStream();
-                    sync->addInt(0x5BAD, 16);
-                    node->sendEventDirect(eZCom_ReliableOrdered, sync, connID);
+                    ZCom_BitStream sync;
+                    sync.addInt(0x5BAD, 16);
+                    node->sendEventDirect(eZCom_ReliableOrdered, &sync, connID);
                 }
             }
         }
@@ -469,6 +480,7 @@ BOOST_AUTO_TEST_CASE(full_sync_and_replication_flow)
         uint32_t cls; bool connected=false; ZCom_Node* node=nullptr;
         int32_t localState = 0;
         int syncEvents = 0;
+        ~FullCli(){ delete node; node=nullptr; }
         FullCli(int p){ g_currentControl=this; ZCom_initSockets(false,0,0,0); cls=ZCom_registerClass("F",0); }
         uint32_t ConnectTo(const char* h,int p){ ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p); a.setAddress(eZCom_AddressUDP,0,hp); return ZCom_Connect(a,nullptr); }
         void ZCom_cbConnectResult(uint32_t,eZCom_ConnectResult r,ZCom_BitStream&) override { connected=(r==eZCom_ConnAccepted); }
@@ -487,7 +499,7 @@ BOOST_AUTO_TEST_CASE(full_sync_and_replication_flow)
             if (!node) return;
             while (node->checkEventWaiting()) {
                 eZCom_Event type; eZCom_NodeRole role; uint32_t connID;
-                ZCom_BitStream* data = node->getNextEvent(&type, &role, &connID);
+                auto data = node->getNextEvent(&type, &role, &connID);
                 if (type == eZCom_EventUser && data) {
                     // Verify sync payload (idempotent across duplicate syncs)
                     (void)data->getInt(16);
@@ -597,6 +609,7 @@ BOOST_AUTO_TEST_CASE(signed_int_replication_roundtrip)
     public:
         uint32_t cls;
         ZCom_Node* node = nullptr;
+        ~SIRsrv() { delete node; node = nullptr; }
         SIRsrv(int p) { g_currentControl=this; ZCom_initSockets(true,p,2,0); cls=ZCom_registerClass("SI",0); }
         bool ZCom_cbConnectionRequest(uint32_t,ZCom_BitStream&,ZCom_BitStream&) override { return true; }
         void ZCom_cbConnectionSpawned(uint32_t) override {}
@@ -608,6 +621,7 @@ BOOST_AUTO_TEST_CASE(signed_int_replication_roundtrip)
         bool connected = false;
         ZCom_Node* node = nullptr;
         int32_t rdir = 0;
+        ~SIRcli() { delete node; node = nullptr; }
         SIRcli(int p) { g_currentControl=this; ZCom_initSockets(false,0,0,0); cls=ZCom_registerClass("SI",0); }
         uint32_t ConnectTo(const char* h,int p) {
             ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p);
@@ -672,6 +686,7 @@ BOOST_AUTO_TEST_CASE(authority_node_before_client_still_replicates)
         ZCom_Node* node = nullptr;
         uint32_t clientID = 0;
         int32_t hp = 100; // replicated authority state
+        ~PreSrv() { delete node; node = nullptr; }
         PreSrv(int p) { g_currentControl=this; ZCom_initSockets(true,p,2,0); cls=ZCom_registerClass("PR",0); }
         bool ZCom_cbConnectionRequest(uint32_t,ZCom_BitStream&,ZCom_BitStream&) override { return true; }
         void ZCom_cbConnectionSpawned(uint32_t id) override { if(clientID==0) clientID=id; }
@@ -683,6 +698,7 @@ BOOST_AUTO_TEST_CASE(authority_node_before_client_still_replicates)
         bool connected = false;
         ZCom_Node* node = nullptr;
         int32_t rhp = 0;
+        ~PreCli() { delete node; node = nullptr; }
         PreCli(int p) { g_currentControl=this; ZCom_initSockets(false,0,0,0); cls=ZCom_registerClass("PR",0); }
         uint32_t ConnectTo(const char* h,int p) {
             ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p);
@@ -762,6 +778,7 @@ BOOST_AUTO_TEST_CASE(authority_node_before_client_sends_sync_on_init)
         bool sNinjaActive = false;
         uint8_t sCurWeapon = 2;
         int syncSendsToClient = 0;
+        ~SyncSrv() { delete node; node = nullptr; }
         SyncSrv(int p) { g_currentControl=this; ZCom_initSockets(true,p,2,0); cls=ZCom_registerClass("SY",0); }
         bool ZCom_cbConnectionRequest(uint32_t,ZCom_BitStream&,ZCom_BitStream&) override { return true; }
         void ZCom_cbConnectionSpawned(uint32_t id) override { if(clientID==0) clientID=id; }
@@ -771,13 +788,13 @@ BOOST_AUTO_TEST_CASE(authority_node_before_client_sends_sync_on_init)
             if (!node) return;
             while (node->checkEventWaiting()) {
                 eZCom_Event type; eZCom_NodeRole role; uint32_t connID;
-                ZCom_BitStream* data = node->getNextEvent(&type, &role, &connID);
+                auto data = node->getNextEvent(&type, &role, &connID);
                 if (type == eZCom_EventInit && connID == clientID) {
-                    ZCom_BitStream* sync = new ZCom_BitStream();
-                    sync->addBool(sIsActive);
-                    sync->addBool(sNinjaActive);
-                    sync->addInt(sCurWeapon, 8);
-                    node->sendEventDirect(eZCom_ReliableOrdered, sync, connID);
+                    ZCom_BitStream sync;
+                    sync.addBool(sIsActive);
+                    sync.addBool(sNinjaActive);
+                    sync.addInt(sCurWeapon, 8);
+                    node->sendEventDirect(eZCom_ReliableOrdered, &sync, connID);
                     syncSendsToClient++;
                 }
             }
@@ -794,6 +811,7 @@ BOOST_AUTO_TEST_CASE(authority_node_before_client_sends_sync_on_init)
         bool cNinjaActive = false;
         int cCurWeapon = -1;
         int syncEvents = 0;
+        ~SyncCli() { delete node; node = nullptr; }
         SyncCli(int p) { g_currentControl=this; ZCom_initSockets(false,0,0,0); cls=ZCom_registerClass("SY",0); }
         uint32_t ConnectTo(const char* h,int p) {
             ZCom_Address a;             char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p);
@@ -812,7 +830,7 @@ BOOST_AUTO_TEST_CASE(authority_node_before_client_sends_sync_on_init)
             if (!node) return;
             while (node->checkEventWaiting()) {
                 eZCom_Event type; eZCom_NodeRole role; uint32_t connID;
-                ZCom_BitStream* data = node->getNextEvent(&type, &role, &connID);
+                auto data = node->getNextEvent(&type, &role, &connID);
                 if (type == eZCom_EventUser && data) {
                     cIsActive      = data->getBool();
                     cNinjaActive   = data->getBool();
@@ -880,6 +898,7 @@ BOOST_AUTO_TEST_CASE(authority_node_after_client_sends_sync_on_init)
         bool sNinjaActive = false;
         uint8_t sCurWeapon = 3;
         int syncSendsToClient = 0;
+        ~SyncSrv2() { delete node; node = nullptr; }
         SyncSrv2(int p) { g_currentControl=this; ZCom_initSockets(true,p,2,0); cls=ZCom_registerClass("SA",0); }
         bool ZCom_cbConnectionRequest(uint32_t,ZCom_BitStream&,ZCom_BitStream&) override { return true; }
         void ZCom_cbConnectionSpawned(uint32_t id) override { if(clientID==0) clientID=id; }
@@ -887,13 +906,13 @@ BOOST_AUTO_TEST_CASE(authority_node_after_client_sends_sync_on_init)
             if (!node) return;
             while (node->checkEventWaiting()) {
                 eZCom_Event type; eZCom_NodeRole role; uint32_t connID;
-                ZCom_BitStream* data = node->getNextEvent(&type, &role, &connID);
+                auto data = node->getNextEvent(&type, &role, &connID);
                 if (type == eZCom_EventInit && connID == clientID) {
-                    ZCom_BitStream* sync = new ZCom_BitStream();
-                    sync->addBool(sIsActive);
-                    sync->addBool(sNinjaActive);
-                    sync->addInt(sCurWeapon, 8);
-                    node->sendEventDirect(eZCom_ReliableOrdered, sync, connID);
+                    ZCom_BitStream sync;
+                    sync.addBool(sIsActive);
+                    sync.addBool(sNinjaActive);
+                    sync.addInt(sCurWeapon, 8);
+                    node->sendEventDirect(eZCom_ReliableOrdered, &sync, connID);
                     syncSendsToClient++;
                 }
             }
@@ -909,6 +928,7 @@ BOOST_AUTO_TEST_CASE(authority_node_after_client_sends_sync_on_init)
         bool cNinjaActive = false;
         int cCurWeapon = -1;
         int syncEvents = 0;
+        ~SyncCli2() { delete node; node = nullptr; }
         SyncCli2(int p) { g_currentControl=this; ZCom_initSockets(false,0,0,0); cls=ZCom_registerClass("SA",0); }
         uint32_t ConnectTo(const char* h,int p) {
             ZCom_Address a; char hp[64]; snprintf(hp,sizeof hp,"%s:%d",h,p);
@@ -928,7 +948,7 @@ BOOST_AUTO_TEST_CASE(authority_node_after_client_sends_sync_on_init)
             if (!node) return;
             while (node->checkEventWaiting()) {
                 eZCom_Event type; eZCom_NodeRole role; uint32_t connID;
-                ZCom_BitStream* data = node->getNextEvent(&type, &role, &connID);
+                auto data = node->getNextEvent(&type, &role, &connID);
                 if (type == eZCom_EventUser && data) {
                     cIsActive    = data->getBool();
                     cNinjaActive = data->getBool();

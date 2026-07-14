@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include <map>
+#include <new>
 #include <boost/lexical_cast.hpp>
 using boost::lexical_cast;
 
@@ -729,7 +730,8 @@ bool Wnd::getAttrib(std::string const& name, std::string& dest)
 
 void Wnd::doUpdateGSS()
 {
-	m_formatting = Formatting(); // Reset formatting to default
+	m_formatting.~Formatting();
+	new (&m_formatting) Formatting(); // Reset formatting to default
 	applyGSS(m_context->m_gss); // Apply GSS
 	updatePlacement(); // Place window
 	

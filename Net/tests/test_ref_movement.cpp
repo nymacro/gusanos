@@ -24,11 +24,10 @@ BOOST_AUTO_TEST_CASE(rsetup_movement)
 	setup.setConstantErrorThreshold(50.0f);
 	BOOST_CHECK_EQUAL(setup.getConstantErrorThreshold(), 50.0f);
 
-	ZCom_ReplicatorSetup* dup = setup.Duplicate();
+	auto dup = setup.Duplicate();
 	BOOST_REQUIRE(dup);
 	BOOST_CHECK_EQUAL(dup->getFlags(), setup.getFlags());
 	BOOST_CHECK_EQUAL(dup->getRules(), setup.getRules());
-	delete dup;
 }
 
 BOOST_AUTO_TEST_CASE(movement_replicator_creation)

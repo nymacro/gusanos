@@ -330,7 +330,8 @@ protected:
 		{
 			
 		}
-
+		
+		
 		struct Border
 		{
 			Border()
@@ -351,9 +352,12 @@ protected:
 			
 			~Background()
 			{
-				//cerr << "Deleting spriteSet " << spriteSet << endl;
 				delete spriteSet;
+				delete skin;
 			}
+			
+			Background(Background const&) = delete;
+			Background& operator=(Background const&) = delete;
 			
 			RGB color;
 			BaseSpriteSet *spriteSet;

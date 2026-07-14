@@ -31,6 +31,7 @@ public:
 	ZCom_Node* m_node;
 	float m_lastX, m_lastY;
 
+	~MovementServer() { delete m_node; m_node = nullptr; }
 	MovementServer(int udpPort)
 		: ZCom_Control()
 		, m_spawnedCount(0)

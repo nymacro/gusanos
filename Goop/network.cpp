@@ -324,13 +324,13 @@ Network network;
 
 void LuaEventDef::call(ZCom_BitStream* s)
 {
-	ZCom_BitStream* n = s->Duplicate();
+	auto n = s->Duplicate();
 	(lua.call(callb), luaReference, lua.fullReference(*n, LuaBindings::ZCom_BitStreamMetaTable))();
 }
 
 void LuaEventDef::call(LuaReference obj, ZCom_BitStream* s)
 {
-	ZCom_BitStream* n = s->Duplicate();
+	auto n = s->Duplicate();
 	(lua.call(callb), luaReference, obj, lua.fullReference(*n, LuaBindings::ZCom_BitStreamMetaTable))();
 }
 
@@ -587,12 +587,12 @@ void Network::disconnect( DConnEvents event )
 		SET_STATE(Disconnecting);
 		stateTimeOut = 1000;
 
-		ZCom_BitStream *eventData = new ZCom_BitStream;
-		eventData->addInt( static_cast<int>( event ), 8 );
+		ZCom_BitStream eventData;
+		eventData.addInt( static_cast<int>( event ), 8 );
 		
 		LOG("Disconnecting...");
 		network.clientRetry = true;
-		m_control->ZCom_disconnectAll(eventData);
+		m_control->ZCom_disconnectAll(&eventData);
 	}
 	
 	if(serverAdded)
@@ -612,7 +612,7 @@ void Network::disconnect( ZCom_ConnID id, DConnEvents event )
 	
 	std::unique_ptr<ZCom_BitStream> eventData(new ZCom_BitStream);
 	eventData->addInt( static_cast<int>( event ), 8 );
-	m_control->ZCom_Disconnect( id, eventData.release());
+	m_control->ZCom_Disconnect( id, eventData.get());
 }
 
 void Network::clear()
@@ -633,9 +633,9 @@ void Network::kick( ZCom_ConnID connID )
 {
 	if( m_control )
 	{
-		ZCom_BitStream *eventData = new ZCom_BitStream;
-		eventData->addInt( static_cast<int>( Kick ), 8 );
-		m_control->ZCom_Disconnect( connID, eventData );
+		ZCom_BitStream eventData;
+		eventData.addInt( static_cast<int>( Kick ), 8 );
+		m_control->ZCom_Disconnect( connID, &eventData );
 	}
 }
 

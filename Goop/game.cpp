@@ -50,6 +50,7 @@
 #include <string>
 #include <algorithm>
 #include <list>
+#include <memory>
 #include <iostream>
 #include <sstream> //TEMP
 
@@ -477,17 +478,17 @@ void Game::sendLuaEvent(LuaEventDef* event, eZCom_SendMode mode, zU8 rules, ZCom
 {
 	if(!m_node) return;
 	
-	ZCom_BitStream* data = new ZCom_BitStream;
-	addEvent(data, LuaEvent);
-	data->addInt(event->idx, 8);
+	ZCom_BitStream data;
+	addEvent(&data, LuaEvent);
+	data.addInt(event->idx, 8);
 	if(userdata)
 	{
-		data->addBitStream(userdata);
+		data.addBitStream(userdata);
 	}
 	if(!connID)
-		m_node->sendEvent(mode, rules, data);
+		m_node->sendEvent(mode, rules, &data);
 	else
-		m_node->sendEventDirect(mode, data, connID);
+		m_node->sendEventDirect(mode, &data, connID);
 }
 
 void Game::think()
@@ -572,7 +573,7 @@ void Game::think()
 		eZCom_NodeRole remote_role;
 		uint32_t conn_id;
 		
-		ZCom_BitStream* data = m_node->getNextEvent(&type, &remote_role, &conn_id);
+		auto data = m_node->getNextEvent(&type, &remote_role, &conn_id);
 		switch(type)
 		{
 			case eZCom_EventUser:
@@ -612,7 +613,7 @@ void Game::think()
 						DLOG("Got lua event index " << index);
 						if(LuaEventDef* event = network.indexToLuaEvent(Network::LuaEventGroup::Game, index))
 						{
-							event->call(data);
+							event->call(data.get());
 						}
 					}
 					break;
@@ -633,12 +634,12 @@ void Game::think()
 				list<LevelEffectEvent>::iterator iter = appliedLevelEffects.begin();
 				for( ; iter != appliedLevelEffects.end() ; ++iter )
 				{
-					ZCom_BitStream *data = new ZCom_BitStream;
-					addEvent(data, eHole);
-					Encoding::encode(*data, iter->index, levelEffectList.size());
-					level.intVectorEncoding.encode(*data, BaseVec<int>(iter->x, iter->y));
+					ZCom_BitStream data;
+					addEvent(&data, eHole);
+					Encoding::encode(data, iter->index, levelEffectList.size());
+					level.intVectorEncoding.encode(data, BaseVec<int>(iter->x, iter->y));
 					
-					m_node->sendEventDirect(eZCom_ReliableOrdered, data, conn_id );
+					m_node->sendEventDirect(eZCom_ReliableOrdered, &data, conn_id );
 				}
 				
 				
@@ -657,13 +658,13 @@ void Game::applyLevelEffect( LevelEffect* effect, int x, int y )
 	{
 		if ( level.applyEffect( effect, x, y ) && m_node && network.isHost() )
 		{
-			ZCom_BitStream *data = new ZCom_BitStream;
+			ZCom_BitStream data;
 
-			addEvent(data, eHole);
-			Encoding::encode(*data, effect->getIndex(), levelEffectList.size());
-			level.intVectorEncoding.encode(*data, BaseVec<int>(x, y));
+			addEvent(&data, eHole);
+			Encoding::encode(data, effect->getIndex(), levelEffectList.size());
+			level.intVectorEncoding.encode(data, BaseVec<int>(x, y));
 
-			m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, data);
+			m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, &data);
 			
 			appliedLevelEffects.push_back( LevelEffectEvent(effect->getIndex(), x, y ) );
 		}
@@ -1078,11 +1079,11 @@ void Game::assignNetworkRole( bool authority )
 
 void Game::sendRConMsg( string const& message )
 {
-	ZCom_BitStream *req = new ZCom_BitStream;
-	req->addInt(Network::RConMsg, 8);
-	req->addString( options.rConPassword.c_str() );
-	req->addString( message.c_str() );
-	network.getZControl()->ZCom_sendData( network.getServerID(), req, eZCom_ReliableOrdered );
+	ZCom_BitStream req;
+	req.addInt(Network::RConMsg, 8);
+	req.addString( options.rConPassword.c_str() );
+	req.addString( message.c_str() );
+	network.getZControl()->ZCom_sendData( network.getServerID(), &req, eZCom_ReliableOrdered );
 }
 
 void Game::removeNode()

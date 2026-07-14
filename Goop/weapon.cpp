@@ -119,10 +119,9 @@ void Weapon::think( bool isFocused, size_t index )
 					m_type->primaryShoot->run(m_owner, NULL, NULL, this );
 					if ( m_owner->getRole() == eZCom_RoleAuthority && m_type->syncHax )
 					{
-						ZCom_BitStream* data = new ZCom_BitStream;
-						Encoding::encode(*data, SHOOT, EventsCount);
-						m_owner->sendWeaponMessage( index, data, ZCOM_REPRULE_AUTH_2_PROXY );
-						delete data;
+					ZCom_BitStream data;
+					Encoding::encode(data, SHOOT, EventsCount);
+					m_owner->sendWeaponMessage( index, &data, ZCOM_REPRULE_AUTH_2_PROXY );
 					}
 				}
 			}
@@ -142,20 +141,18 @@ void Weapon::think( bool isFocused, size_t index )
 				
 				if ( network.isHost() && m_type->syncHax && m_type->syncReload )
 				{
-					ZCom_BitStream* data = new ZCom_BitStream;
-					//data->addInt( OUTOFAMMO , 8);
-					Encoding::encode(*data, OUTOFAMMO, EventsCount);
-					m_owner->sendWeaponMessage( index, data );
-					delete data;
+				ZCom_BitStream data;
+				//data.addInt( OUTOFAMMO , 8);
+				Encoding::encode(data, OUTOFAMMO, EventsCount);
+				m_owner->sendWeaponMessage( index, &data );
 					sentOutOfAmmo = true;
 				}
 			}
 			else
 			{
-				ZCom_BitStream* data = new ZCom_BitStream;
-				Encoding::encode(*data, OutOfAmmoCheck, EventsCount);
-				m_owner->sendWeaponMessage( index, data, ZCOM_REPRULE_OWNER_2_AUTH );
-				delete data;
+			ZCom_BitStream data;
+			Encoding::encode(data, OutOfAmmoCheck, EventsCount);
+			m_owner->sendWeaponMessage( index, &data, ZCOM_REPRULE_OWNER_2_AUTH );
 				//std::cout << "sent check plz message" << endl;
 			}
 		}
@@ -168,11 +165,10 @@ void Weapon::think( bool isFocused, size_t index )
 				
 				if ( network.isHost() && m_type->syncHax && m_type->syncReload )
 				{
-					ZCom_BitStream* data = new ZCom_BitStream;
-					//data->addInt( RELOADED , 8);
-					Encoding::encode(*data, RELOADED, EventsCount);
-					m_owner->sendWeaponMessage( index, data );
-					delete data;
+				ZCom_BitStream data;
+				//data.addInt( RELOADED , 8);
+				Encoding::encode(data, RELOADED, EventsCount);
+				m_owner->sendWeaponMessage( index, &data );
 				}
 			}
 		}
@@ -185,10 +181,10 @@ void Weapon::think( bool isFocused, size_t index )
 		if ( ammo > 0 )
 		{
 			//std::cout << "Sending correction" << endl;
-			ZCom_BitStream* data = new ZCom_BitStream;
-			Encoding::encode(*data, AmmoCorrection, EventsCount);
-			Encoding::encode(*data, ammo, m_type->ammo+1);
-			m_owner->sendWeaponMessage(index, data, ZCOM_REPRULE_AUTH_2_OWNER );
+			ZCom_BitStream data;
+			Encoding::encode(data, AmmoCorrection, EventsCount);
+			Encoding::encode(data, ammo, m_type->ammo+1);
+			m_owner->sendWeaponMessage(index, &data, ZCOM_REPRULE_AUTH_2_OWNER );
 		}
 		else
 		{

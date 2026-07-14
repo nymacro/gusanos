@@ -476,6 +476,7 @@ METHODC(WeaponType, weapon_ammo,
 )
 
 METHOD(WeaponType, weapon_destroy,
+	if(!p) return 0;
 	delete p;
 	return 0;
 )
@@ -592,6 +593,7 @@ METHODC(PartType, parttype_put,
 )
 
 METHOD(PartType, parttype_destroy,
+	if(!p) return 0;
 	delete p;
 	return 0;
 )

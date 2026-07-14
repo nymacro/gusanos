@@ -28,6 +28,7 @@
 
 #include <vector>
 #include <iostream>
+#include <memory>
 #define BOOST_NO_MT
 #include <boost/pool/pool.hpp>
 
@@ -58,13 +59,13 @@ public:
 	// Not used virtual stuff
 	void outPreReplicateNode(ZCom_Node *_node, ZCom_ConnID _to, eZCom_NodeRole _remote_role)
 	{
-		ZCom_BitStream *type = new ZCom_BitStream;
+		auto type = std::make_unique<ZCom_BitStream>();
 		Encoding::encode(*type, parent->m_type->getIndex(), partTypeList.size());
 		if(parent->m_owner)
 			type->addInt(parent->m_owner->getNodeID(), 32);
 		else
 			type->addInt(0, 32);
-		parent->m_node->setAnnounceData( type );
+		parent->m_node->setAnnounceData(std::move(type));
 	}
 	
 	void outPreDereplicateNode(ZCom_Node *_node, ZCom_ConnID _to, eZCom_NodeRole _remote_role)
@@ -181,7 +182,7 @@ void Particle::assignNetworkRole( bool authority )
 	
 		static ZCom_ReplicatorSetup posSetup( ZCOM_REPFLAG_MOSTRECENT | ZCOM_REPFLAG_INTERCEPT, ZCOM_REPRULE_AUTH_2_ALL, ParticleInterceptor::Position, -1, 1000);
 		
-		m_node->addReplicator(new PosSpdReplicator( &posSetup, &pos, &spd, game.level.vectorEncoding, game.level.diffVectorEncoding ), true);
+		m_node->addReplicator(std::make_unique<PosSpdReplicator>( &posSetup, &pos, &spd, game.level.vectorEncoding, game.level.diffVectorEncoding ), true);
 		
 	m_node->endReplicationSetup();
 	
@@ -277,7 +278,7 @@ void Particle::think()
 			eZCom_NodeRole    remote_role;
 			ZCom_ConnID       conn_id;
 			
-			ZCom_BitStream *data = m_node->getNextEvent(&type, &remote_role, &conn_id);
+			auto data = m_node->getNextEvent(&type, &remote_role, &conn_id);
 			switch ( type )
 			{
 				case eZCom_EventUser:
@@ -289,7 +290,7 @@ void Particle::think()
 					int index = data->getInt(8);
 					if(LuaEventDef* event = network.indexToLuaEvent(Network::LuaEventGroup::Particle, index))
 					{
-						event->call(getLuaReference(), data);
+						event->call(getLuaReference(), data.get());
 					}
 				}
 				break;
@@ -556,17 +557,17 @@ void Particle::draw(Viewport* viewport)
 void Particle::sendLuaEvent(LuaEventDef* event, eZCom_SendMode mode, zU8 rules, ZCom_BitStream* userdata, ZCom_ConnID connID)
 {
 	if(!m_node) return;
-	ZCom_BitStream* data = new ZCom_BitStream;
-	//addEvent(data, LuaEvent);
-	data->addInt(event->idx, 8);
+	ZCom_BitStream data;
+	//addEvent(&data, LuaEvent);
+	data.addInt(event->idx, 8);
 	if(userdata)
 	{
-		data->addBitStream(userdata);
+		data.addBitStream(userdata);
 	}
 	if(!connID)
-		m_node->sendEvent(mode, rules, data);
+		m_node->sendEvent(mode, rules, &data);
 	else
-		m_node->sendEventDirect(mode, data, connID);
+		m_node->sendEventDirect(mode, &data, connID);
 }
 
 void Particle::makeReference()

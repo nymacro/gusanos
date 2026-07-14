@@ -27,6 +27,7 @@ struct FileSrv : public ZCom_Control
     int spawns = 0;
     std::vector<uint32_t> spawnedIDs;
     int32_t val = 0;
+    ~FileSrv() { delete node; node = nullptr; }
     FileSrv(int port) {
         g_currentControl = this;
         ZCom_initSockets(true, port, 4, 0);
@@ -55,6 +56,7 @@ struct FileCli : public ZCom_Control
     ZCom_ConnID lastConn = 0;
     zU32 infoSizeAfterIncoming = 0;
     zU32 infoXferAfterIncoming = 0;
+    ~FileCli() { delete node; node = nullptr; }
     FileCli(int port) {
         g_currentControl = this;
         ZCom_initSockets(false, 0, 0, 0);
@@ -79,7 +81,9 @@ struct FileCli : public ZCom_Control
     void drainFileEvents() {
         if (!node) return;
         eZCom_Event type; eZCom_NodeRole role; ZCom_ConnID conn;
-        while (ZCom_BitStream* d = node->getNextEvent(&type, &role, &conn)) {
+        while (node->checkEventWaiting()) {
+            auto d = node->getNextEvent(&type, &role, &conn);
+            if (!d) continue;
             if (type == eZCom_EventFile_Incoming) {
                 ZCom_FileTransID fid = static_cast<ZCom_FileTransID>(d->getInt(ZCOM_FTRANS_ID_BITS));
                 lastFid = fid; lastConn = conn; gotIncoming = true;
@@ -97,7 +101,6 @@ struct FileCli : public ZCom_Control
                 lastFid = static_cast<ZCom_FileTransID>(d->getInt(ZCOM_FTRANS_ID_BITS));
                 gotAborted = true;
             }
-            delete d;
         }
     }
 };

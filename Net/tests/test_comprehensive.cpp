@@ -72,10 +72,9 @@ BOOST_AUTO_TEST_CASE(string_allocating_get_includes_term)
 {
 	ZCom_BitStream bs;
 	bs.addString("TestStr");
-	char* result = bs.getString();
-	BOOST_REQUIRE(result != nullptr);
-	BOOST_CHECK_EQUAL(std::string(result), "TestStr");
-	delete[] result;
+	std::string result = bs.getString();
+	BOOST_REQUIRE(!result.empty());
+	BOOST_CHECK_EQUAL(result, "TestStr");
 }
 
 // ---- §6.5 Skip methods ----

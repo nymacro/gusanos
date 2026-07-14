@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <new>
+#include <memory>
 
 ZCom_BitStream::ZCom_BitStream(zU16 _maxfill)
 	: m_writeBit(0), m_readBit(0), m_fillPos{0, 0}, m_readPos{0, 0}
@@ -250,19 +251,21 @@ const char* ZCom_BitStream::getStringStatic()
 	return m_lastString.c_str();
 }
 
-char* ZCom_BitStream::getString()
+std::string ZCom_BitStream::getString()
 {
-	// Allocates a new string buffer - caller must free
+	// Returns the string by value (RAII; no caller-managed buffer).
 	int len = getInt(16);
 	if (len <= 0) {
-		char* empty = new char[1];
-		empty[0] = '\0';
-		return empty;
+		return std::string();
 	}
-	char* buf = new char[len + 1];
+	std::string buf;
+	buf.reserve(len);
 	for (int i = 0; i < len; ++i)
-		buf[i] = static_cast<char>(getInt(8));
-	buf[len] = '\0';
+		buf += static_cast<char>(getInt(8));
+	// The stored length includes a null terminator (see addString); strip it
+	// so the returned std::string holds just the text.
+	if (!buf.empty() && buf.back() == '\0')
+		buf.pop_back();
 	return buf;
 }
 
@@ -407,10 +410,10 @@ bool ZCom_BitStream::addBitStream(ZCom_BitStream* other, bool _allow_align)
 	return true;
 }
 
-ZCom_BitStream* ZCom_BitStream::getBitStream(uint32_t bits, bool copyData)
+std::unique_ptr<ZCom_BitStream> ZCom_BitStream::getBitStream(uint32_t bits, bool copyData)
 {
 	(void)copyData;
-	ZCom_BitStream* extracted = new ZCom_BitStream();
+	auto extracted = std::make_unique<ZCom_BitStream>();
 	for (uint32_t i = 0; i < bits; ++i) {
 		if (getBool())
 			extracted->addBool(true);
@@ -565,9 +568,9 @@ bool ZCom_BitStream::isEqual(const ZCom_BitStream& other) const
 
 // ---- Duplicate ----
 
-ZCom_BitStream* ZCom_BitStream::Duplicate() const
+std::unique_ptr<ZCom_BitStream> ZCom_BitStream::Duplicate() const
 {
-	ZCom_BitStream* dup = new ZCom_BitStream();
+	auto dup = std::make_unique<ZCom_BitStream>();
 	size_t byteStart = m_readBit / 8;
 	if (byteStart < m_data.size()) {
 		dup->m_data.assign(m_data.begin() + byteStart, m_data.end());

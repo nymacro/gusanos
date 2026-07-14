@@ -221,6 +221,7 @@ LBINOP(BaseWorm, worm_eq,
 )*/
 
 METHOD(BaseWorm, worm_destroy,
+	if(!p) return 0;
 	delete p;
 	return 0;
 )
@@ -515,6 +516,7 @@ METHODC(Particle, particle_set_replication,
 //! version any
 
 METHOD(Particle, particle_destroy,
+	if(!p) return 0;
 	delete p;
 	return 0;
 )
@@ -559,6 +561,7 @@ METHODC(Weapon, weaponinst_type,
 )
 
 METHOD(Weapon, weaponinst_destroy,
+	if(!p) return 0;
 	assert(!p->luaReference);
 	delete p;
 	return 1;

@@ -104,10 +104,9 @@ BOOST_AUTO_TEST_CASE(add_get_string_allocating)
 {
 	ZCom_BitStream bs;
 	bs.addString("Allocated String");
-	char* result = bs.getString();
-	BOOST_REQUIRE(result != nullptr);
-	BOOST_CHECK_EQUAL(std::string(result), "Allocated String");
-	delete[] result;
+	std::string result = bs.getString();
+	BOOST_REQUIRE(!result.empty());
+	BOOST_CHECK_EQUAL(result, "Allocated String");
 }
 
 BOOST_AUTO_TEST_CASE(nested_bitstream)
@@ -136,12 +135,11 @@ BOOST_AUTO_TEST_CASE(duplicate)
 	bs.addInt(2, 8);
 	bs.addInt(3, 8);
 
-	ZCom_BitStream* dup = bs.Duplicate();
+	auto dup = bs.Duplicate();
 	BOOST_REQUIRE(dup != nullptr);
 	BOOST_CHECK_EQUAL(dup->getInt(8), 1);
 	BOOST_CHECK_EQUAL(dup->getInt(8), 2);
 	BOOST_CHECK_EQUAL(dup->getInt(8), 3);
-	delete dup;
 }
 
 BOOST_AUTO_TEST_CASE(reset_and_reuse)

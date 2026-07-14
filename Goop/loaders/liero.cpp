@@ -300,7 +300,7 @@ bool LieroFontLoader::load(Font* font, fs::path const& path)
 	int y = 0;
 	for(int i = 0; i < 250; ++i)
 	{
-		int width = buffer[i * 8 * 8 + 64];
+		int width = buffer[i * 8 * 8];
 		if(width < 2)
 			width = 2;
 			

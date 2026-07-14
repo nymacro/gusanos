@@ -351,6 +351,7 @@ METHODC(BasePlayer, player_selectWeapons,
 )
 
 METHOD(BasePlayer, player_destroy,
+	if(!p) return 0;
 	delete p;
 	return 0;
 )
