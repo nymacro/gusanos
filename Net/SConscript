@@ -3,7 +3,7 @@ Import('env')
 env.StaticLibrary(env.getLibName('omfgnet'), env.getObjects())
 
 # Build ztests alongside the library for debug builds
-if env['MY_BUILD'] == 'debug':
+if env['BUILD_TESTS'] and env['MY_BUILD'] == 'debug':
     testEnv = env.Clone()
 
     brew_prefix = '/home/linuxbrew/.linuxbrew'
