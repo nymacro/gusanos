@@ -770,7 +770,7 @@ double Parser::getDouble(std::string const& name, double def)
 	return getProperty(name)->toDouble(def);
 }
 
-std::string const& Parser::getString(std::string const& name, std::string const& def)
+std::string Parser::getString(std::string const& name, std::string const& def)
 {
 	return getProperty(name)->toString(def);
 }

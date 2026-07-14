@@ -273,7 +273,7 @@ struct Parser : public Pimpl<ParserImpl>
 	
 	bool getBool(std::string const& name, bool def = false);
 	
-	std::string const& getString(std::string const& name, std::string const& def = "");
+	std::string getString(std::string const& name, std::string const& def = "");
 	
 	std::list<TokenBase*> const& getList(std::string const& name, std::list<TokenBase*> const& def = std::list<TokenBase*>());
 	
