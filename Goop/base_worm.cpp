@@ -462,9 +462,9 @@ void BaseWorm::processMoveAndDig(void)
 
 void BaseWorm::think()
 {
-	if(m_isActive)
+		if(m_isActive)
 	{
-		if ( health <= 0 ) die();
+		if ( health <= 0 && isAuthority() ) die();
 		
 		BaseVec<float> next = pos + spd;
 		

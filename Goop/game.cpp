@@ -760,6 +760,13 @@ void Game::runInitScripts()
 
 void Game::reset(ResetReason reason)
 {
+	// Drop any sound channels that follow object positions before the
+	// objects they reference are deleted, otherwise sfx.think() will
+	// dereference dangling BaseObject* pointers (heap-use-after-free).
+#ifndef DEDSERV
+	sfx.clear();
+#endif
+
 	// Delete all players
 	for ( list<BasePlayer*>::iterator iter = players.begin(); iter != players.end(); ++iter)
 	{

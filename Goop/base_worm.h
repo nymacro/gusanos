@@ -82,6 +82,14 @@ public:
 	bool isChanging()
 	{ return changing; }
 	
+	// True if this instance decides gameplay outcomes (death, etc.) locally.
+	// Single-player/local worms are always authoritative. Networked worms
+	// override this to reflect their replication role: only the authority
+	// may trigger death from the locally-tracked health value; non-authoritative
+	// clients must rely on the replicated Die event instead.
+	virtual bool isAuthority() const
+	{ return true; }
+	
 	virtual void damage( float amount, BasePlayer* damager, DamageCause const& cause );
 	
 	// This are virtual so that NetWorm can know about them and tell others over the network.

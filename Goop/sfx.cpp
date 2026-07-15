@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <list>
+#include <memory>
 #include "fmod_compat.h"
 #include <boost/utility.hpp>
 
@@ -18,7 +19,7 @@ namespace
 	bool m_initialized = false;
 	
 	std::list< std::pair< int, BaseObject* > > chanObject;
-	std::vector<Listener*> listeners;
+	std::vector< std::unique_ptr<Listener> > listeners;
 	
 	int m_volume;
 	int m_listenerDistance;
@@ -105,18 +106,16 @@ void Sfx::clear()
 
 Listener* Sfx::newListener()
 {
-	listeners.push_back( new Listener );
-	return listeners.back();
+	listeners.push_back(std::unique_ptr<Listener>(new Listener));
+	return listeners.back().get();
 }
 
 void Sfx::freeListener(Listener* listener)
 {
-	vector<Listener*>::iterator i;
-	for ( i = listeners.begin(); i != listeners.end(); ++i )
+	for ( auto i = listeners.begin(); i != listeners.end(); ++i )
 	{
-		if ( listener == *i )
+		if ( i->get() == listener )
 		{
-			delete *i;
 			listeners.erase(i);
 			break;
 		}

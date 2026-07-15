@@ -6,6 +6,7 @@
 #include "luaapi/classes.h"
 
 #include "../base_player.h"
+#include "../player_options.h"
 #include "../player.h"
 #include "../base_worm.h"
 #include "../particle.h"
@@ -381,9 +382,11 @@ int l_baseObject_getPlayer_depr(lua_State* L)
 */
 METHODC(BaseObject, baseObject_damage,
 	lua_Number amount = lua_tonumber(context, 2);
-	//BasePlayer* player = *static_cast<BasePlayer **>(lua_touserdata(context, 3));
 	BasePlayer* player = getObject<BasePlayer>(context, 3);
-	p->damage(amount, player, DamageCause());
+	DamageCause cause;
+	if (player)
+		cause.shooterID = player->getOptions()->uniqueID;
+	p->damage(amount, player, cause);
 	return 1;
 )
 

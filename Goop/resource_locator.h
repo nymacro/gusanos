@@ -2,6 +2,7 @@
 #define GUSANOS_RESOURCE_LOCATOR_H
 
 #include <map>
+#include <utility>
 #include <iterator>
 #include <string>
 #include <list>
@@ -9,6 +10,7 @@
 #include <iostream>
 #include <algorithm>
 #include <stdexcept>
+#include <memory>
 //#include <console.h> //For IStrCompare
 #include "util/text.h"
 #include <boost/filesystem/path.hpp>
@@ -43,22 +45,21 @@ struct ResourceLocator
 	// Information about a resource found via refresh()
 	struct ResourceInfo
 	{
-		ResourceInfo() : loader(0), cached(0) {}
+		ResourceInfo() : loader(0) {}
 		
 		ResourceInfo(fs::path const& path_, BaseLoader* loader_)
-		: path(path_), loader(loader_), cached(0)
+		: path(path_), loader(loader_)
 		{
 
 		}
 		
 		~ResourceInfo()
 		{
-			delete cached;
 		}
 				
 		fs::path path; // Path to load from
 		BaseLoader* loader;   // Loader to use
-		T* cached;
+		std::unique_ptr<T> cached;
 	};
 	
 	typedef std::map<std::string, ResourceInfo, IStrCompare> NamedResourceMap;
@@ -165,8 +166,7 @@ void ResourceLocator<T, Cache, ReturnResource>::refresh(fs::path const& path)
 			if(loader)
 			{
 				// We found a loader
-				std::pair<typename NamedResourceMap::iterator, bool> r = m_namedResources.insert(std::make_pair(name, ResourceInfo(i->path(), loader)));
-				/*
+				std::pair<typename NamedResourceMap::iterator, bool> r = m_namedResources.emplace(std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(i->path(), loader));				/*
 				if(r.second)
 				{
 					std::cout << "Found resource: " << name << ", loader: " << loader->getName() << std::endl;
@@ -224,22 +224,25 @@ T* ResourceLocator<T, Cache, ReturnResource>::load(std::string const& name)
 		return 0;
 	
 	if(Cache && i->second.cached)
-		return i->second.cached; //Return the cached version
+		return i->second.cached.get(); //Return the cached version
 	
-	T* resource = new T();
-	bool r = i->second.loader->load(resource, i->second.path);
+	std::unique_ptr<T> resource(new T());
+	bool r = i->second.loader->load(resource.get(), i->second.path);
 	if(!r)
 	{
 		// The loader failed, delete the resource
-		delete resource;
 		return 0;
 	}
 	
-	// Cache the loaded resource
 	if(Cache)
-		i->second.cached = resource;
+	{
+		// Cache the loaded resource
+		i->second.cached = std::move(resource);
+		return i->second.cached.get();
+	}
 	
-	return resource;
+	// Non-caching locator: transfer ownership to the caller
+	return resource.release();
 }
 
 template<class T, bool Cache, bool ReturnResource>
