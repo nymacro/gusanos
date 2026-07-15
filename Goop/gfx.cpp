@@ -31,9 +31,13 @@ namespace
 #ifndef DEDSERV
 	enum Filters
 	{
-		NEAREST = 0,  // Pixel art
-		LINEAR = 1   // Smooth
+		NEAREST = 0, // Nearest
+		LINEAR = 1,  // Smooth
+		PIXELART = 2 // Nearest with better scaling
 	};
+#ifndef SDL_SCALEMODE_PIXELART
+#  define SDL_SCALEMODE_PIXELART SDL_SCALEMODE_NEAREST
+#endif
 
 	int m_fullscreen = 0;
 	int m_doubleRes = 1;
@@ -41,7 +45,7 @@ namespace
 	int m_vheight = 480;
 	int m_vsync = 1;
 	int m_clearBuffer = 0;
-	int m_filter = NEAREST;
+	int m_filter = PIXELART;
 	int m_driver = 0;
 	int m_bitdepth = 32;
 
@@ -85,6 +89,9 @@ namespace
 			break;
 		case LINEAR:
 			SDL_SetTextureScaleMode(gfx.screenTexture, SDL_SCALEMODE_LINEAR);
+			break;
+		case PIXELART:
+			SDL_SetTextureScaleMode(gfx.screenTexture, SDL_SCALEMODE_PIXELART);
 			break;
 		}
 	}
@@ -158,9 +165,10 @@ void Gfx::registerInConsole()
 		insert(videoFilters) 
 			("NEAREST", NEAREST)
 			("LINEAR", LINEAR)
+			("PIXELART", PIXELART)
 			;
 
-		console.registerVariable(new EnumVariable("VID_FILTER", &m_filter, NEAREST, videoFilters, filter_callback));
+		console.registerVariable(new EnumVariable("VID_FILTER", &m_filter, PIXELART, videoFilters, filter_callback));
 	}
 #endif
 }
