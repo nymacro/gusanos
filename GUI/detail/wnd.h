@@ -11,11 +11,24 @@
 #include <iostream>
 #include <list>
 #include <map>
+#include <set>
 using std::cerr;
 using std::endl;
 
 namespace OmfgGUI
 {
+
+// Tracks live GUI objects (Wnd and ListNode) by pointer VALUE (never
+// dereferenced after free). The Lua finalizers (__gc) must not double-free an
+// object that was already torn down via a C++ delete (the root window is
+// deleted by Context::destroy() and then finalized again at lua_close). The
+// destructor erases the pointer, so a later finalizer sees it is gone and
+// skips the second delete - without reading freed memory.
+inline std::set<void*>& guiAliveSet()
+{
+	static std::set<void*> s;
+	return s;
+}
 
 class Wnd
 {
@@ -45,7 +58,9 @@ public:
 	: m_focusable(true)/*, m_text(text)*/, m_parent(0), m_lastChildFocus(0)
 	, m_context(0), m_font(0), m_tagLabel(tagLabel)/*, m_className(className), m_id(id)*/
 	, m_attributes(attributes), m_visible(true), m_active(false)
+	, m_destroyed(false)
 	{
+		guiAliveSet().insert(this);
 		getAttrib("label", m_text);
 		getAttrib("class", m_id);
 		getAttrib("id", m_id);
@@ -54,8 +69,12 @@ public:
 		if(getAttrib("selectable", v))
 			m_focusable = (v != "0");
 			
-		if(parent)
-			parent->addChild(this);
+		// NOTE: parenting is intentionally NOT done here. The Lua creation
+		// macros assign luaReference only AFTER the constructor returns, so a
+		// parent->addChild() call from inside the constructor would see a zero
+		// luaReference and skip creating the strong ownership reference that
+		// keeps the child alive for the GC. Callers (xml.cpp, the gui_* Lua
+		// bindings) add the window to its parent explicitly after creation.
 	}
 	
 	virtual ~Wnd();
@@ -174,36 +193,9 @@ public:
 	
 	void setGroup(std::string newGroup);
 	
-	void addChild(Wnd* ch)
-	{
-		if(!ch->m_parent)
-		{
-			ch->m_parent = this;
-			m_children.push_back(ch);
-			m_namedChildren[ch->m_id] = ch;
-			
-			if(!ch->m_context && m_context)
-			{
-				ch->setContext_(m_context);
-			}
-			
-			if(!m_group.empty() && ch->m_group.empty())
-			{
-				ch->setGroup(m_group);
-			}
-		}
-	}
-	
-	void removeChild(Wnd* ch)
-	{
-		for(Wnd* p = this; p && p->m_lastChildFocus == ch; p = p->m_parent)
-		{
-			p->m_lastChildFocus = 0;
-		}
-		
-		m_children.remove(ch);
-		m_namedChildren.erase(ch->m_id);
-	}
+	void addChild(Wnd* ch);
+
+	void removeChild(Wnd* ch);
 	
 	Wnd* getChildByName(std::string const& name)
 	{
@@ -256,6 +248,7 @@ public:
 	
 	bool m_focusable;
 	LuaReference luaReference;
+	bool m_destroyed;
 	
 protected:
 
@@ -297,6 +290,13 @@ protected:
 	std::map<std::string, std::string> m_attributes;
 	
 	std::map<std::string, Wnd*> m_namedChildren;
+
+	// Strong Lua references this window holds to keep its children alive for
+	// the garbage collector. The C++ parent owns the child's lifetime, but Lua
+	// cannot see that edge, so without an explicit reference a parented child
+	// whose only other reference was transient would be collected and vanish
+	// from the UI. These are released on removeChild() and in the destructor.
+	std::map<Wnd*, LuaReference> m_ownedRefs;
 	
 	bool                 m_visible;
 	bool                 m_active;

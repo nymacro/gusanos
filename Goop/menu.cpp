@@ -376,7 +376,7 @@ void GContext::clear()
 	
 	std::map<std::string, std::string> attributes;
 	attributes["id"] = "root";
-	Wnd* root = lua_new(Wnd, (0, attributes), lua);
+	Wnd* root = lua_new_weak(Wnd, (0, attributes), lua);
 	setRoot(root);
 }
 

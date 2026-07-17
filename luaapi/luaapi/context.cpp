@@ -3,6 +3,7 @@
 extern "C"
 {
 	#include "lualib.h"
+	#include "lauxlib.h"
 }
 
 #include <iostream>
@@ -16,6 +17,10 @@ using std::endl;
 
 #define FREELIST_REF 1
 #define ARRAY_SIZE   2
+// Registry index of a weak-valued table used for non-pinning references. A
+// fixed index (rather than a per-instance member) is required because Lua C
+// functions wrap the state in a fresh LuaContext whose members are uninitialized.
+#define WEAK_REF_TABLE 3
 
 LuaContext lua;
 
@@ -125,6 +130,15 @@ void LuaContext::init()
 	luaopen_table(m_State);
 	luaopen_string(m_State);
 	luaopen_math(m_State);
+
+	// Create a weak-valued table in the registry (at a fixed index) for
+	// non-pinning references.
+	lua_newtable(m_State);
+	lua_newtable(m_State);
+	lua_pushstring(m_State, "v");
+	lua_setfield(m_State, -2, "__mode");
+	lua_setmetatable(m_State, -2);
+	lua_rawseti(m_State, LUA_REGISTRYINDEX, WEAK_REF_TABLE);
 }
 
 void LuaContext::reset()
@@ -438,6 +452,34 @@ void LuaContext::destroyReference(LuaReference ref)
 void LuaContext::pushReference(LuaReference ref)
 {
 	lua_rawgeti(m_State, LUA_REGISTRYINDEX, ref.idx);
+}
+
+LuaReference LuaContext::createWeakReference()
+{
+	// Reference the value currently on top of the stack into the weak table,
+	// then pop it. Unlike createReference this does not keep the value alive.
+	lua_rawgeti(m_State, LUA_REGISTRYINDEX, WEAK_REF_TABLE);
+	lua_pushvalue(m_State, -2);                          // weakTable, value
+	LuaReference ref = LuaReference(luaL_ref(m_State, -2)); // weakTable
+	lua_pop(m_State, 1);                                 // (empty)
+	return ref;
+}
+
+void LuaContext::destroyWeakReference(LuaReference ref)
+{
+	if(ref.idx != 0)
+	{
+		lua_rawgeti(m_State, LUA_REGISTRYINDEX, WEAK_REF_TABLE);
+		luaL_unref(m_State, -1, ref.idx);
+		lua_pop(m_State, 1);
+	}
+}
+
+void LuaContext::pushWeakReference(LuaReference ref)
+{
+	lua_rawgeti(m_State, LUA_REGISTRYINDEX, WEAK_REF_TABLE);
+	lua_rawgeti(m_State, -1, ref.idx);
+	lua_remove(m_State, -2);
 }
 
 namespace LuaType

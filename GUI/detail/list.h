@@ -3,8 +3,10 @@
 
 #include "wnd.h"
 #include "llist.h"
+#include "luaapi/context.h"
 
 #include <string>
+#include <map>
 #include <cassert>
 #include <boost/lexical_cast.hpp>
 using boost::lexical_cast;
@@ -30,11 +32,13 @@ struct ListNode : public LNodeImp<ListNode>
 	: selected(false), expanded(true)
 	, parent(0), visibleChildren(0), level(0)
 	, list(0)
+	, m_destroyed(false)
 	{
+		guiAliveSet().insert(this);
 		columns.push_back(text);
 	}
 	
-	virtual ~ListNode() {}
+	virtual ~ListNode();
 	
 	node_iter_t push_back(ListNode* node)
 	{
@@ -43,6 +47,14 @@ struct ListNode : public LNodeImp<ListNode>
 		node->level = level + 1;
 		node->parent = this;
 		changeChildrenCount(1);
+
+		// Keep the child node alive for the GC (see m_ownedNodes). The child's
+		// luaReference is assigned by the creation macro before push_back runs.
+		if(node->luaReference)
+		{
+			lua.pushWeakReference(node->luaReference);
+			m_ownedNodes[node] = lua.createReference();
+		}
 
 		return node_iter_t(node);
 	}
@@ -104,7 +116,16 @@ struct ListNode : public LNodeImp<ListNode>
 	list_t      children;
 	LuaReference luaReference;
 	LuaReference luaData;
-};
+
+	// Strong Lua references this node holds to keep its child nodes alive for
+	// the garbage collector. The C++ parent (this node) owns the child's
+	// lifetime, but Lua cannot see that edge, so without an explicit reference
+	// a child node whose only other reference was transient would be collected
+	// and vanish from the list with a dangling C++ pointer. Released in the
+	// destructor (and in List::clear).
+	std::map<ListNode*, LuaReference> m_ownedNodes;
+
+	bool m_destroyed;};
 
 class List : public Wnd
 {
@@ -148,16 +169,18 @@ public:
 	
 	node_iter_t push_back(ListNode* node)
 	{
-		/*
-		node->columns.resize(m_columnHeaders.size());
-		node_iter_t i = m_RootNode.children.insert(node);
-		node->parent = 0; // Just to be sure
-		node->level = m_RootNode.level + 1;
-		*/
-		//node_iter_t i = push_back(node, &m_RootNode);
 		node->list = this;
 		node->columns.resize(m_columnHeaders.size());
 		m_RootNode.children.insert(node);
+
+		// Keep the node alive for the GC (the root owns it). The node's
+		// luaReference is assigned by the creation macro before push_back runs.
+		if(node->luaReference)
+		{
+			lua.pushWeakReference(node->luaReference);
+			m_RootNode.m_ownedNodes[node] = lua.createReference();
+		}
+
 		++m_visibleChildren;
 		node_iter_t i(node);
 		i->parent = 0;
@@ -226,6 +249,14 @@ public:
 	{
 		m_MainSel = m_Base = node_iter_t(0);
 		m_visibleChildren = 0;
+
+		// Release the strong GC ownership references the root holds for its
+		// direct children. The child nodes are finalized by their own __gc
+		// (Lua owns the memory), so we only orphan the C++ links here.
+		for(std::map<ListNode*, LuaReference>::iterator i = m_RootNode.m_ownedNodes.begin(), e = m_RootNode.m_ownedNodes.end(); i != e; ++i)
+			lua.destroyReference(i->second);
+		m_RootNode.m_ownedNodes.clear();
+
 		m_RootNode.children.clear();
 	}
 	

@@ -68,7 +68,21 @@ BITMAP* load_bitmap(const char* filename, RGB* pal) {
                 }
                 palette_colors[0] = (SDL_Color){255, 0, 255, 255};
                 SDL_SetPaletteColors(SDL_GetSurfacePalette(idx8), palette_colors, 0, 256);
-                
+
+                // Sub-byte source formats (1- or 4-bit, e.g. grayscale/indexed
+                // PNGs) have SDL_BYTESPERPIXEL == 0, so the per-pixel row
+                // indexing below would stride off the end of the row (pitch is in
+                // bytes, not pixels) and read out of bounds. Expand to ARGB8888
+                // first so every pixel is a clean 4-byte value and is decoded
+                // correctly via SDL_GetRGBA.
+                if (SDL_BYTESPERPIXEL(surf->format) == 0) {
+                    SDL_Surface* expanded = SDL_ConvertSurface(surf, SDL_PIXELFORMAT_ARGB8888);
+                    if (expanded) {
+                        SDL_DestroySurface(surf);
+                        surf = expanded;
+                    }
+                }
+
                 // Lock both surfaces for pixel access
                 SDL_LockSurface(surf);
                 SDL_LockSurface(idx8);

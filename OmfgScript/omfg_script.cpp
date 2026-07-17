@@ -8,6 +8,7 @@
 #include "util/stringbuild.h"
 #include "util/text.h"
 #include "allegro_compat.h"
+#include "base_action.h"
 using std::unique_ptr;
 #include <boost/crc.hpp>
 using std::cout;
@@ -529,6 +530,8 @@ struct ParserImpl : public TGrammar<ParserImpl>
 		~Event()
 		{
 			delete params;
+			for (auto i : actions)
+				delete i;
 		}
 		
 		//std::string name;

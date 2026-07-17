@@ -1,5 +1,6 @@
 #include "context.h"
-
+#include "wnd.h"
+#include "luaapi/context.h"
 #include "renderer.h"
 #include "wnd.h"
 #include <iostream>
@@ -24,14 +25,38 @@ void Context::destroy()
 	// in the next session.
 	if(m_keyboardFocusWnd)
 		setFocus(0);
+
+	// Release the strong Lua reference to the root before deleting it, so the
+	// destructor (and the final GC of the userdata) doesn't try to touch a
+	// dangling registry slot.
+	if(m_rootRef)
+	{
+		lua.destroyReference(m_rootRef);
+		m_rootRef.reset();
+	}
+
 	delete m_rootWnd; m_rootWnd = 0;
 }
 
 void Context::setRoot_(Wnd* wnd)
 {
+	// Drop any previous root reference.
+	if(m_rootRef)
+	{
+		lua.destroyReference(m_rootRef);
+		m_rootRef.reset();
+	}
+
 	m_rootWnd = wnd;
 	if(m_rootWnd)
+	{
 		m_rootWnd->setContext_(this);
+		// Keep the root (and therefore the whole tree) alive for the GC by
+		// holding a strong Lua reference. The root's only other reference is
+		// its own weak self-reference.
+		lua.pushWeakReference(m_rootWnd->luaReference);
+		m_rootRef = lua.createReference();
+	}
 }
 
 void Context::updateGSS()

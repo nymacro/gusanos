@@ -71,7 +71,9 @@ bool check_materials( int x1, int y1, int x2, int y2 )
 			DO_COL(-, y, >=, +, x, >=);
 		}
 	}
-   }
+}
+
+
    else {
 	   if (dy >= 0) {
 		   if (-dx >= dy) {
@@ -188,7 +190,10 @@ void PlayerAI::subThink()
 		
 		getTarget();
 		if (!m_target)
+		{
+			m_worm->aimSpeed = 0;
 			return;
+		}
 		
 		Vec pos = m_worm->pos;		//AI position
 		Vec target = m_target->pos;	//Target position
@@ -240,6 +245,7 @@ void PlayerAI::subThink()
 			}
 		}
 	
+
 	
 		if ( ( m_worm->getCurrentWeapon()->reloading && ( rand() % 8 == 0 ) ) || rand() % 15 == 0)
 		{
@@ -260,6 +266,11 @@ void PlayerAI::subThink()
 	}
 	if ( m_worm )
 	{
+		// Re-acquire the target every frame: m_target is a raw pointer into the
+		// object grid and may have been freed by the delete loop since the last
+		// (throttled) getTarget() call. Without this, the dereference below is a
+		// use-after-free.
+		getTarget();
 		if ( m_target )
 		{
 			Vec pos = m_worm->pos;		//AI position

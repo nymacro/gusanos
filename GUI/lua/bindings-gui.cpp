@@ -64,7 +64,7 @@ int l_gui_wnd(lua_State* L)
 		}
 	}
 	
-	OmfgGUI::Wnd* n = lua_new_keep(T, (0, attribs), lua);
+	OmfgGUI::Wnd* n = lua_new_weak_keep(T, (0, attribs), lua);
 	
 	if(lua_istable(context, 2))
 	{
@@ -119,7 +119,7 @@ int l_gui_loadxml(lua_State* L)
 		OmfgGUI::Wnd* w = gui.loadXMLFile(name, loadTo);
 		if(w)
 		{
-			context.push(w->luaReference);
+			context.pushWeakReference(w->luaReference);
 			return 1;
 		}
 	}
@@ -177,7 +177,7 @@ int l_gui_find(lua_State* L)
 	if(!w)
 		return 0;
 
-	context.push(w->luaReference);
+	context.pushWeakReference(w->luaReference);
 
 	return 1;
 }
@@ -191,7 +191,7 @@ int l_gui_root(lua_State* L)
 	OmfgGUI::Wnd* w = gui.getRoot();
 	if(!w)
 		return 0;
-	context.push(w->luaReference);
+	context.pushWeakReference(w->luaReference);
 	
 	return 1;
 }
@@ -209,7 +209,7 @@ int l_gui_windows_index(lua_State* L)
 	if(!w)
 		return 0;
 
-	context.push(w->luaReference);
+	context.pushWeakReference(w->luaReference);
 
 	return 1;
 }
@@ -403,7 +403,7 @@ LMETHODC(OmfgGUI::Wnd, gui_wnd_child,
 	if(!name) return 0;
 	OmfgGUI::Wnd* ch = p->getChildByName(name);
 	if(!ch) return 0;
-	context.push(ch->luaReference);
+	context.pushWeakReference(ch->luaReference);
 	return 1;
 )
 
@@ -436,7 +436,7 @@ LMETHODC(OmfgGUI::Edit, gui_edit_set_lock,
 LMETHODC(OmfgGUI::List, gui_list_insert,
 
 	int c = lua_gettop(context);
-	OmfgGUI::ListNode* n = lua_new_keep(OmfgGUI::ListNode, (""), context);
+	OmfgGUI::ListNode* n = lua_new_weak_keep(OmfgGUI::ListNode, (""), context);
 	p->push_back(n);
 	for(int i = 2; i <= c; ++i)
 		n->setText(i - 2, lua_tostring(context, i));
@@ -447,7 +447,7 @@ LMETHODC(OmfgGUI::List, gui_list_insert,
 LMETHODC(OmfgGUI::List, gui_list_each,
 
 	context.push(listIterator);
-	context.push(p->getFirstNode()->luaReference);
+	context.pushWeakReference(p->getFirstNode()->luaReference);
 	lua_pushnil(context);
 
 	return 3;
@@ -469,7 +469,7 @@ int l_gui_listIterator(lua_State* L)
 		if(!i)
 			return 0;
 	
-		context.push(i->luaReference);
+		context.pushWeakReference(i->luaReference);
 	}
 	
 	return 1;
@@ -490,7 +490,7 @@ LMETHODC(OmfgGUI::List, gui_list_subinsert,
 	int c = lua_gettop(context);
 	//void* mem = lua_newuserdata(context, sizeof(LuaListNode));
 	//lua_pushvalue(context, -1);
-	OmfgGUI::ListNode* n = lua_new_keep(OmfgGUI::ListNode, (""), context);
+	OmfgGUI::ListNode* n = lua_new_weak_keep(OmfgGUI::ListNode, (""), context);
 	//LuaListNode* n = new (mem) LuaListNode(context.createReference(), "");
 	p->push_back(n, parent);
 	for(int i = 3; i <= c; ++i)
@@ -551,7 +551,7 @@ LMETHODC(OmfgGUI::List, gui_list_selection,
 LMETHODC(OmfgGUI::List, gui_list_main_selection,
 	if(OmfgGUI::ListNode* n = p->getMainSel())
 	{
-		context.push(n->luaReference);
+		context.pushWeakReference(n->luaReference);
 		return 1;
 	}
 	return 0;
@@ -661,11 +661,33 @@ void addGUICheckFunctions(LuaContext& context)
 	;
 }
 
+int l_gui_wnd_gc(lua_State* L)
+{
+	OmfgGUI::Wnd* p = static_cast<OmfgGUI::Wnd*>(lua_touserdata(L, 1));
+	if(p && OmfgGUI::guiAliveSet().count(p))
+		delete p;
+	return 0;
+}
+
+int l_gui_list_node_gc(lua_State* L)
+{
+	OmfgGUI::ListNode* p = static_cast<OmfgGUI::ListNode*>(lua_touserdata(L, 1));
+	if(p && OmfgGUI::guiAliveSet().count(p))
+		delete p;
+	return 0;
+}
+
 void GUIWndMetatable(LuaContext& context)
 {
 	lua_newtable(context);
 	lua_pushcfunction(context, l_gui_wnd_bind);
-	lua_setfield(context, -2, "__newindex");                          
+	lua_setfield(context, -2, "__newindex");
+	// Finalizer: Lua owns the userdata memory block, but the C++ object's
+	// members (std::map, std::string, registry references) must be released
+	// when the object is collected. operator delete is a no-op (Lua frees the
+	// block), so delete simply runs the destructor.
+	lua_pushcfunction(context, l_gui_wnd_gc);
+	lua_setfield(context, -2, "__gc");
 }
 
 #endif
@@ -761,6 +783,8 @@ void initGUI(OmfgGUI::Context& gui, LuaContext& context)
 	// GUI List node method and metatable
 	
 	lua_newtable(context);
+	lua_pushcfunction(context, l_gui_list_node_gc);
+	lua_setfield(context, -2, "__gc");
 	lua_pushstring(context, "__index");
 	
 	lua_newtable(context);

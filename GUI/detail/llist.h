@@ -356,15 +356,10 @@ inline void	LList<T>::erase(T* a_Item)
 template<class T>
 inline void LList<T>::clear(void)
 {
-	T* pIter = getFirst();
-
-	while(pIter)
-	{
-		T* pNext = (T *)pIter->getNext();
-		delete pIter;
-		pIter = pNext;
-	}
-
+	// Orphan every node: unlink from the list but do NOT delete, because the
+	// only instantiation (ListNode) is owned by Lua (the userdata memory block
+	// is freed by its __gc finalizer, not by C++). Deleting here would either
+	// double-free (if already finalized) or free memory Lua still references.
 	unlinkAll();
 }
 
@@ -493,7 +488,9 @@ inline LList<T>::LList()
 template<class T>
 inline LList<T>::~LList()
 {
-	clear();
+	// Orphan nodes rather than delete them (see clear()). The linked structure
+	// is owned by Lua via ListNode; the C++ side only borrows the pointers.
+	unlinkAll();
 }
 
 #endif //_LLIST_H_

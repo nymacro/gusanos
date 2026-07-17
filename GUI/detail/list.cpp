@@ -10,9 +10,38 @@ namespace OmfgGUI
 LuaReference List::metaTable;
 LuaReference ListNode::metaTable;
 
+ListNode::~ListNode()
+{
+	guiAliveSet().erase(this);
+
+	if(m_destroyed)
+		return;
+	m_destroyed = true;
+
+	// Release strong ownership references for child nodes (see m_ownedNodes).
+	// The children are finalized by their own __gc; we must not delete them.
+	for(std::map<ListNode*, LuaReference>::iterator i = m_ownedNodes.begin(), e = m_ownedNodes.end(); i != e; ++i)
+		lua.destroyReference(i->second);
+	m_ownedNodes.clear();
+
+	// Orphan the C++ child links so the live tree no longer references this
+	// (dying) node. Lua owns the child memory (no-op operator delete), so the
+	// child nodes are NOT deleted here.
+	for(node_iter_t i = children.begin(); i; )
+	{
+		node_iter_t next = i; ++next;
+		i->parent = 0;
+		i = next;
+	}
+	children.unlinkAll();
+
+	lua.destroyWeakReference(luaReference);
+	lua.destroyReference(luaData);
+}
+
 bool List::LuaLT::operator()(ListNode* a, ListNode* b)
 {
-	if((context.call(comp, 1), a->luaReference, b->luaReference)() == 1)
+	if((context.call(comp, 1), LuaReferenceWeak(a->luaReference), LuaReferenceWeak(b->luaReference))() == 1)
 	{
 		bool v = lua_toboolean(context, -1);
 		context.pop(1);

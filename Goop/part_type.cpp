@@ -571,6 +571,12 @@ void PartType::finalize()
 {
 	delete groundCollision; groundCollision = 0;
 	delete creation; creation = 0;
+	delete death; death = 0;
+	for (auto i : customEvents)
+	{
+		delete i;
+	}
+	customEvents.clear();
 #ifndef DEDSERV
 	delete distortion; distortion = 0;
 	delete lightHax; lightHax = 0;

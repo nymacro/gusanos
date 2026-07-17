@@ -93,6 +93,13 @@ public:
 			return *this;
 		}
 		
+		CallProxy& operator,(LuaReferenceWeak const& p)
+		{
+			++m_params;
+			m_context.pushWeakReference(p.ref);
+			return *this;
+		}
+		
 		int operator()() const
 		{
 			if(lua_isnil(m_context, -m_params-1))
@@ -444,6 +451,17 @@ public:
 	void destroyReference(LuaReference ref);
 	
 	void pushReference(LuaReference ref);
+
+	// Creates a *weak* reference to the value on top of the stack: the
+	// reference does not keep the value alive for the garbage collector.
+	// Used for GUI objects so they can be collected (and finalized via __gc)
+	// once Lua no longer holds them, instead of being pinned forever by a
+	// strong registry reference to themselves.
+	LuaReference createWeakReference();
+	
+	void destroyWeakReference(LuaReference ref);
+	
+	void pushWeakReference(LuaReference ref);
 	
 	void serialize(std::ostream& s, int i);
 	void deserialize(std::istream& s);
@@ -479,7 +497,6 @@ public:
 	
 private:
 	lua_State *m_State;
-	//std::map<std::string, LuaReference> metaTables;
 };
 
 template<>

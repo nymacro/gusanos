@@ -117,27 +117,27 @@ struct XMLHandler
 					
 		if(tag.label == "window")
 		{
-			newWindow = lua_new(Wnd, (windows.top().wnd, tag.attributes), lua);
+			newWindow = lua_new_weak(Wnd, (windows.top().wnd, tag.attributes), lua);
 		}
 		else if(tag.label == "list")
 		{
-			newWindow = lua_new(List, (windows.top().wnd, /*tag.label, className, id,*/ tag.attributes/*, label*/), lua);
+			newWindow = lua_new_weak(List, (windows.top().wnd, /*tag.label, className, id,*/ tag.attributes/*, label*/), lua);
 		}
 		else if(tag.label == "button")
 		{
-			newWindow = lua_new(Button, (windows.top().wnd, /*tag.label, className, id,*/ tag.attributes/*, label*/), lua);
+			newWindow = lua_new_weak(Button, (windows.top().wnd, /*tag.label, className, id,*/ tag.attributes/*, label*/), lua);
 		}
 		else if(tag.label == "group")
 		{
-			newWindow = lua_new(Group, (windows.top().wnd, /*tag.label, className, id,*/ tag.attributes/*, label*/), lua);
+			newWindow = lua_new_weak(Group, (windows.top().wnd, /*tag.label, className, id,*/ tag.attributes/*, label*/), lua);
 		}
 		else if(tag.label == "edit")
 		{
-			newWindow = lua_new(Edit, (windows.top().wnd, /*tag.label, className, id,*/ tag.attributes/*, label*/), lua);
+			newWindow = lua_new_weak(Edit, (windows.top().wnd, /*tag.label, className, id,*/ tag.attributes/*, label*/), lua);
 		}
 		else if(tag.label == "check")
 		{
-			newWindow = lua_new(Check, (windows.top().wnd, /*tag.label, className, id,*/ tag.attributes/*, label*/), lua);
+			newWindow = lua_new_weak(Check, (windows.top().wnd, /*tag.label, className, id,*/ tag.attributes/*, label*/), lua);
 		}
 		//newWindow->m_focusable = focusable;
 		
@@ -145,6 +145,13 @@ struct XMLHandler
 		{
 			// Set as root
 			context.setRoot(newWindow);
+		}
+		else
+		{
+			// Parenting is done here (not in the Wnd constructor) so that the
+			// window's luaReference is already assigned by the creation macro;
+			// addChild uses it to install the strong GC ownership reference.
+			windows.top().wnd->addChild(newWindow);
 		}
 		
 		if(newWindow)
