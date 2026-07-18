@@ -22,18 +22,18 @@ C++17 with bundled Lua 5.1 scripting.
                   │   init → loop → shutdown                    │
                   └──────┬──────────────────────────────────────┘
           ┌──────────────┼──────────────────┬─────────────────┐
-          ▼              ▼                  ▼                  ▼
+          ▼              ▼                  ▼                 ▼
    ┌────────────┐ ┌────────────┐  ┌────────────────┐ ┌──────────────┐
    │ Game       │ │ Gfx        │  │ Network        │ │ Sfx          │
    │ (core      │ │ (renderer, │  │ (ENet wrap,    │ │ (SDL3_mixer) │
    │  logic)    │ │  viewport) │  │  ZoidCompat)   │ │              │
    ├────────────┤ ├────────────┤  ├────────────────┤ ├──────────────┤
-   │ Level      │ │ Console    │  │ Server/Client  │ │ Lua 5.1     │
+   │ Level      │ │ Console    │  │ Server/Client  │ │ Lua 5.1      │
    │ (terrain)  │ │ (dev UI)   │  │ BitStream      │ │ (embedded)   │
    │            │ │            │  │ Replicators    │ │              │
    ├────────────┤ ├────────────┤  ├────────────────┤ ├──────────────┤
-   │ Objects    │ │ Menu/GUI   │  │ Updater        │ │ OmfgScript  │
-   │ Particles  │ │ OmfgGUI    │  │ (file DL)      │ │ (GSS/XML)   │
+   │ Objects    │ │ Menu/GUI   │  │ Updater        │ │ OmfgScript   │
+   │ Particles  │ │ OmfgGUI    │  │ (file DL)      │ │ (GSS/XML)    │
    │ Weapons    │ │            │  │                │ │              │
    └────────────┘ └────────────┘  └────────────────┘ └──────────────┘
 ```

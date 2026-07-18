@@ -16,6 +16,6 @@ if env['BUILD_TESTS'] and env['MY_BUILD'] == 'debug':
     )
 
     testEnv.Program(
-        testEnv.getBinName('ztests'),
+        testEnv.getBinName('net_tests'),
         testEnv.getObjects('tests')
     )

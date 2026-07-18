@@ -4,6 +4,7 @@
 #include "net_bitstream.h"
 #include "net_replicator.h"
 #include "net_types.h"
+#include "net_auto_replicator.h"
 #include <vector>
 #include <list>
 #include <map>
@@ -105,25 +106,11 @@ private:
 	void (*m_logFunc)(const char*);
 };
 
-// Auto replication entry
-struct ReplicationEntry {
-	enum Type { TypeInt, TypeFloat, TypeBool };
-	Type type;
-	void* ptr;
-	int bits;
-	bool sign;
-	uint32_t flags;
-	uint32_t rule;
-	uint32_t oldInt;
-	float oldFloat;
-	bool initial;
-	zS16 minDelay;
-	zS16 maxDelay;
-};
-
-// Pre-packed replicator data for per-connection reprule routing (Phase D1).
-// `data` holds the replicator's packed payload bits (no has-update prefix);
-// `hasUpdate` is the dirty flag captured before packing cleared it.
+// Auto replication entry (see net_auto_replicator.h).
+// Replaces the former POD ReplicationEntry struct (hand-rolled tagged union
+// with a Type{Int,Float,Bool} enum). The polymorphic AutoReplicator owns the
+// bound pointer, the "old" snapshot and the type-specific (de)serialization,
+// so net_node.cpp carries no per-type dispatch.
 struct PackedReplicator {
 	bool hasUpdate;
 	uint32_t rule;
@@ -250,7 +237,7 @@ private:
 	uint32_t m_relevantConnectionCount;
 
 	std::vector<std::unique_ptr<ZCom_Replicator>> m_replicators;
-	std::vector<ReplicationEntry> m_autoReplications;
+	std::vector<std::unique_ptr<AutoReplicator>> m_autoReplications;
 	std::list<NodeEvent> m_eventQueue;
 	int m_zoidLevel;
 	int m_interceptID;

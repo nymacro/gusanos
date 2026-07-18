@@ -8,17 +8,6 @@
 #include <stdexcept>
 #include <cstring>
 
-template<typename T>
-inline T readAligned(const void* p) {
-	T v;
-	std::memcpy(&v, p, sizeof(v));
-	return v;
-}
-template<typename T>
-inline void writeAligned(void* p, T v) {
-	std::memcpy(p, &v, sizeof(v));
-}
-
 void ZoidCom::Sleep(int ms)
 {
 	std::this_thread::sleep_for(std::chrono::milliseconds(ms));
@@ -78,50 +67,32 @@ void ZCom_Node::addReplicator(std::unique_ptr<ZCom_Replicator> replicator, bool 
 
 void ZCom_Node::addReplicationInt(zS32* val, zU8 bits, bool sign, zU8 flags, zU8 rules, zS16 mindelay, zS16 maxdelay)
 {
-	ReplicationEntry entry;
-	entry.type = ReplicationEntry::TypeInt;
-	entry.ptr = val;
-	entry.bits = bits;
-	entry.sign = sign;
-	entry.flags = flags;
-	entry.rule = rules;
-	entry.oldInt = val ? readAligned<zS32>(val) : 0;
-	entry.initial = true;
-	entry.minDelay = mindelay;
-	entry.maxDelay = maxdelay;
-	m_autoReplications.push_back(entry);
+	auto rep = std::make_unique<AutoReplicatorInt>(val, bits, sign);
+	rep->flags = flags;
+	rep->rule = rules;
+	rep->minDelay = mindelay;
+	rep->maxDelay = maxdelay;
+	m_autoReplications.push_back(std::move(rep));
 }
 
 void ZCom_Node::addReplicationFloat(zFloat* val, zU8 mantissa_bits, zU8 flags, zU8 rules, zS16 mindelay, zS16 maxdelay)
 {
-	ReplicationEntry entry;
-	entry.type = ReplicationEntry::TypeFloat;
-	entry.ptr = val;
-	entry.bits = mantissa_bits;
-	entry.sign = false;
-	entry.flags = flags;
-	entry.rule = rules;
-	entry.oldFloat = val ? readAligned<zFloat>(val) : 0.0f;
-	entry.initial = true;
-	entry.minDelay = mindelay;
-	entry.maxDelay = maxdelay;
-	m_autoReplications.push_back(entry);
+	auto rep = std::make_unique<AutoReplicatorFloat>(val, mantissa_bits);
+	rep->flags = flags;
+	rep->rule = rules;
+	rep->minDelay = mindelay;
+	rep->maxDelay = maxdelay;
+	m_autoReplications.push_back(std::move(rep));
 }
 
 void ZCom_Node::addReplicationBool(bool* val, zU8 flags, zU8 rules, zS16 mindelay, zS16 maxdelay)
 {
-	ReplicationEntry entry;
-	entry.type = ReplicationEntry::TypeInt; // reuse int type for bool (1 bit)
-	entry.ptr = val;
-	entry.bits = 1;
-	entry.sign = false;
-	entry.flags = flags;
-	entry.rule = rules;
-	entry.oldInt = val ? (*val ? 1 : 0) : 0;
-	entry.initial = true;
-	entry.minDelay = mindelay;
-	entry.maxDelay = maxdelay;
-	m_autoReplications.push_back(entry);
+	auto rep = std::make_unique<AutoReplicatorBool>(val);
+	rep->flags = flags;
+	rep->rule = rules;
+	rep->minDelay = mindelay;
+	rep->maxDelay = maxdelay;
+	m_autoReplications.push_back(std::move(rep));
 }
 
 void ZCom_Node::setInterceptID(ZCom_InterceptID id)
@@ -324,47 +295,14 @@ void ZCom_Node::packAllReplicators(ZCom_BitStream* stream)
 			stream->addInt(0, 1); // no update
 		}
 	}
-	// Auto replications — write initial state on first pack
+	// Auto replications — write initial state on first pack. The has-update
+	// bit is written first (matching the original wire order), then the value
+	// bits only when changed.
 	for (auto& entry : m_autoReplications) {
-		bool changed = false;
-		if (entry.type == ReplicationEntry::TypeInt && entry.ptr) {
-			int32_t val = readAligned<int32_t>(entry.ptr);
-			if (entry.initial || val != static_cast<int32_t>(entry.oldInt)) {
-				changed = true;
-				entry.oldInt = val;
-				entry.initial = false;
-			}
-		} else if (entry.type == ReplicationEntry::TypeFloat && entry.ptr) {
-			float val = readAligned<float>(entry.ptr);
-			if (entry.initial || val != entry.oldFloat) {
-				changed = true;
-				entry.oldFloat = val;
-				entry.initial = false;
-			}
-		} else if (entry.type == ReplicationEntry::TypeBool && entry.ptr) {
-			bool val = *static_cast<bool*>(entry.ptr);
-			bool old = entry.initial ? false : (entry.oldInt != 0); // oldInt stores bool value
-			if (entry.initial || val != old) {
-				changed = true;
-				entry.oldInt = val ? 1 : 0;
-				entry.initial = false;
-			}
-		}
-		if (changed) {
-			stream->addInt(1, 1);
-			if (entry.type == ReplicationEntry::TypeInt) {
-				if (entry.sign)
-					stream->addSignedInt(readAligned<int32_t>(entry.ptr), entry.bits);
-				else
-					stream->addInt(readAligned<uint32_t>(entry.ptr), entry.bits);
-			} else if (entry.type == ReplicationEntry::TypeFloat) {
-				stream->addFloat(readAligned<float>(entry.ptr), entry.bits);
-			} else {
-				stream->addInt(*static_cast<bool*>(entry.ptr) ? 1 : 0, 1);
-			}
-		} else {
-			stream->addInt(0, 1);
-		}
+		bool changed = entry->detect(/*force=*/false);
+		stream->addInt(changed ? 1 : 0, 1);
+		if (changed)
+			entry->emit(*stream);
 	}
 }
 
@@ -397,7 +335,7 @@ void ZCom_Node::packReplicatorsForRouting(std::vector<PackedReplicator>& out)
 		}
 		for (auto& entry : m_autoReplications) {
 			PackedReplicator p;
-			p.rule = entry.rule;
+			p.rule = entry->rule;
 			p.hasUpdate = false;
 			out.push_back(std::move(p));
 		}
@@ -427,48 +365,13 @@ void ZCom_Node::packReplicatorsForRouting(std::vector<PackedReplicator>& out)
 		out.push_back(std::move(p));
 	}
 
-	// Auto-replications (inline ReplicationEntry).
+	// Auto-replications.
 	for (auto& entry : m_autoReplications) {
 		PackedReplicator p;
-		p.rule = entry.rule;
-		bool changed = false;
-		if (entry.type == ReplicationEntry::TypeInt && entry.ptr) {
-			int32_t val = readAligned<int32_t>(entry.ptr);
-			if (forceAll || entry.initial || val != static_cast<int32_t>(entry.oldInt)) {
-				changed = true;
-				entry.oldInt = val;
-				entry.initial = false;
-			}
-		} else if (entry.type == ReplicationEntry::TypeFloat && entry.ptr) {
-			float val = readAligned<float>(entry.ptr);
-			if (forceAll || entry.initial || val != entry.oldFloat) {
-				changed = true;
-				entry.oldFloat = val;
-				entry.initial = false;
-			}
-		} else if (entry.type == ReplicationEntry::TypeBool && entry.ptr) {
-			bool val = *static_cast<bool*>(entry.ptr);
-			bool old = entry.initial ? false : (entry.oldInt != 0);
-			if (forceAll || entry.initial || val != old) {
-				changed = true;
-				entry.oldInt = val ? 1 : 0;
-				entry.initial = false;
-			}
-		}
-		if (changed) {
-			p.hasUpdate = true;
-			if (entry.type == ReplicationEntry::TypeInt) {
-				if (entry.sign)
-					p.data.addSignedInt(readAligned<int32_t>(entry.ptr), entry.bits);
-				else
-					p.data.addInt(readAligned<int32_t>(entry.ptr), entry.bits);
-			} else if (entry.type == ReplicationEntry::TypeFloat)
-				p.data.addFloat(readAligned<float>(entry.ptr), entry.bits);
-			else
-				p.data.addInt(*static_cast<bool*>(entry.ptr) ? 1 : 0, 1);
-		} else {
-			p.hasUpdate = false;
-		}
+		p.rule = entry->rule;
+		p.hasUpdate = entry->detect(forceAll);
+		if (p.hasUpdate)
+			entry->emit(p.data);
 		out.push_back(std::move(p));
 	}
 }
@@ -505,56 +408,26 @@ void ZCom_Node::unpackAllReplicators(ZCom_BitStream* stream, bool store, uint32_
 	}
 	for (auto& entry : m_autoReplications) {
 		bool hasUpdate = stream->getInt(1) != 0;
-		if (hasUpdate && store && entry.ptr) {
+		if (!hasUpdate) continue;
+		bool intercept = m_replicationInterceptor
+			&& (entry->flags & ZCOM_REPFLAG_INTERCEPT) && m_interceptID >= 0;
+		if (store && intercept) {
 			// For intercepted auto-replications, decode the incoming value into a
 			// temporary and expose it via peekData() so the interceptor can read it
 			// (matching the Zoidcom contract used by BasePlayer/NetWorm).
-			if (m_replicationInterceptor && (entry.flags & ZCOM_REPFLAG_INTERCEPT) && m_interceptID >= 0) {
-				ZCom_ReplicatorSetup tempSetup(entry.flags, entry.rule, m_interceptID);
-				ZCom_ReplicatorBasic tempRep(&tempSetup);
-
-				int32_t decodedInt = 0;
-				float decodedFloat = 0.0f;
-				if (entry.type == ReplicationEntry::TypeInt) {
-					decodedInt = entry.sign ? stream->getSignedInt(entry.bits)
-					                        : static_cast<int32_t>(stream->getInt(entry.bits));
-					tempRep.peekDataStore(&decodedInt);
-				} else if (entry.type == ReplicationEntry::TypeBool) {
-					int decodedInt = stream->getInt(1);
-					tempRep.peekDataStore(&decodedInt);
-				} else {
-					decodedFloat = stream->getFloat(entry.bits);
-					tempRep.peekDataStore(&decodedFloat);
-				}
-				bool accept = m_replicationInterceptor->inPreUpdateItem(this, 0, eZCom_RoleAuthority, &tempRep, estimatedTimeSent);
-				tempRep.peekDataStore(nullptr);
-				if (!accept)
-					continue;
-				if (entry.type == ReplicationEntry::TypeInt)
-					writeAligned<int32_t>(entry.ptr, decodedInt);
-				else if (entry.type == ReplicationEntry::TypeBool)
-					*static_cast<bool*>(entry.ptr) = decodedInt != 0;
-				else
-					writeAligned<float>(entry.ptr, decodedFloat);
-			} else {
-				if (entry.type == ReplicationEntry::TypeInt) {
-					writeAligned<int32_t>(entry.ptr, entry.sign
-						? stream->getSignedInt(entry.bits)
-						: static_cast<int32_t>(stream->getInt(entry.bits)));
-				} else if (entry.type == ReplicationEntry::TypeBool) {
-					*static_cast<bool*>(entry.ptr) = stream->getInt(1) != 0;
-				} else {
-					writeAligned<float>(entry.ptr, stream->getFloat(entry.bits));
-				}
-			}
-		} else if (hasUpdate) {
-			if (entry.type == ReplicationEntry::TypeInt) {
-				stream->getInt(entry.bits);
-			} else if (entry.type == ReplicationEntry::TypeBool) {
-				stream->getInt(1);
-			} else {
-				stream->getFloat(entry.bits);
-			}
+			ZCom_ReplicatorSetup tempSetup(entry->flags, entry->rule, m_interceptID);
+			ZCom_ReplicatorBasic tempRep(&tempSetup);
+			void* decoded = entry->decodeForPeek(*stream);
+			tempRep.peekDataStore(decoded);
+			bool accept = m_replicationInterceptor->inPreUpdateItem(
+				this, 0, eZCom_RoleAuthority, &tempRep, estimatedTimeSent);
+			tempRep.peekDataStore(nullptr);
+			if (accept)
+				entry->commitPeek();
+		} else if (store) {
+			entry->unpackStore(*stream);
+		} else {
+			entry->skip(*stream);
 		}
 	}
 }
