@@ -755,6 +755,106 @@ BOOST_AUTO_TEST_CASE(authority_node_before_client_still_replicates)
     srv.Shutdown(); cli.Shutdown();
 }
 
+// G1 follow-up to the AutoReplicator refactor: verify the bool auto-rep fix
+// (AutoReplicatorBool writes exactly 1 byte) through the REAL runtime path —
+// packReplicatorsForRouting + forceAll (net_control.cpp:882 forceReplicationUpdate
+// on connection spawn) + PackedReplicator.data routing — with a late-joining
+// client. The int twin above only covers int; rope active/attached
+// (net_worm.cpp) are bool auto-reps that ride this same late-join path, so the
+// fix's adjacency guarantee must hold here too: a 1-byte bool write must not
+// clobber the neighbouring bytes.
+BOOST_AUTO_TEST_CASE(bool_auto_rep_late_join_preserves_adjacent_bytes)
+{
+    g_currentControl = nullptr;
+    int port = s_port++;
+
+    // Server authority state: a byte buffer with a bool in the middle so any
+    // over-write into the adjacent bytes is detectable.
+    uint8_t sbuf[3] = { 0xA5, 0, 0x5A };       // a, b(bool), c
+    bool* sb = reinterpret_cast<bool*>(&sbuf[1]);
+    sbuf[1] = 1;                               // b = true
+
+    class PreSrv : public ZCom_Control {
+    public:
+        uint32_t cls;
+        ZCom_Node* node = nullptr;
+        uint32_t clientID = 0;
+        bool* sb;
+        ~PreSrv() { delete node; node = nullptr; }
+        PreSrv(int p, bool* bp) : sb(bp) {
+            g_currentControl = this;
+            ZCom_initSockets(true, p, 2, 0);
+            cls = ZCom_registerClass("PRB", 0);
+        }
+        bool ZCom_cbConnectionRequest(uint32_t, ZCom_BitStream&, ZCom_BitStream&) override { return true; }
+        void ZCom_cbConnectionSpawned(uint32_t id) override { if (clientID == 0) clientID = id; }
+    } srv(port, sb);
+
+    class PreCli : public ZCom_Control {
+    public:
+        uint32_t cls;
+        bool connected = false;
+        ZCom_Node* node = nullptr;
+        uint8_t rbuf[3] = { 0xA5, 0, 0x5A };   // a, b(bool), c
+        bool* rb = reinterpret_cast<bool*>(&rbuf[1]);
+        ~PreCli() { delete node; node = nullptr; }
+        PreCli(int p) {
+            g_currentControl = this;
+            ZCom_initSockets(false, 0, 0, 0);
+            cls = ZCom_registerClass("PRB", 0);
+        }
+        uint32_t ConnectTo(const char* h, int p) {
+            ZCom_Address a; char hp[64]; snprintf(hp, sizeof hp, "%s:%d", h, p);
+            a.setAddress(eZCom_AddressUDP, 0, hp); return ZCom_Connect(a, nullptr);
+        }
+        void ZCom_cbConnectResult(uint32_t, eZCom_ConnectResult r, ZCom_BitStream&) override {
+            connected = (r == eZCom_ConnAccepted);
+        }
+        void ZCom_cbNodeRequest_Dynamic(uint32_t, uint32_t, ZCom_BitStream*, int, uint32_t) override {
+            node = new ZCom_Node();
+            node->beginReplicationSetup(1);
+            node->addReplicationBool(rb, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL, 0);
+            node->endReplicationSetup();
+            node->registerRequestedNode(cls, this);
+        }
+    } cli(port);
+
+    g_currentControl = &srv;
+    srv.node = new ZCom_Node();
+    srv.node->setRole(eZCom_RoleAuthority);
+    srv.node->beginReplicationSetup(1);
+    srv.node->addReplicationBool(sb, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL, 0);
+    srv.node->endReplicationSetup();
+    srv.node->registerNodeDynamic(srv.cls, &srv);
+    g_currentControl = nullptr;
+
+    // Tick server with NO peers: consumes the initial=true bool entry via the
+    // runtime packReplicatorsForRouting path, so forceAll is what recovers it.
+    processBoth(&srv, &cli, 10);
+
+    // Late join: forceReplicationUpdate() (net_control.cpp:882) re-packs the
+    // current bool state through packReplicatorsForRouting -> PackedReplicator.data.
+    cli.ConnectTo("127.0.0.1", port);
+    processBoth(&srv, &cli, 60);
+    BOOST_REQUIRE(cli.connected);
+    BOOST_REQUIRE(cli.node != nullptr);
+
+    // Bool must have arrived...
+    BOOST_CHECK_EQUAL(*cli.rb, true);
+    // ...and adjacent bytes untouched (the fix: 1-byte write, not 4-byte clobber).
+    BOOST_CHECK_EQUAL(cli.rbuf[0], 0xA5);
+    BOOST_CHECK_EQUAL(cli.rbuf[2], 0x5A);
+
+    // Further bool change must still propagate without clobbering neighbours.
+    sbuf[1] = 0;   // b = false
+    processBoth(&srv, &cli, 30);
+    BOOST_CHECK_EQUAL(*cli.rb, false);
+    BOOST_CHECK_EQUAL(cli.rbuf[0], 0xA5);
+    BOOST_CHECK_EQUAL(cli.rbuf[2], 0x5A);
+
+    srv.Shutdown(); cli.Shutdown();
+}
+
 // Regression for the "client can't spawn" bug:
 // When the server creates a worm/player node BEFORE a client connects, it has
 // setEventNotification(true, false). On client connect, ZCom_cbConnectionSpawned

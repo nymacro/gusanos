@@ -83,6 +83,14 @@ private:
 };
 
 // zFloat, mantissa_bits precision. Wire: addFloat/getFloat.
+//
+// IMPORTANT: for mantissa_bits < 32, ZCom_BitStream::addFloat/getFloat use
+// fixed-point quantization that only faithfully represents values in [-1, 1]
+// (see net_bitstream.cpp). Values outside that range OVERFLOW the signed
+// integer storage and get aliased, so a replicated float with a small bit
+// width must be pre-scaled into [-1, 1] by the caller (or use >= 32 bits for
+// full IEEE-754 fidelity). This class forwards `m_bits` straight through to
+// addFloat/getFloat, so it inherits that constraint unchanged.
 class AutoReplicatorFloat : public AutoReplicator {
 public:
 	AutoReplicatorFloat(zFloat* ptr, zU8 mantissaBits)
@@ -97,6 +105,8 @@ public:
 
 private:
 	zFloat* m_ptr;
+	// Wire bit width for the float. >= 32 => raw IEEE-754 (full range/fidelity);
+	// < 32 => fixed-point quantization valid only for values in [-1, 1].
 	zU8 m_bits;
 	float m_old;
 	float m_peek;

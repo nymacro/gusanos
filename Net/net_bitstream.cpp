@@ -166,9 +166,14 @@ bool ZCom_BitStream::addFloat(zFloat val, zU8 bits)
 		memcpy(&raw, &val, sizeof(raw));
 		addInt(raw, 32);
 	} else {
-		// Quantize float to integer range for fewer bits
-		// Maps [-1.0, 1.0] to [0, 2^bits - 1] for unsigned
-		// For other ranges the caller must scale
+		// Fixed-point quantization using `bits` bits.
+		// The float is assumed to lie in [-1.0, 1.0]; it is scaled by
+		// maxVal = 2^(bits-1) - 1 and stored as a SIGNED integer in the
+		// range [-maxVal, +maxVal]. getFloat applies the inverse scaling.
+		// Values outside [-1.0, 1.0] OVERFLOW this signed range (the integer
+		// wraps/aliases through addSignedInt), so callers replicating
+		// arbitrary-magnitude floats with bits < 32 must pre-scale the value
+		// into [-1, 1] first. For full IEEE-754 fidelity use bits >= 32.
 		int maxVal = (1 << (bits - 1)) - 1;
 		int intVal = static_cast<int>(val * maxVal);
 		addSignedInt(intVal, bits);
@@ -184,6 +189,8 @@ zFloat ZCom_BitStream::getFloat(zU8 bits)
 		memcpy(&val, &raw, sizeof(val));
 		return val;
 	} else {
+		// Inverse of the addFloat quantization above: recover the signed
+		// integer and divide by maxVal = 2^(bits-1) - 1 to map back to [-1,1].
 		int maxVal = (1 << (bits - 1)) - 1;
 		int intVal = getSignedInt(bits);
 		return static_cast<float>(intVal) / maxVal;

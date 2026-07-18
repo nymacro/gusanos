@@ -357,4 +357,285 @@ BOOST_AUTO_TEST_CASE(node_api_int_roundtrip)
 	BOOST_CHECK_EQUAL(rv, -1234);
 }
 
+// ===========================================================================
+// G2: float / bool interceptor accept & reject paths.
+// The int interceptor path is covered by interceptor_accept_commits and
+// interceptor_reject_skips_commit; float and bool are not. They share the
+// decodeForPeek/commitPeek plumbing but return type-specific peek buffers, so
+// pin each. (Production only uses INTERCEPT on int auto-reps -- m_playerID,
+// m_wormID -- but the contract must hold for the other types too.)
+// ===========================================================================
+
+class AcceptInterceptor2 : public ZCom_NodeReplicationInterceptor {
+public:
+	int items = 0;
+	bool inPreUpdateItem(ZCom_Node*, uint32_t, eZCom_NodeRole,
+	                     ZCom_Replicator* rep, uint32_t) override {
+		items++;
+		return true; // accept
+	}
+};
+
+class RejectInterceptor2 : public ZCom_NodeReplicationInterceptor {
+public:
+	bool inPreUpdateItem(ZCom_Node*, uint32_t, eZCom_NodeRole,
+	                     ZCom_Replicator*, uint32_t) override {
+		return false; // reject
+	}
+};
+
+// Generic helper: simulate the unpackAllReplicators intercept branch for one
+// AutoReplicator of type RepT, packed from `value` into `out`. `peekAs`
+// dereferences the interceptor's peekData() pointer with the correct type.
+template<typename RepT, typename T>
+void simulateInterceptDecode(RepT& sink, ZCom_BitStream& out,
+                             bool accept, T& decoded)
+{
+	ZCom_BitStream in;
+	in.addBitStream(&out);
+	in.resetReadState();
+
+	ZCom_ReplicatorSetup tempSetup(sink.flags, sink.rule, /*interceptID=*/0);
+	ZCom_ReplicatorBasic tempRep(&tempSetup);
+	void* p = sink.decodeForPeek(in);
+	tempRep.peekDataStore(p);
+	AcceptInterceptor2 a;
+	RejectInterceptor2 r;
+	bool ok = accept ? a.inPreUpdateItem(nullptr, 0, eZCom_RoleAuthority, &tempRep, 0)
+	                 : r.inPreUpdateItem(nullptr, 0, eZCom_RoleAuthority, &tempRep, 0);
+	tempRep.peekDataStore(nullptr);
+	if (ok) sink.commitPeek();
+}
+
+BOOST_AUTO_TEST_CASE(float_interceptor_accept_and_reject)
+{
+	float v = 0.5f;   // must be within addFloat's [-1,1] quantization range
+	AutoReplicatorFloat rep(&v, 10);
+	rep.flags = ZCOM_REPFLAG_INTERCEPT;
+	rep.initial = false;
+	BOOST_REQUIRE(rep.detect(true)); // force pack
+
+	ZCom_BitStream out;
+	rep.emit(out);
+
+	// Accept -> value committed.
+	float decA = -1.0f;
+	AutoReplicatorFloat sinkA(&decA, 10);
+	sinkA.flags = ZCOM_REPFLAG_INTERCEPT;
+	simulateInterceptDecode(sinkA, out, /*accept=*/true, decA);
+	BOOST_CHECK_CLOSE(decA, 0.5f, 0.5f);
+
+	// Reject -> value NOT committed (stays -1).
+	float decR = -1.0f;
+	AutoReplicatorFloat sinkR(&decR, 10);
+	sinkR.flags = ZCOM_REPFLAG_INTERCEPT;
+	simulateInterceptDecode(sinkR, out, /*accept=*/false, decR);
+	BOOST_CHECK_EQUAL(decR, -1.0f);
+}
+
+BOOST_AUTO_TEST_CASE(bool_interceptor_accept_and_reject)
+{
+	bool v = true;
+	AutoReplicatorBool rep(&v);
+	rep.flags = ZCOM_REPFLAG_INTERCEPT;
+	rep.initial = false;
+	BOOST_REQUIRE(rep.detect(true));
+
+	ZCom_BitStream out;
+	rep.emit(out);
+
+	// Accept -> value committed.
+	bool decA = false;
+	AutoReplicatorBool sinkA(&decA);
+	sinkA.flags = ZCOM_REPFLAG_INTERCEPT;
+	simulateInterceptDecode(sinkA, out, /*accept=*/true, decA);
+	BOOST_CHECK_EQUAL(decA, true);
+
+	// Reject -> value NOT committed (stays false).
+	bool decR = false;
+	AutoReplicatorBool sinkR(&decR);
+	sinkR.flags = ZCOM_REPFLAG_INTERCEPT;
+	simulateInterceptDecode(sinkR, out, /*accept=*/false, decR);
+	BOOST_CHECK_EQUAL(decR, false);
+}
+
+// ===========================================================================
+// G3: node-level store=false (skip) path. unpackAllReplicators(store=false)
+// must advance the read position by exactly the packed value bits WITHOUT
+// touching the bound pointer. The branch is dead in production (both call
+// sites pass true) but a contract pin is cheaper than deleting the path.
+// ===========================================================================
+
+BOOST_AUTO_TEST_CASE(node_api_store_false_skips_and_preserves_value)
+{
+	// Sender struct: bool b between two sentinels (matches the bool-adjacency
+	// layout) plus an int that follows, so we can detect stream desync.
+	struct S { uint8_t a; bool b; uint8_t c; int32_t n; };
+	S s;
+	s.a = 0x55; s.b = true; s.c = 0xAA; s.n = 12345;
+	S r;
+	r.a = 0x55; r.b = false; r.c = 0xAA; r.n = 0;
+
+	// Sender bound to s.
+	ZCom_Node node;
+	node.addReplicationBool(&s.b, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
+	node.addReplicationInt((zS32*)&s.n, 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
+
+	// Pack everything (b changes from initial; n changes from initial).
+	ZCom_BitStream packed;
+	node.packAllReplicators(&packed);
+
+	// Receiver bound to r.
+	ZCom_Node nodeRcv;
+	nodeRcv.addReplicationBool(&r.b, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
+	nodeRcv.addReplicationInt((zS32*)&r.n, 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
+
+	ZCom_BitStream in;
+	in.addBitStream(&packed);
+	in.resetReadState();
+
+	// store=false: must consume all bits WITHOUT modifying r.
+	nodeRcv.unpackAllReplicators(&in, /*store=*/false, /*estimatedTimeSent=*/0);
+	BOOST_CHECK(in.endOfStream());
+	BOOST_CHECK_EQUAL(r.a, 0x55);
+	BOOST_CHECK_EQUAL(r.b, false);  // unchanged
+	BOOST_CHECK_EQUAL(r.c, 0xAA);
+	BOOST_CHECK_EQUAL(r.n, 0);      // unchanged
+
+	// A second pass (store=true) should now apply, proving the first pass only
+	// skipped and did not corrupt state.
+	in.resetReadState();
+	nodeRcv.unpackAllReplicators(&in, /*store=*/true, /*estimatedTimeSent=*/0);
+	BOOST_CHECK_EQUAL(r.b, true);
+	BOOST_CHECK_EQUAL(r.n, 12345);
+	BOOST_CHECK_EQUAL(r.a, 0x55);   // still untouched
+	BOOST_CHECK_EQUAL(r.c, 0xAA);
+}
+
+// ===========================================================================
+// G4: null-bound AutoReplicator guards. detect/emit/unpackStore/commitPeek all
+// tolerate a null bound pointer (inherited from the old ReplicationEntry null
+// tolerance). Pin the contract so a future change can't silently start
+// dereferencing nullptr.
+// ===========================================================================
+
+BOOST_AUTO_TEST_CASE(null_bound_replicator_is_noop)
+{
+	// Int with null ptr.
+	AutoReplicatorInt repI(nullptr, 8, false);
+	BOOST_CHECK(!repI.detect(false));   // null -> never dirty
+	BOOST_CHECK(!repI.detect(true));    // force still no-op (ptr null)
+	{
+		ZCom_BitStream out;
+		repI.emit(out);                  // guarded, writes nothing
+		BOOST_CHECK_EQUAL(out.getBitCount(), 0u);
+		ZCom_BitStream in;
+		in.addBitStream(&out); in.resetReadState();
+		repI.unpackStore(in);            // guarded, no write
+		repI.skip(in);                   // guarded, no read
+	}
+
+	// Float with null ptr.
+	AutoReplicatorFloat repF(nullptr, 10);
+	BOOST_CHECK(!repF.detect(true));
+	{
+		ZCom_BitStream out;
+		repF.emit(out);
+		BOOST_CHECK_EQUAL(out.getBitCount(), 0u);
+		ZCom_BitStream in;
+		in.addBitStream(&out); in.resetReadState();
+		repF.unpackStore(in);
+		repF.skip(in);
+	}
+
+	// Bool with null ptr.
+	AutoReplicatorBool repB(nullptr);
+	BOOST_CHECK(!repB.detect(true));
+	{
+		ZCom_BitStream out;
+		repB.emit(out);
+		BOOST_CHECK_EQUAL(out.getBitCount(), 0u);
+		ZCom_BitStream in;
+		in.addBitStream(&out); in.resetReadState();
+		repB.unpackStore(in);
+		repB.skip(in);
+	}
+}
+
+// ===========================================================================
+// G5: sender-side interceptor reject branches in packReplicatorsForRouting.
+// Pre-existing (not introduced by the AutoReplicator refactor): outPreUpdate()
+// returning false makes the whole node emit hasUpdate=false for every entry;
+// outPreUpdateItem() returning false on an explicit (m_replicators) entry
+// skips that entry. Only explicit replicators consult outPreUpdateItem on the
+// sender side -- auto-reps do not. Neither reject branch was previously
+// exercised. These tests pin them.
+// ===========================================================================
+
+class RejectOutPreUpdate : public ZCom_NodeReplicationInterceptor {
+public:
+	ZCom_Node* seen = nullptr;
+	bool outPreUpdate(ZCom_Node* node, uint32_t, eZCom_NodeRole) override {
+		seen = node;
+		return false; // reject the whole node
+	}
+};
+
+class RejectOutPreUpdateItem : public ZCom_NodeReplicationInterceptor {
+public:
+	int itemCalls = 0;
+	bool outPreUpdateItem(ZCom_Node* node, uint32_t, eZCom_NodeRole,
+	                      ZCom_Replicator* rep) override {
+		// Reject every explicit replicator.
+		(void)node; (void)rep;
+		itemCalls++;
+		return false;
+	}
+};
+
+BOOST_AUTO_TEST_CASE(sender_outPreUpdate_false_emits_no_updates)
+{
+	ZCom_Node node;
+	zS32 v = 123;
+	node.addReplicationInt(&v, 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
+
+	RejectOutPreUpdate interceptor;
+	node.setReplicationInterceptor(&interceptor);
+
+	std::vector<PackedReplicator> out;
+	node.packReplicatorsForRouting(out);
+
+	BOOST_REQUIRE_EQUAL(out.size(), 1u);
+	BOOST_CHECK_EQUAL(out[0].hasUpdate, false);  // whole node rejected
+	BOOST_CHECK_EQUAL(interceptor.seen, &node);
+}
+
+BOOST_AUTO_TEST_CASE(sender_outPreUpdateItem_false_skips_explicit_rep)
+{
+	ZCom_Node node;
+	// Explicit replicator, INTERCEPT-flagged so the sender consults
+	// outPreUpdateItem for it (net_node.cpp:353).
+	ZCom_ReplicatorSetup setup(ZCOM_REPFLAG_INTERCEPT, ZCOM_REPRULE_AUTH_2_ALL);
+	node.addReplicator(std::make_unique<ZCom_ReplicatorBasic>(&setup), true);
+
+	// One auto-rep (always proceeds on the sender side, NOT consulted) so we
+	// can distinguish routing slots: explicit rep first, then the auto-rep.
+	int32_t av = 55;
+	node.addReplicationInt(&av, 8, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
+
+	RejectOutPreUpdateItem interceptor;
+	node.setReplicationInterceptor(&interceptor);
+
+	std::vector<PackedReplicator> out;
+	node.packReplicatorsForRouting(out);
+
+	// Order matches m_replicators then m_autoReplications.
+	BOOST_REQUIRE_EQUAL(out.size(), 2u);
+	BOOST_CHECK_EQUAL(out[0].hasUpdate, false); // explicit rep: item rejected
+	BOOST_CHECK_EQUAL(out[1].hasUpdate, true);  // auto-rep: not consulted
+	BOOST_CHECK_EQUAL(interceptor.itemCalls, 1);
+	// Auto-rep slot must still contain the packed value (8 bits).
+	BOOST_CHECK_EQUAL(out[1].data.getBitCount(), 8u);
+}
+
 BOOST_AUTO_TEST_SUITE_END()
