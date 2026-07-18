@@ -6,6 +6,18 @@
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
+#include <cstring>
+
+template<typename T>
+inline T readAligned(const void* p) {
+	T v;
+	std::memcpy(&v, p, sizeof(v));
+	return v;
+}
+template<typename T>
+inline void writeAligned(void* p, T v) {
+	std::memcpy(p, &v, sizeof(v));
+}
 
 void ZoidCom::Sleep(int ms)
 {
@@ -73,7 +85,7 @@ void ZCom_Node::addReplicationInt(zS32* val, zU8 bits, bool sign, zU8 flags, zU8
 	entry.sign = sign;
 	entry.flags = flags;
 	entry.rule = rules;
-	entry.oldInt = val ? *val : 0;
+	entry.oldInt = val ? readAligned<zS32>(val) : 0;
 	entry.initial = true;
 	entry.minDelay = mindelay;
 	entry.maxDelay = maxdelay;
@@ -89,7 +101,7 @@ void ZCom_Node::addReplicationFloat(zFloat* val, zU8 mantissa_bits, zU8 flags, z
 	entry.sign = false;
 	entry.flags = flags;
 	entry.rule = rules;
-	entry.oldFloat = val ? *val : 0.0f;
+	entry.oldFloat = val ? readAligned<zFloat>(val) : 0.0f;
 	entry.initial = true;
 	entry.minDelay = mindelay;
 	entry.maxDelay = maxdelay;
@@ -316,14 +328,14 @@ void ZCom_Node::packAllReplicators(ZCom_BitStream* stream)
 	for (auto& entry : m_autoReplications) {
 		bool changed = false;
 		if (entry.type == ReplicationEntry::TypeInt && entry.ptr) {
-			int32_t val = *static_cast<int32_t*>(entry.ptr);
+			int32_t val = readAligned<int32_t>(entry.ptr);
 			if (entry.initial || val != static_cast<int32_t>(entry.oldInt)) {
 				changed = true;
 				entry.oldInt = val;
 				entry.initial = false;
 			}
 		} else if (entry.type == ReplicationEntry::TypeFloat && entry.ptr) {
-			float val = *static_cast<float*>(entry.ptr);
+			float val = readAligned<float>(entry.ptr);
 			if (entry.initial || val != entry.oldFloat) {
 				changed = true;
 				entry.oldFloat = val;
@@ -342,11 +354,11 @@ void ZCom_Node::packAllReplicators(ZCom_BitStream* stream)
 			stream->addInt(1, 1);
 			if (entry.type == ReplicationEntry::TypeInt) {
 				if (entry.sign)
-					stream->addSignedInt(*static_cast<int32_t*>(entry.ptr), entry.bits);
+					stream->addSignedInt(readAligned<int32_t>(entry.ptr), entry.bits);
 				else
-					stream->addInt(*static_cast<int32_t*>(entry.ptr), entry.bits);
+					stream->addInt(readAligned<uint32_t>(entry.ptr), entry.bits);
 			} else if (entry.type == ReplicationEntry::TypeFloat) {
-				stream->addFloat(*static_cast<float*>(entry.ptr), entry.bits);
+				stream->addFloat(readAligned<float>(entry.ptr), entry.bits);
 			} else {
 				stream->addInt(*static_cast<bool*>(entry.ptr) ? 1 : 0, 1);
 			}
@@ -421,14 +433,14 @@ void ZCom_Node::packReplicatorsForRouting(std::vector<PackedReplicator>& out)
 		p.rule = entry.rule;
 		bool changed = false;
 		if (entry.type == ReplicationEntry::TypeInt && entry.ptr) {
-			int32_t val = *static_cast<int32_t*>(entry.ptr);
+			int32_t val = readAligned<int32_t>(entry.ptr);
 			if (forceAll || entry.initial || val != static_cast<int32_t>(entry.oldInt)) {
 				changed = true;
 				entry.oldInt = val;
 				entry.initial = false;
 			}
 		} else if (entry.type == ReplicationEntry::TypeFloat && entry.ptr) {
-			float val = *static_cast<float*>(entry.ptr);
+			float val = readAligned<float>(entry.ptr);
 			if (forceAll || entry.initial || val != entry.oldFloat) {
 				changed = true;
 				entry.oldFloat = val;
@@ -447,11 +459,11 @@ void ZCom_Node::packReplicatorsForRouting(std::vector<PackedReplicator>& out)
 			p.hasUpdate = true;
 			if (entry.type == ReplicationEntry::TypeInt) {
 				if (entry.sign)
-					p.data.addSignedInt(*static_cast<int32_t*>(entry.ptr), entry.bits);
+					p.data.addSignedInt(readAligned<int32_t>(entry.ptr), entry.bits);
 				else
-					p.data.addInt(*static_cast<int32_t*>(entry.ptr), entry.bits);
+					p.data.addInt(readAligned<int32_t>(entry.ptr), entry.bits);
 			} else if (entry.type == ReplicationEntry::TypeFloat)
-				p.data.addFloat(*static_cast<float*>(entry.ptr), entry.bits);
+				p.data.addFloat(readAligned<float>(entry.ptr), entry.bits);
 			else
 				p.data.addInt(*static_cast<bool*>(entry.ptr) ? 1 : 0, 1);
 		} else {
@@ -519,20 +531,20 @@ void ZCom_Node::unpackAllReplicators(ZCom_BitStream* stream, bool store, uint32_
 				if (!accept)
 					continue;
 				if (entry.type == ReplicationEntry::TypeInt)
-					*static_cast<int32_t*>(entry.ptr) = decodedInt;
+					writeAligned<int32_t>(entry.ptr, decodedInt);
 				else if (entry.type == ReplicationEntry::TypeBool)
 					*static_cast<bool*>(entry.ptr) = decodedInt != 0;
 				else
-					*static_cast<float*>(entry.ptr) = decodedFloat;
+					writeAligned<float>(entry.ptr, decodedFloat);
 			} else {
 				if (entry.type == ReplicationEntry::TypeInt) {
-					*static_cast<int32_t*>(entry.ptr) = entry.sign
+					writeAligned<int32_t>(entry.ptr, entry.sign
 						? stream->getSignedInt(entry.bits)
-						: static_cast<int32_t>(stream->getInt(entry.bits));
+						: static_cast<int32_t>(stream->getInt(entry.bits)));
 				} else if (entry.type == ReplicationEntry::TypeBool) {
 					*static_cast<bool*>(entry.ptr) = stream->getInt(1) != 0;
 				} else {
-					*static_cast<float*>(entry.ptr) = stream->getFloat(entry.bits);
+					writeAligned<float>(entry.ptr, stream->getFloat(entry.bits));
 				}
 			}
 		} else if (hasUpdate) {
