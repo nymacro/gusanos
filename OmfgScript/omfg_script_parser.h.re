@@ -281,9 +281,14 @@ size_t toRead = newSize - l;
 size_t amountRead = self->read(&buffer[l], toRead);
 if(amountRead == 0) { memset(&buffer[l], 0, toRead); }
 else newSize = l+amountRead;
+if(begin) {
 ptrdiff_t offs = buffer - begin;
 curp += offs;
 marker += offs;
+} else {
+curp = buffer;
+marker = buffer;
+}
 begin = buffer;
 limit = buffer + newSize;
 }

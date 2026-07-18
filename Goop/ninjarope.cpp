@@ -42,6 +42,14 @@ NinjaRope::NinjaRope(PartType *type, BaseObject* worm)
 	}
 }
 
+NinjaRope::~NinjaRope()
+{
+#ifndef DEDSERV
+	delete m_animator;
+	m_animator = 0;
+#endif
+}
+
 void NinjaRope::shoot(Vec _pos, Vec _spd)
 {
 	pos = _pos;

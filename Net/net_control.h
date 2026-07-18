@@ -221,8 +221,8 @@ protected:
 	uint32_t m_nextNodeID;
 	uint32_t m_nextClassID;
 	std::vector<ZCom_ClassInfo> m_classes;
-	std::vector<ZCom_Node*> m_nodes;
-	std::map<uint32_t, ENetPeer*> m_peerMap;
+	std::vector<ZCom_Node*> m_nodes;          ///< non-owning (game owns the nodes)
+	std::map<uint32_t, ENetPeer*> m_peerMap;  ///< non-owning (ENet owns the peers)
 	std::map<uint32_t, ZCom_Address> m_addressMap;
 	mutable std::map<ZCom_ConnID, ZCom_ConnStats> m_statsCache; ///< Cache for ZCom_getConnectionStats (reference returns const&)
 	zU8 m_controlID = 0;

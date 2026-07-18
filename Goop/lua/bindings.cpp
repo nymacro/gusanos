@@ -31,6 +31,7 @@
 #endif
 #include <cmath>
 #include <string>
+#include <memory>
 #include <list>
 #include <iostream>
 #include <fstream>
@@ -490,7 +491,7 @@ std::string runLua(LuaReference ref, std::list<std::string> const& args)
 	return "";
 }*/
 
-void serverListCallb(lua_State* L, LuaReference ref, HTTP::Request* req)
+void serverListCallb(lua_State* L, LuaReference ref, std::unique_ptr<HTTP::Request> req)
 {
 	static char const* fields[] =
 	{
@@ -531,8 +532,6 @@ void serverListCallb(lua_State* L, LuaReference ref, HTTP::Request* req)
 		lua_rawseti(context, -2, i);
 	}
 	
-	delete req; // We don't need this anymore
-
 	lua.call(1, 0);
 }
 
@@ -547,12 +546,12 @@ int l_fetch_server_list(lua_State* L)
 	lua_pushvalue(L, 1);
 	LuaReference ref = lua.createReference();
 	
-	HTTP::Request* req = network.fetchServerList();
+	std::unique_ptr<HTTP::Request> req = network.fetchServerList();
 	
 	if(!req)
 		return 0;
 
-	network.addHttpRequest(req,
+	network.addHttpRequest(std::move(req),
 		boost::bind(serverListCallb, L, ref, _1));
 
 	return 0;

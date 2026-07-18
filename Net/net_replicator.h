@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <cstring>
 #include <string>
+#include <vector>
+#include <memory>
 
 // Forward declarations
 class ZCom_BitStream;
@@ -98,10 +100,11 @@ public:
 
 	virtual ~ZCom_ReplicatorSetup() {}
 
-	virtual ZCom_ReplicatorSetup* Duplicate() {
-		if (m_repFlags & ZCOM_REPFLAG_SETUPPERSISTS)
-			return this;
-		return new ZCom_ReplicatorSetup(m_repFlags, m_repRules, m_interceptID, m_minDelay, m_maxDelay);
+	virtual std::unique_ptr<ZCom_ReplicatorSetup> Duplicate() {
+		// SETUPPERSISTS is a documented no-op for Duplicate: m_setup is a by-value
+		// member of ZCom_Replicator, never separately heap-allocated, so always
+		// heap-copy here (callers store the result in a unique_ptr).
+		return std::make_unique<ZCom_ReplicatorSetup>(m_repFlags, m_repRules, m_interceptID, m_minDelay, m_maxDelay);
 	}
 
 	int getInterceptID() { return m_interceptID; }
@@ -133,8 +136,8 @@ public:
 	int getRelevantBits() { return m_relevantBits; }
 	void setRelevantBits(int b) { m_relevantBits = b; }
 
-	ZCom_ReplicatorSetup* Duplicate() override {
-		return new ZCom_RSetupNumeric(m_relevantBits, m_repFlags, m_repRules, m_interceptID, m_minDelay, m_maxDelay);
+	std::unique_ptr<ZCom_ReplicatorSetup> Duplicate() override {
+		return std::make_unique<ZCom_RSetupNumeric>(m_relevantBits, m_repFlags, m_repRules, m_interceptID, m_minDelay, m_maxDelay);
 	}
 
 	int m_relevantBits;
@@ -149,8 +152,8 @@ public:
 
 	int maxlen;
 
-	ZCom_ReplicatorSetup* Duplicate() override {
-		return new ZCom_RSetupString(maxlen, m_repFlags, m_repRules);
+	std::unique_ptr<ZCom_ReplicatorSetup> Duplicate() override {
+		return std::make_unique<ZCom_RSetupString>(maxlen, m_repFlags, m_repRules);
 	}
 };
 
@@ -163,8 +166,8 @@ public:
 		: ZCom_ReplicatorSetup(repFlags, repRules), m_relevantBits(relBits)
 		, m_inputsizeBits(8), m_interpolationTime(100), m_constantErrorThreshold(0) {}
 
-	ZCom_ReplicatorSetup* Duplicate() override {
-		return new ZCom_RSetupMovement(m_relevantBits, m_repFlags, m_repRules);
+	std::unique_ptr<ZCom_ReplicatorSetup> Duplicate() override {
+		return std::make_unique<ZCom_RSetupMovement>(m_relevantBits, m_repFlags, m_repRules);
 	}
 
 	int getRelevantBits() { return m_relevantBits; }
@@ -192,8 +195,8 @@ public:
 		: ZCom_ReplicatorSetup(repFlags, repRules), m_relevantBits(relBits)
 		, ipol_treshold(threshold), ipol_factor(factor) {}
 
-	ZCom_ReplicatorSetup* Duplicate() override {
-		return new ZCom_RSetupInterpolate(m_relevantBits, m_repFlags, m_repRules, ipol_treshold, 0, -1, -1, ipol_factor);
+	std::unique_ptr<ZCom_ReplicatorSetup> Duplicate() override {
+		return std::make_unique<ZCom_RSetupInterpolate>(m_relevantBits, m_repFlags, m_repRules, ipol_treshold, 0, -1, -1, ipol_factor);
 	}
 
 	int getRelevantBits() { return m_relevantBits; }
@@ -226,6 +229,7 @@ public:
 	virtual void clearPeekData() {}
 
 	ZCom_ReplicatorSetup m_setup;
+	// Non-owning peek observers — set briefly during unpack and cleared after use.
 	ZCom_BitStream* m_peekStream = nullptr;
 	void* m_peekData = nullptr;
 	uint32_t m_flags = 0;
@@ -419,12 +423,11 @@ private:
 class ZCom_Replicate_Memblock : public ZCom_Replicator {
 public:
 	ZCom_Replicate_Memblock(void* ptr, uint32_t blockSize, uint32_t flags, uint32_t rules)
-		: m_ptr(ptr), m_blockSize(blockSize), m_oldData(new char[blockSize]) {
+		: m_ptr(ptr), m_blockSize(blockSize), m_oldData(blockSize) {
 		m_setup = ZCom_ReplicatorSetup(flags, rules);
-		memcpy(m_oldData, ptr, blockSize);
+		if (blockSize)
+			memcpy(m_oldData.data(), ptr, blockSize);
 	}
-
-	~ZCom_Replicate_Memblock() override { delete[] m_oldData; }
 
 	bool checkState() override;
 	void packData(ZCom_BitStream* stream) override;
@@ -433,7 +436,7 @@ public:
 private:
 	void* m_ptr;
 	uint32_t m_blockSize;
-	char* m_oldData;
+	std::vector<char> m_oldData;
 };
 
 // ---- Advanced replicator base ----

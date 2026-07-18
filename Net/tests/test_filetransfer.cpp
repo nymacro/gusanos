@@ -30,6 +30,7 @@ public:
 	uint32_t m_fileClass;
 	ZCom_Node* m_node;
 
+	~FileServer() { delete m_node; m_node = nullptr; }
 	FileServer(int udpPort)
 		: ZCom_Control()
 		, m_spawnedCount(0)

@@ -103,14 +103,14 @@ void ZCom_Replicate_StringWp::unpackData(ZCom_BitStream* stream, bool store, uin
 bool ZCom_Replicate_Memblock::checkState()
 {
 	if (!m_ptr) return false;
-	return memcmp(m_ptr, m_oldData, m_blockSize) != 0;
+	return memcmp(m_ptr, m_oldData.data(), m_blockSize) != 0;
 }
 
 void ZCom_Replicate_Memblock::packData(ZCom_BitStream* stream)
 {
 	if (!m_ptr) return;
 	stream->addBuffer(static_cast<const char*>(m_ptr), static_cast<uint16_t>(m_blockSize));
-	memcpy(m_oldData, m_ptr, m_blockSize);
+	memcpy(m_oldData.data(), m_ptr, m_blockSize);
 }
 
 void ZCom_Replicate_Memblock::unpackData(ZCom_BitStream* stream, bool store, uint32_t estimatedTimeSent)
@@ -119,7 +119,7 @@ void ZCom_Replicate_Memblock::unpackData(ZCom_BitStream* stream, bool store, uin
 	if (store && m_ptr) {
 		uint16_t readLen = stream->getBuffer(static_cast<char*>(m_ptr), static_cast<uint16_t>(m_blockSize));
 		if (readLen > m_blockSize) readLen = static_cast<uint16_t>(m_blockSize);
-		memcpy(m_oldData, m_ptr, readLen);
+		memcpy(m_oldData.data(), m_ptr, readLen);
 	} else {
 		// Skip the buffer data
 		uint16_t skipLen = stream->getBufferMax();

@@ -185,7 +185,7 @@ void Server::ZCom_cbConnectionSpawned( ZCom_ConnID _id )
 	std::unique_ptr<ZCom_BitStream> data(new ZCom_BitStream);
 	Encoding::encode(*data, Network::ClientEvents::LuaEvents, Network::ClientEvents::Max); 
 	network.encodeLuaEvents(data.get());
-	ZCom_sendData ( _id, data.release(), eZCom_ReliableOrdered);
+	ZCom_sendData ( _id, data.get(), eZCom_ReliableOrdered);
 }
 
 void Server::ZCom_cbConnectionClosed(ZCom_ConnID _id, eZCom_CloseReason _reason, ZCom_BitStream &_reasondata)

@@ -4,6 +4,7 @@
 #include <string>
 #include <list>
 #include <utility>
+#include <memory>
 #include "tcp.h"
 
 #define HAS_ZOIDCOM
@@ -111,7 +112,7 @@ struct Host
 	
 	~Host();
 	
-	Request* query(
+	std::unique_ptr<Request> query(
 		std::string const& command,
 		std::string const& url,
 		std::string const& addHeader,
@@ -121,8 +122,8 @@ struct Host
 	static char hexDigit(int v);
 	static std::string urlencode(std::string const& v);	
 	static std::string urlencode(std::list<std::pair<std::string, std::string> > const& values);
-	Request* post(std::string const& url, std::list<std::pair<std::string, std::string> > const& values);
-	Request* get(std::string const& url);
+	std::unique_ptr<Request> post(std::string const& url, std::list<std::pair<std::string, std::string> > const& values);
+	std::unique_ptr<Request> get(std::string const& url);
 	
 	std::string host;
 	Options options;
@@ -132,5 +133,6 @@ struct Host
 
 
 }
+
 
 #endif //OMFG_HTTP_H

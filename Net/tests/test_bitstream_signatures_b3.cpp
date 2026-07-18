@@ -38,7 +38,7 @@ ZBS_CHECK_SIG(getStringLength, zU16 (ZCom_BitStream::*)());
 ZBS_CHECK_SIG(getStringWLength,zU16 (ZCom_BitStream::*)());
 ZBS_CHECK_SIG(getBuffer,       zU16 (ZCom_BitStream::*)(char*, zU16));
 ZBS_CHECK_SIG(getBufferMax,    zU16 (ZCom_BitStream::*)());
-ZBS_CHECK_SIG(getBitStream,    ZCom_BitStream* (ZCom_BitStream::*)(zU32, bool));
+ZBS_CHECK_SIG(getBitStream,    std::unique_ptr<ZCom_BitStream> (ZCom_BitStream::*)(zU32, bool));
 ZBS_CHECK_SIG(getBitCount,     zU32 (ZCom_BitStream::*)() const);
 
 ZBS_CHECK_SIG(skipInt,         void (ZCom_BitStream::*)(zU8));
@@ -64,7 +64,7 @@ ZBS_CHECK_SIG(getSizeHint,     zU16 (ZCom_BitStream::*)() const);
 ZBS_CHECK_SIG(Serialize,       bool (ZCom_BitStream::*)(char*, zU16*, zU16));
 ZBS_CHECK_SIG(Deserialize,    bool (ZCom_BitStream::*)(char*, zU16));
 ZBS_CHECK_SIG(isEqual,         bool (ZCom_BitStream::*)(const ZCom_BitStream&) const);
-ZBS_CHECK_SIG(Duplicate,       ZCom_BitStream* (ZCom_BitStream::*)() const);
+ZBS_CHECK_SIG(Duplicate,       std::unique_ptr<ZCom_BitStream> (ZCom_BitStream::*)() const);
 
 #undef ZBS_CHECK_SIG
 
@@ -137,11 +137,10 @@ BOOST_AUTO_TEST_CASE(duplicate_is_const)
 	ZCom_BitStream bs;
 	bs.addInt(42, 8);
 	const ZCom_BitStream& cref = bs;
-	ZCom_BitStream* dup = cref.Duplicate();
+	auto dup = cref.Duplicate();
 	BOOST_REQUIRE(dup != nullptr);
 	dup->resetReadState();
 	BOOST_CHECK_EQUAL(dup->getInt(8), 42);
-	delete dup;
 }
 
 // getString/getStringW maxsize is zU16; sizeof()/literals still bind.
@@ -174,12 +173,11 @@ BOOST_AUTO_TEST_CASE(bitstream_allow_align_default)
 	outer.resetReadState();
 	// addBitStream inlines the inner bits directly (no length prefix).
 	// getBitStream reads the requested number of raw data bits.
-	ZCom_BitStream* ex = outer.getBitStream(16); // default _allow_align=false
+	auto ex = outer.getBitStream(16); // default _allow_align=false
 	BOOST_REQUIRE(ex != nullptr);
 	ex->resetReadState();
 	BOOST_CHECK_EQUAL(ex->getInt(8), 11);
 	BOOST_CHECK_EQUAL(ex->getInt(8), 22);
-	delete ex;
 }
 
 // skipBuffer over a buffer larger than 31 bytes — validates the skipBits fix

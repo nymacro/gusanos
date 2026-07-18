@@ -15,9 +15,8 @@ BOOST_AUTO_TEST_CASE(rsetup_interpolate)
 	BOOST_CHECK_EQUAL(setup.ipol_treshold, 5);
 	BOOST_CHECK_EQUAL(setup.ipol_factor, 0.4f);
 
-	ZCom_ReplicatorSetup* dup = setup.Duplicate();
+	auto dup = setup.Duplicate();
 	BOOST_REQUIRE(dup);
-	delete dup;
 }
 
 BOOST_AUTO_TEST_CASE(interpolate_api)

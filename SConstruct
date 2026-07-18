@@ -55,30 +55,62 @@ env.AddMethod(getObjects)
 # Generate compile_commands.json for IDE/LSP support
 env.Tool('compilation_db')
 
+def envif(env_name, arguments, arg_name):
+    val = arguments.get(arg_name, None)
+    if val is not None:
+        env[env_name] = val 
+
 # Set custom variables
 env['MY_CONF'] = ARGUMENTS.get('conf', 'posix')
 env['MY_BUILD'] = ARGUMENTS.get('build', 'release')
 env['MY_SUBFOLDER'] = os.path.join(env['MY_CONF'], env['MY_BUILD'])
 env['NO_PARSERS'] = ARGUMENTS.get('no-parsers', False)
+env['BUILD_TESTS'] = ARGUMENTS.get('build-tests', '1') != '0'
 env['CCCOMSTR'] = 'Compiling $TARGET'
 env['CXXCOMSTR'] = 'Compiling $TARGET'
 env['LINKCOMSTR'] = 'Linking $TARGET'
+envif('CC', ARGUMENTS, 'CC')
+envif('CXX', ARGUMENTS, 'CXX')
+envif('LINK', ARGUMENTS, 'LINK')
 
-# Sanitizer support: sanitize=address,undefined or sanitize=thread, etc.
-# Debug builds default to address,undefined; pass sanitize=none to disable.
-_sanitize_arg = ARGUMENTS.get('sanitize', '')
-if _sanitize_arg == '':
-    _sanitize_list = []
-else:
+# ---------------------------------------------------------------------------
+# Sanitizer support
+# ---------------------------------------------------------------------------
+# Usage:
+#   scons sanitize=address          # ASan only
+#   scons sanitize=address,undefined # ASan + UBSan
+#   scons sanitize=mem              # MSan (requires clang)
+#   scons sanitize=none             # explicit disable (default)
+#
+# Accepted aliases: address/asan/a, undefined/ubsan, thread/tsan, mem/memory
+# Sanitizers require -Og; build-type optimization flags are overridden.
+# ---------------------------------------------------------------------------
+_sanitize_arg = ARGUMENTS.get('sanitize', 'none')
+if _sanitize_arg and _sanitize_arg != 'none':
     _sanitize_list = [s.strip() for s in _sanitize_arg.split(',') if s.strip()]
+    _valid_sanitizers = {
+        'address': 'address', 'asan': 'address',
+        'undefined': 'undefined', 'ubsan': 'undefined',
+        'thread': 'thread', 'tsan': 'thread',
+        'memory': 'memory', 'msan': 'memory',
+    }
+    _resolved = []
+    for s in _sanitize_list:
+        key = s.lower()
+        if key in _valid_sanitizers:
+            _resolved.append(_valid_sanitizers[key])
+        else:
+            print(f"Warning: Unknown sanitizer '{s}', passing through as-is")
+            _resolved.append(s)
+    _san_flags = ' '.join(f'-fsanitize={s}' for s in _resolved)
+    env.Append(CCFLAGS=Split(_san_flags), LINKFLAGS=Split(_san_flags))
+    # Remove optimization flags that conflict with sanitizers
+    env['CCFLAGS'] = [f for f in env['CCFLAGS']
+                      if not f.startswith('-O') or f == '-Og']
+    env.Append(CCFLAGS='-Og')
 
-if _sanitize_list:
-    _san_flags = ' '.join(f'-fsanitize={s}' for s in _sanitize_list)
-    env.Append(CCFLAGS=Split(_san_flags),
-               LINKFLAGS=Split(_san_flags))
 
-
-# Add Homebrew paths for Linux
+# Homebrew
 brew_prefix = '/home/linuxbrew/.linuxbrew'
 if os.path.exists(brew_prefix):
     env.Append(CPPPATH=[os.path.join(brew_prefix, 'include')])
@@ -97,7 +129,8 @@ if os.path.exists(brew_prefix):
 env.Append(
     CPPPATH=Split('. #http #luaapi #Console #GUI #Utility #OmfgScript #Goop #Net'),
     LIBPATH=[os.path.join('#lib', env['MY_SUBFOLDER']), os.path.join('#lib', env['MY_CONF'])],
-    CCFLAGS=Split('-pipe -fno-diagnostics-show-caret -fno-diagnostics-show-option -Wfatal-errors -Wall -Wno-unused -Wno-register -Wno-implicit-fallthrough'),
+    # -fno-diagnostics-show-caret 
+    CCFLAGS=Split('-pipe -fno-diagnostics-show-option -Wfatal-errors -Wall -Wno-unused -Wno-register -Wno-implicit-fallthrough'),
     CXXFLAGS=Split('-std=c++17'),
     CPPDEFINES=['_GNU_SOURCE', 'BOOST_TIMER_ENABLE_DEPRECATED']
 )

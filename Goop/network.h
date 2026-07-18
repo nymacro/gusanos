@@ -3,6 +3,7 @@
 
 #include "network_compat.h"
 #include <string>
+#include <memory>
 #include <boost/function.hpp>
 #include "luaapi/types.h"
 #include "base_player.h"
@@ -13,7 +14,7 @@ const unsigned int INVALID_NODE_ID = 0;
 
 namespace HTTP { struct Request; }
 
-typedef boost::function<void (HTTP::Request*)> HttpRequestCallback;
+typedef boost::function<void (std::unique_ptr<HTTP::Request>)> HttpRequestCallback;
 
 struct LuaEventDef
 {
@@ -138,8 +139,8 @@ public:
 	static bool isHost();
 	static bool isClient();
 	
-	static HTTP::Request* fetchServerList();
-	static void addHttpRequest(HTTP::Request*, HttpRequestCallback);
+	static std::unique_ptr<HTTP::Request> fetchServerList();
+	static void addHttpRequest(std::unique_ptr<HTTP::Request>, HttpRequestCallback);
 	
 	static LuaEventDef* addLuaEvent(LuaEventGroup::type, char const* name, LuaEventDef* event);
 	static void indexLuaEvent(LuaEventGroup::type, char const* name);

@@ -162,6 +162,7 @@ BOOST_AUTO_TEST_CASE(unique_node_with_data_replication)
 
 	cli.Shutdown();
 	srv.Shutdown();
+	delete node;
 }
 
 BOOST_AUTO_TEST_CASE(zoidlevel_transition)

@@ -84,19 +84,23 @@ LuaReference LuaObject::getLuaReference()
 
 void LuaObject::deleteThis()
 {
-	finalize();
+	if(deleted) return;
 
-#ifndef NDEBUG
+	finalize();
 	deleted = true;
-#endif
-	
+
 	if(luaReference)
 	{
+		// Null the pointer stored inside the Lua userdata so the __gc
+		// metamethod (e.g. worm_destroy) will not delete this object
+		// again after the C++ side has already freed it.
+		lua.pushReference(luaReference);
+		if(void* ud = lua_touserdata(lua, -1))
+			*static_cast<void**>(ud) = 0;
+		lua.pop(1);
 		lua.destroyReference(luaReference);
 		luaReference.reset();
 	}
-	else
-		delete this;
-	
-	
+
+	delete this;
 }

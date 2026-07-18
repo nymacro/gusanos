@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include <map>
+#include <new>
 #include <boost/lexical_cast.hpp>
 using boost::lexical_cast;
 
@@ -18,34 +19,108 @@ namespace OmfgGUI
 	
 LuaReference Wnd::metaTable;
 
-Wnd::~Wnd()
+void Wnd::addChild(Wnd* ch)
 {
-	if(m_context)
+	if(!ch->m_parent)
 	{
-		//Remove references in context
+		ch->m_parent = this;
+		m_children.push_back(ch);
+		m_namedChildren[ch->m_id] = ch;
 		
-		lua.destroyReference(luaReference);
-		m_context->deregisterWindow(this);
+		// Keep the child alive for the garbage collector: Lua cannot see
+		// the C++ parent->child ownership edge, so without an explicit
+		// strong reference a parented child could be collected while the
+		// parent is still alive. Released in removeChild()/destructor.
+		if(ch->luaReference)
+		{
+			lua.pushWeakReference(ch->luaReference);
+			m_ownedRefs[ch] = lua.createReference();
+		}
+		
+		if(!ch->m_context && m_context)
+		{
+			ch->setContext_(m_context);
+		}
+		
+		if(!m_group.empty() && ch->m_group.empty())
+		{
+			ch->setGroup(m_group);
+		}
 	}
-	else
+}
+
+void Wnd::removeChild(Wnd* ch)
+{
+	for(Wnd* p = this; p && p->m_lastChildFocus == ch; p = p->m_parent)
 	{
-		cerr << "WARNING: Wnd destructed without context" << endl;
+		p->m_lastChildFocus = 0;
 	}
 	
+	std::map<Wnd*, LuaReference>::iterator oi = m_ownedRefs.find(ch);
+	if(oi != m_ownedRefs.end())
+	{
+		lua.destroyReference(oi->second);
+		m_ownedRefs.erase(oi);
+	}
+	
+	m_children.remove(ch);
+	m_namedChildren.erase(ch->m_id);
+}
+
+Wnd::~Wnd()
+{
+	guiAliveSet().erase(this);
+
+	if(m_destroyed)
+		return;
+	m_destroyed = true;
+
+	// Always release the weak self-reference. The Lua state is valid during
+	// destruction (finalizers run before lua_close frees the state, and the
+	// global lua context is always initialized). A null m_context only means
+	// this window was never attached to a Context, which is a perfectly normal
+	// state for a Lua-only object (e.g. a transient gui_window created in a
+	// script and discarded) — so there is nothing to deregister, but the weak
+	// reference must still be released to avoid a stale registry slot.
+	lua.destroyWeakReference(luaReference);
+
+	if(m_context)
+	{
+		m_context->deregisterWindow(this);
+	}
+
+	// Detach from the parent. This is safe even when called FROM the parent's
+	// destructor: removeChild no longer touches our luaReference (guarded by
+	// m_destroyed) and we only unlink ourselves from the parent's lists.
 	if(m_parent)
 	{
-		
 		m_parent->removeChild(this);
+		m_parent = 0;
 	}
 
-	std::list<Wnd *>::iterator i = m_children.begin(), e = m_children.end();
-
-	for(; i != e;)
+	// Release callback function references.
+	for(int c = 0; c < LuaCallbacksMax; ++c)
 	{
-		std::list<Wnd *>::iterator next = i; ++next;
-		delete (*i);
-		i = next;
+		if(m_callbacks[c])
+			lua.destroyReference(m_callbacks[c]);
 	}
+
+	// Release our strong ownership references (Lua GC pins) for children. The
+	// children themselves are finalized independently by their own __gc and
+	// must NOT be delete'd here: their operator delete is a no-op (Lua owns the
+	// memory block), and deleting them would both read freed memory (invalid
+	// iterator in the list we are modifying) and double-finalize. We only
+	// orphan them so the live tree no longer references this (dying) window.
+	for(std::map<Wnd*, LuaReference>::iterator oi = m_ownedRefs.begin(), oe = m_ownedRefs.end(); oi != oe; ++oi)
+		lua.destroyReference(oi->second);
+	m_ownedRefs.clear();
+
+	for(std::list<Wnd *>::iterator i = m_children.begin(), e = m_children.end(); i != e; ++i)
+	{
+		(*i)->m_parent = 0;
+	}
+	m_children.clear();
+	m_namedChildren.clear();
 	
 	delete m_font;
 }
@@ -645,7 +720,7 @@ bool Wnd::doAction()
 {
 	if(m_callbacks[OnAction])
 	{
-		int r = (lua.call(m_callbacks[OnAction], 1), luaReference)();
+		int r = (lua.call(m_callbacks[OnAction], 1), LuaReferenceWeak(luaReference))();
 		if(r == 1)
 		{
 			bool v = lua_toboolean(lua, -1);
@@ -663,7 +738,7 @@ void Wnd::setText(std::string const& aStr)
 
 void Wnd::pushReference()
 {
-	lua.push(luaReference);
+	lua.pushWeakReference(luaReference);
 }
 
 void Wnd::notifyHide()
@@ -729,7 +804,8 @@ bool Wnd::getAttrib(std::string const& name, std::string& dest)
 
 void Wnd::doUpdateGSS()
 {
-	m_formatting = Formatting(); // Reset formatting to default
+	m_formatting.~Formatting();
+	new (&m_formatting) Formatting(); // Reset formatting to default
 	applyGSS(m_context->m_gss); // Apply GSS
 	updatePlacement(); // Place window
 	
@@ -832,7 +908,7 @@ bool Wnd::doKeyDown(int key)
 {
 	if(m_callbacks[OnKeyDown])
 	{
-		int r = (lua.call(m_callbacks[OnKeyDown], 1), luaReference, key)();
+		int r = (lua.call(m_callbacks[OnKeyDown], 1), LuaReferenceWeak(luaReference), key)();
 		if(r == 1)
 		{
 			bool v = lua_toboolean(lua, -1);

@@ -82,12 +82,12 @@ namespace
 	
 	struct HttpRequest
 	{
-		HttpRequest(HTTP::Request* req_, HttpRequestCallback handler_)
-		: req(req_), handler(handler_)
+		HttpRequest(std::unique_ptr<HTTP::Request> req_, HttpRequestCallback handler_)
+		: req(std::move(req_)), handler(handler_)
 		{
 		}
 		
-		HTTP::Request* req;
+		std::unique_ptr<HTTP::Request> req;
 		HttpRequestCallback handler;
 	};
 	
@@ -195,16 +195,14 @@ namespace
 		else if(i->req->think())
 		{
 			if(i->handler)
-				i->handler(i->req);
-			else
-				delete i->req;
+				i->handler(std::move(i->req));
 			requests.erase(i);
 		}
 		i = next;
 	}
 	}
 	
-	void onServerRemoved(HTTP::Request* req)
+	void onServerRemoved(std::unique_ptr<HTTP::Request> req)
 	{
 		if(!req)
 		{
@@ -223,10 +221,9 @@ namespace
 				cerr << "Failed to unregister from master server" << endl;
 		}
 		serverAdded = false;
-		delete req;
 	}
 	
-	void onServerAdded(HTTP::Request* req)
+	void onServerAdded(std::unique_ptr<HTTP::Request> req)
 	{
 		if(!req)
 		{
@@ -246,10 +243,9 @@ namespace
 			else
 				cerr << "Failed to register to master server" << endl;
 		}
-		delete req;
 	}
-	
-	void onServerUpdate(HTTP::Request* req)
+
+	void onServerUpdate(std::unique_ptr<HTTP::Request> req)
 	{
 		if(!req)
 		{
@@ -268,7 +264,6 @@ namespace
 				cerr << "Failed to send update to master server" << endl;
 			serverAdded = false; // Maybe the server was droped, try to reregister it
 		}
-		delete req;
 	}
 	
 	void registerToMasterServer()
@@ -324,13 +319,13 @@ Network network;
 
 void LuaEventDef::call(ZCom_BitStream* s)
 {
-	ZCom_BitStream* n = s->Duplicate();
+	auto n = s->Duplicate();
 	(lua.call(callb), luaReference, lua.fullReference(*n, LuaBindings::ZCom_BitStreamMetaTable))();
 }
 
 void LuaEventDef::call(LuaReference obj, ZCom_BitStream* s)
 {
-	ZCom_BitStream* n = s->Duplicate();
+	auto n = s->Duplicate();
 	(lua.call(callb), luaReference, obj, lua.fullReference(*n, LuaBindings::ZCom_BitStreamMetaTable))();
 }
 
@@ -546,7 +541,7 @@ void Network::update()
 	}
 }
 
-HTTP::Request* Network::fetchServerList()
+std::unique_ptr<HTTP::Request> Network::fetchServerList()
 {
 	std::list<std::pair<std::string, std::string> > data;
 	push_back(data)
@@ -587,12 +582,12 @@ void Network::disconnect( DConnEvents event )
 		SET_STATE(Disconnecting);
 		stateTimeOut = 1000;
 
-		ZCom_BitStream *eventData = new ZCom_BitStream;
-		eventData->addInt( static_cast<int>( event ), 8 );
+		ZCom_BitStream eventData;
+		eventData.addInt( static_cast<int>( event ), 8 );
 		
 		LOG("Disconnecting...");
 		network.clientRetry = true;
-		m_control->ZCom_disconnectAll(eventData);
+		m_control->ZCom_disconnectAll(&eventData);
 	}
 	
 	if(serverAdded)
@@ -612,7 +607,7 @@ void Network::disconnect( ZCom_ConnID id, DConnEvents event )
 	
 	std::unique_ptr<ZCom_BitStream> eventData(new ZCom_BitStream);
 	eventData->addInt( static_cast<int>( event ), 8 );
-	m_control->ZCom_Disconnect( id, eventData.release());
+	m_control->ZCom_Disconnect( id, eventData.get());
 }
 
 void Network::clear()
@@ -633,9 +628,9 @@ void Network::kick( ZCom_ConnID connID )
 {
 	if( m_control )
 	{
-		ZCom_BitStream *eventData = new ZCom_BitStream;
-		eventData->addInt( static_cast<int>( Kick ), 8 );
-		m_control->ZCom_Disconnect( connID, eventData );
+		ZCom_BitStream eventData;
+		eventData.addInt( static_cast<int>( Kick ), 8 );
+		m_control->ZCom_Disconnect( connID, &eventData );
 	}
 }
 
@@ -701,11 +696,11 @@ int Network::getServerPing()
 	return -1;
 }
 
-void Network::addHttpRequest(HTTP::Request* req, HttpRequestCallback handler)
+void Network::addHttpRequest(std::unique_ptr<HTTP::Request> req, HttpRequestCallback handler)
 {
 	if(!req)
 		return;
-	requests.push_back(HttpRequest(req, handler));
+	requests.push_back(HttpRequest(std::move(req), handler));
 }
 
 LuaEventDef* Network::addLuaEvent(LuaEventGroup::type type, char const* name, LuaEventDef* event)

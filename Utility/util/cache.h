@@ -15,6 +15,12 @@ public:
 	{
 	}
 	
+	~Cache()
+	{
+		for(typename MapT::iterator i = m_map.begin(); i != m_map.end(); ++i)
+			destruct(i->second.value);
+	}
+	
 	struct Item
 	{
 		Item(ValueT const& value_, int lifetime_)

@@ -559,11 +559,10 @@ BOOST_AUTO_TEST_CASE(add_get_bitstream_roundtrip)
 
 	// addBitStream inlines the inner bits directly (no length prefix).
 	// getBitStream reads the requested number of raw data bits.
-	ZCom_BitStream* extracted = outer.getBitStream(16, false);
+	auto extracted = outer.getBitStream(16, false);
 	BOOST_REQUIRE(extracted != nullptr);
 	BOOST_CHECK_EQUAL(extracted->getInt(8), 1);
 	BOOST_CHECK_EQUAL(extracted->getInt(8), 2);
-	delete extracted;
 }
 
 BOOST_AUTO_TEST_CASE(add_bitstream_bits)
@@ -620,12 +619,11 @@ BOOST_AUTO_TEST_CASE(duplicate_from_mid_stream)
 
 	bs.getInt(8); // read position moves past 1
 
-	ZCom_BitStream* dup = bs.Duplicate();
+	auto dup = bs.Duplicate();
 	BOOST_REQUIRE(dup != nullptr);
 	BOOST_CHECK_EQUAL(dup->getInt(8), 2);
 	BOOST_CHECK_EQUAL(dup->getInt(8), 3);
 	BOOST_CHECK(dup->endOfStream());
-	delete dup;
 }
 
 // ---- ZCom_TypeHelper tests ----

@@ -8,6 +8,7 @@
 #include <cassert>
 #include <cwchar>
 #include <climits>
+#include <memory>
 #include "net_types.h"
 
 class ZCom_BitStream {
@@ -45,7 +46,7 @@ public:
 	zFloat getFloat(zU8 bits);
 	double getDouble(int bits);
 	const char* getStringStatic();
-	char* getString();
+	std::string getString();
 	zU16 getStringSize();
 	zU16 getStringLength();
 	void getString(char* buf, zU16 maxsize);
@@ -60,7 +61,7 @@ public:
 	zU16 getBufferMax();
 
 	// BitStream extraction
-	ZCom_BitStream* getBitStream(zU32 bits, bool _allow_align = false);
+	std::unique_ptr<ZCom_BitStream> getBitStream(zU32 bits, bool _allow_align = false);
 
 	// Skip methods
 	void skipInt(zU8 bits);
@@ -94,7 +95,7 @@ public:
 	bool isEqual(const ZCom_BitStream& other) const;
 
 	// Other
-	ZCom_BitStream* Duplicate() const;
+	std::unique_ptr<ZCom_BitStream> Duplicate() const;
 	void* operator new(size_t _size);
 	void operator delete(void* _p);
 

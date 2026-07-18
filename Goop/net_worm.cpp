@@ -19,6 +19,7 @@
 
 #include <math.h>
 #include <vector>
+#include <memory>
 #include "network_compat.h"
 
 using namespace std;
@@ -43,11 +44,11 @@ NetWorm::NetWorm(bool isAuthority) : BaseWorm()
 		
 		//m_node->setInterceptID( static_cast<ZCom_InterceptID>(Position) );
 		
-		m_node->addReplicator(new PosSpdReplicator( &posSetup, &pos, &spd, game.level.vectorEncoding, game.level.diffVectorEncoding ), true);
+		m_node->addReplicator(std::make_unique<PosSpdReplicator>( &posSetup, &pos, &spd, game.level.vectorEncoding, game.level.diffVectorEncoding ), true);
 		
 		static ZCom_ReplicatorSetup nrSetup( ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH );
 		
-		m_node->addReplicator(new VectorReplicator( &nrSetup, &m_ninjaRope->getPosReference(), game.level.vectorEncoding ), true);
+		m_node->addReplicator(std::make_unique<VectorReplicator>( &nrSetup, &m_ninjaRope->getPosReference(), game.level.vectorEncoding ), true);
 		
 m_node->addReplicationInt ((zS32*)&m_ninjaRope->getLengthReference(), 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
 
@@ -55,7 +56,7 @@ m_node->addReplicationInt ((zS32*)&m_ninjaRope->getLengthReference(), 32, false,
 
 		static ZCom_ReplicatorSetup angleSetup( ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH );
 		
-		m_node->addReplicator(new AngleReplicator( &angleSetup, &aimAngle), true );
+		m_node->addReplicator(std::make_unique<AngleReplicator>( &angleSetup, &aimAngle), true );
 
 		m_node->addReplicationInt( (zS32*)&m_dir, 8, true, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
 		
@@ -124,7 +125,7 @@ void NetWorm::think()
 		eZCom_NodeRole    remote_role;
 		ZCom_ConnID       conn_id;
 		
-		ZCom_BitStream *data = m_node->getNextEvent(&type, &remote_role, &conn_id);
+		auto data = m_node->getNextEvent(&type, &remote_role, &conn_id);
 		switch(type)
 		{
 		case eZCom_EventUser:
@@ -185,7 +186,7 @@ void NetWorm::think()
 						//size_t weapIndex = data->getInt(Encoding::bitsOf(game.weaponList.size() - 1));
 						size_t weapIndex = Encoding::decode(*data, m_weapons.size());
 						if ( weapIndex < m_weapons.size() && m_weapons[weapIndex] )
-							m_weapons[weapIndex]->recieveMessage( data );
+							m_weapons[weapIndex]->recieveMessage( data.get() );
 					}
 					break;
 					case SetWeapon:
@@ -236,7 +237,7 @@ void NetWorm::think()
 						int index = data->getInt(8);
 						if(LuaEventDef* event = network.indexToLuaEvent(Network::LuaEventGroup::Worm, index))
 						{
-							event->call(getLuaReference(), data);
+							event->call(getLuaReference(), data.get());
 						}
 					}
 					break;
@@ -260,31 +261,31 @@ void NetWorm::think()
 void NetWorm::sendLuaEvent(LuaEventDef* event, eZCom_SendMode mode, zU8 rules, ZCom_BitStream* userdata, ZCom_ConnID connID)
 {
 	if(!m_node) return;
-	ZCom_BitStream* data = new ZCom_BitStream;
-	addEvent(data, LuaEvent);
-	data->addInt(event->idx, 8);
+	ZCom_BitStream data;
+	addEvent(&data, LuaEvent);
+	data.addInt(event->idx, 8);
 	if(userdata)
 	{
-		data->addBitStream(userdata);
+		data.addBitStream(userdata);
 	}
 	if(!connID)
-		m_node->sendEvent(mode, rules, data);
+		m_node->sendEvent(mode, rules, &data);
 	else
-		m_node->sendEventDirect(mode, data, connID);
+		m_node->sendEventDirect(mode, &data, connID);
 }
 
 void NetWorm::correctOwnerPosition()
 {
-	ZCom_BitStream *data = new ZCom_BitStream;
-	addEvent(data, PosCorrection);
+	ZCom_BitStream data;
+	addEvent(&data, PosCorrection);
 	/*
-	data->addFloat(pos.x,32); // Maybe this packet is too heavy...
-	data->addFloat(pos.y,32);
-	data->addFloat(spd.x,32);
-	data->addFloat(spd.y,32);*/
-	game.level.vectorEncoding.encode<Vec>(*data, pos); // ...nah ;o
-	game.level.vectorEncoding.encode<Vec>(*data, spd);
-	m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_OWNER, data);
+	data.addFloat(pos.x,32); // Maybe this packet is too heavy...
+	data.addFloat(pos.y,32);
+	data.addFloat(spd.x,32);
+	data.addFloat(spd.y,32);*/
+	game.level.vectorEncoding.encode<Vec>(data, pos); // ...nah ;o
+	game.level.vectorEncoding.encode<Vec>(data, spd);
+	m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_OWNER, &data);
 }
 
 void NetWorm::assignOwner( BasePlayer* owner)
@@ -301,35 +302,35 @@ void NetWorm::setOwnerId( ZCom_ConnID _id )
 
 void NetWorm::sendSyncMessage( ZCom_ConnID id )
 {
-	ZCom_BitStream *data = new ZCom_BitStream;
-	addEvent(data, SYNC);
-	data->addBool(m_isActive);
-	data->addBool(m_ninjaRope->active);
-	//data->addInt(currentWeapon, Encoding::bitsOf(game.weaponList.size() - 1));
-	Encoding::encode(*data, currentWeapon, m_weapons.size());
+	ZCom_BitStream data;
+	addEvent(&data, SYNC);
+	data.addBool(m_isActive);
+	data.addBool(m_ninjaRope->active);
+	//data.addInt(currentWeapon, Encoding::bitsOf(game.weaponList.size() - 1));
+	Encoding::encode(data, currentWeapon, m_weapons.size());
 	
 	for( size_t i = 0; i < m_weapons.size(); ++i )
 	{
 		if ( m_weapons[i] )
 		{
-			data->addBool(true);
-			Encoding::encode(*data, i, m_weapons.size());
-			Encoding::encode(*data, m_weapons[i]->getType()->getIndex(), game.weaponList.size());
+			data.addBool(true);
+			Encoding::encode(data, i, m_weapons.size());
+			Encoding::encode(data, m_weapons[i]->getType()->getIndex(), game.weaponList.size());
 		}
 	}
-	data->addBool(false);
+	data.addBool(false);
 	
-	m_node->sendEventDirect(eZCom_ReliableOrdered, data, id);
+	m_node->sendEventDirect(eZCom_ReliableOrdered, &data, id);
 }
 
 void NetWorm::sendWeaponMessage( int index, ZCom_BitStream* weaponData, zU8 repRules )
 {
-	ZCom_BitStream *data = new ZCom_BitStream;
-	addEvent(data, WeaponMessage);
-	//data->addInt(index, Encoding::bitsOf(game.weaponList.size() - 1));
-	Encoding::encode(*data, index, m_weapons.size());
-	data->addBitStream( weaponData );
-	m_node->sendEvent(eZCom_ReliableOrdered, repRules, data);
+	ZCom_BitStream data;
+	addEvent(&data, WeaponMessage);
+	//data.addInt(index, Encoding::bitsOf(game.weaponList.size() - 1));
+	Encoding::encode(data, index, m_weapons.size());
+	data.addBitStream( weaponData );
+	m_node->sendEvent(eZCom_ReliableOrdered, repRules, &data);
 }
 
 ZCom_NodeID NetWorm::getNodeID()
@@ -356,13 +357,13 @@ void NetWorm::respawn()
 			<< " m_isActive(after)=" << m_isActive << std::endl;
 		if ( m_isActive )
 		{
-			ZCom_BitStream *data = new ZCom_BitStream;
-			addEvent(data, Respawn);
+			ZCom_BitStream data;
+			addEvent(&data, Respawn);
 			/*
-			data->addFloat(pos.x,32);
-			data->addFloat(pos.y,32);*/
-			game.level.vectorEncoding.encode<Vec>(*data, pos);
-			m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, data);
+			data.addFloat(pos.x,32);
+			data.addFloat(pos.y,32);*/
+			game.level.vectorEncoding.encode<Vec>(data, pos);
+			m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, &data);
 		}
 	}
 }
@@ -374,11 +375,11 @@ void NetWorm::dig()
 		BaseWorm::dig();
 		if ( m_isActive )
 		{
-			ZCom_BitStream *data = new ZCom_BitStream;
-			addEvent(data, Dig);
-			game.level.vectorEncoding.encode<Vec>(*data, pos);
-			data->addInt(int(getAngle()), Angle::prec);
-			m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, data);
+			ZCom_BitStream data;
+			addEvent(&data, Dig);
+			game.level.vectorEncoding.encode<Vec>(data, pos);
+			data.addInt(int(getAngle()), Angle::prec);
+			m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, &data);
 		}
 	}
 }
@@ -392,20 +393,20 @@ void NetWorm::die()
 		else if (m_lastHurtShooterID) killerName = Network::findSavedName(m_lastHurtShooterID);
 		m_lastHurtName = killerName;    // so BaseWorm::die uses it consistently
 
-		ZCom_BitStream *data = new ZCom_BitStream;
-		addEvent(data, Die);
+		ZCom_BitStream data;
+		addEvent(&data, Die);
 		if ( m_lastHurt )
 		{
-			data->addInt( static_cast<int>( m_lastHurt->getNodeID() ), 32 );
+			data.addInt( static_cast<int>( m_lastHurt->getNodeID() ), 32 );
 		}
 		else
 		{
-			data->addInt( INVALID_NODE_ID, 32 );
+			data.addInt( INVALID_NODE_ID, 32 );
 		}
 		int wcount = (int)game.weaponList.size();
-		Encoding::encode(*data, m_lastHurtWeapon + 1, wcount + 1); // -1 -> 0 sentinel
-		data->addString(killerName.c_str());
-		m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, data);
+		Encoding::encode(data, m_lastHurtWeapon + 1, wcount + 1); // -1 -> 0 sentinel
+		data.addString(killerName.c_str());
+		m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, &data);
 		BaseWorm::die();
 	}
 }
@@ -414,10 +415,10 @@ void NetWorm::changeWeaponTo( unsigned int weapIndex )
 {
 	if ( m_node )
 	{
-		ZCom_BitStream *data = new ZCom_BitStream;
-		addEvent(data, ChangeWeapon);
-		Encoding::encode(*data, weapIndex, m_weapons.size());
-		m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_OWNER_2_AUTH | ZCOM_REPRULE_AUTH_2_PROXY, data);
+		ZCom_BitStream data;
+		addEvent(&data, ChangeWeapon);
+		Encoding::encode(data, weapIndex, m_weapons.size());
+		m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_OWNER_2_AUTH | ZCOM_REPRULE_AUTH_2_PROXY, &data);
 		BaseWorm::changeWeaponTo( weapIndex );
 	}
 }
@@ -429,16 +430,16 @@ void NetWorm::setWeapon( size_t index, WeaponType* type )
 		BaseWorm::setWeapon( index, type );
 		if ( m_node )
 		{
-			ZCom_BitStream *data = new ZCom_BitStream;
-			addEvent(data, SetWeapon);
-			Encoding::encode(*data, index, game.options.maxWeapons);
+			ZCom_BitStream data;
+			addEvent(&data, SetWeapon);
+			Encoding::encode(data, index, game.options.maxWeapons);
 			if ( type )
 			{
-				data->addBool(true);
-				Encoding::encode(*data, type->getIndex(), game.weaponList.size());
+				data.addBool(true);
+				Encoding::encode(data, type->getIndex(), game.weaponList.size());
 			}else
-				data->addBool(false);
-			m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, data);
+				data.addBool(false);
+			m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, &data);
 		}
 	}
 }
@@ -450,9 +451,9 @@ void NetWorm::clearWeapons()
 		BaseWorm::clearWeapons();
 		if ( m_node )
 		{
-			ZCom_BitStream *data = new ZCom_BitStream;
-			addEvent(data, ClearWeapons);
-			m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, data);
+			ZCom_BitStream data;
+			addEvent(&data, ClearWeapons);
+			m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, &data);
 		}
 	}
 }

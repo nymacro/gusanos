@@ -4,7 +4,8 @@
 #include "util/rect.h"
 #include "util/common.h"
 #include "renderer.h"
-//#include "formatting.h"
+#include "luaapi/types.h"
+ //#include "formatting.h"
 #include <iostream>
 #include <map>
 #include <list>
@@ -451,6 +452,12 @@ protected:
 	Wnd* m_activeWnd;
 	Wnd* m_mouseFocusWnd;
 	Renderer* m_renderer;
+
+	// Strong Lua reference keeping the root window (and thus the whole tree)
+	// alive for the garbage collector. Without it the root's only reference
+	// would be its own weak self-reference and the entire UI would be
+	// collected. Released in destroy().
+	LuaReference m_rootRef;
 
 	//GSSselectorMap m_gss_;
 	std::map<std::string, Wnd*> m_namedWindows;

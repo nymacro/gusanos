@@ -27,6 +27,7 @@ struct EvSrv : public ZCom_Control
     std::vector<uint32_t> spawnedIDs;
     int eventCount = 0;
     uint32_t lastPayload = 0;
+    ~EvSrv() { delete node; node = nullptr; }
     EvSrv(int port) {
         g_currentControl = this;
         ZCom_initSockets(true, port, 4, 0);
@@ -39,7 +40,7 @@ struct EvSrv : public ZCom_Control
         if (!node) return;
         while (node->checkEventWaiting()) {
             eZCom_Event t; eZCom_NodeRole r; uint32_t c;
-            ZCom_BitStream* d = node->getNextEvent(&t, &r, &c);
+            auto d = node->getNextEvent(&t, &r, &c);
             if (t == eZCom_EventUser && d) { eventCount++; lastPayload = d->getInt(8); }
         }
     }
@@ -53,6 +54,7 @@ struct EvCli : public ZCom_Control
     uint32_t gotID = 0;
     int eventCount = 0;
     uint32_t lastPayload = 0;
+    ~EvCli() { delete node; node = nullptr; }
     EvCli(int port) {
         g_currentControl = this;
         ZCom_initSockets(false, 0, 0, 0);
@@ -75,7 +77,7 @@ struct EvCli : public ZCom_Control
         if (!node) return;
         while (node->checkEventWaiting()) {
             eZCom_Event t; eZCom_NodeRole r; uint32_t c;
-            ZCom_BitStream* d = node->getNextEvent(&t, &r, &c);
+            auto d = node->getNextEvent(&t, &r, &c);
             if (t == eZCom_EventUser && d) { eventCount++; lastPayload = d->getInt(8); }
         }
     }

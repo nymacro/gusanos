@@ -98,7 +98,7 @@ BaseWorm::~BaseWorm()
 	delete m_fireconeAnimator; m_fireconeAnimator = 0;
 #endif
 
-	//m_ninjaRope->deleteMe = true;
+	m_ninjaRope = 0;
 	for ( size_t i = 0; i < m_weapons.size(); ++i)
 	{
 		luaDelete(m_weapons[i]); m_weapons[i] = 0;
@@ -462,9 +462,9 @@ void BaseWorm::processMoveAndDig(void)
 
 void BaseWorm::think()
 {
-	if(m_isActive)
+		if(m_isActive)
 	{
-		if ( health <= 0 ) die();
+		if ( health <= 0 && isAuthority() ) die();
 		
 		BaseVec<float> next = pos + spd;
 		

@@ -4,6 +4,7 @@
 #include <cstring>
 #include <algorithm>
 #include <iostream>
+#include <memory>
 
 // Verbose logging for network debugging
 #define NET_DEBUG
@@ -338,6 +339,19 @@ void ZCom_Control::ZCom_Disconnect(ZCom_ConnID id, ZCom_BitStream* data)
 
 void ZCom_Control::Shutdown()
 {
+	// Flush deferred node removals BEFORE iterating m_nodes to null back-pointers.
+	// A node unregisterNode()'d (deferred to m_pendingRemove) then delete'd by its
+	// owner is freed but still listed in m_nodes; iterating it here without
+	// flushing would be a use-after-free (net-control-deferred-node-removal.md).
+	if (!m_pendingRemove.empty()) {
+		auto pending = std::move(m_pendingRemove);
+		m_pendingRemove.clear();
+		m_nodes.erase(
+			std::remove_if(m_nodes.begin(), m_nodes.end(),
+				[&](ZCom_Node* n) { return pending.count(n) != 0; }),
+			m_nodes.end());
+	}
+
 	if (m_host) {
 		for (auto& pair : m_peerMap) {
 			if (pair.second) {
@@ -1037,12 +1051,12 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 					<< ZCom_getClassName(classID) << ")"
 					<< " net_id=" << net_id << " role=" << role << " announceLen=" << announceLen);
 
-				ZCom_BitStream* announceData = nullptr;
+				std::unique_ptr<ZCom_BitStream> announceData;
 				if (announceLen > 0) {
 					std::vector<uint8_t> buf(announceLen);
 					for (int i = 0; i < announceLen; ++i)
 						buf[i] = streamData.getInt(8);
-					announceData = new ZCom_BitStream(buf.data(), buf.size());
+					announceData = std::make_unique<ZCom_BitStream>(buf.data(), buf.size());
 				}
 
 			// Set the node-request context so that registerNodeDynamic /
@@ -1053,12 +1067,12 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 			m_requestCtx.role = role;
 			m_requestCtx.net_id = net_id;
 
-			ZCom_cbNodeRequest_Dynamic(connID, classID, announceData,
+			ZCom_cbNodeRequest_Dynamic(connID, classID, announceData.get(),
 				role, net_id);
 
 			m_requestCtx.active = false;
 
-			delete announceData;
+			// announceData (unique_ptr) frees at scope end
 			enet_packet_destroy(event.packet);
 			break;
 		}
@@ -1269,10 +1283,10 @@ void ZCom_Control::dispatchNodeEvent(uint32_t nodeID, int type, int role, uint32
 		ev.connID = connID;
 		// Copy the remaining (unread) portion of the stream, preserving the
 		// current read position so the payload can be decoded on replay.
-		ZCom_BitStream* remaining = data->Duplicate();
+		auto remaining = data->Duplicate();
 		ev.data = *remaining;
 		ev.data.resetReadState();
-		delete remaining;
+		// remaining (unique_ptr) frees at scope end
 		m_pendingNodeEvents[nodeID].push_back(std::move(ev));
 		NET_LOG("Buffered node event for nodeID=" << nodeID
 			<< " type=" << type << " (" << m_pendingNodeEvents[nodeID].size() << " pending)");

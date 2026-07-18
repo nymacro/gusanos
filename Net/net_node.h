@@ -10,6 +10,7 @@
 #include <string>
 #include <cstdint>
 #include <cassert>
+#include <memory>
 #include <enet/enet.h>
 
 // Forward declarations
@@ -133,7 +134,7 @@ struct NodeEvent {
 	eZCom_Event type;
 	eZCom_NodeRole role;
 	uint32_t connID;
-	ZCom_BitStream* data;
+	std::unique_ptr<ZCom_BitStream> data;
 };
 
 class ZCom_Node {
@@ -147,14 +148,14 @@ public:
 	void beginReplication() {}
 	void endReplication() {}
 	void registerReplicator(void* replicator);
-	void addReplicator(ZCom_Replicator* replicator, bool flag);
+	void addReplicator(std::unique_ptr<ZCom_Replicator> replicator, bool flag);
 	void addReplicationInt(zS32* val, zU8 bits, bool sign, zU8 flags, zU8 rules, zS16 mindelay = -1, zS16 maxdelay = -1);
 	void addReplicationFloat(zFloat* val, zU8 mantissa_bits, zU8 flags, zU8 rules, zS16 mindelay = -1, zS16 maxdelay = -1);
 	void addReplicationBool(bool* val, zU8 flags, zU8 rules, zS16 mindelay = -1, zS16 maxdelay = -1);
 	void setInterceptID(ZCom_InterceptID id);
 	void setReplicationInterceptor(ZCom_NodeReplicationInterceptor* interceptor) { m_replicationInterceptor = interceptor; }
 	void setEventNotification(bool init, bool remove);
-	void setAnnounceData(ZCom_BitStream* data);
+	void setAnnounceData(std::unique_ptr<ZCom_BitStream> data);
 	void setEventInterceptor(ZCom_NodeEventInterceptor* interceptor) { m_eventInterceptor = interceptor; }
 	bool registerNodeDynamic(uint32_t classID, void* control);
 	bool registerNodeUnique(uint32_t classID, eZCom_NodeRole role, void* control);
@@ -180,7 +181,7 @@ public:
 
 	int getZoidLevel() const { return m_zoidLevel; }
 	bool checkEventWaiting();
-	ZCom_BitStream* getNextEvent(eZCom_Event* type, eZCom_NodeRole* role, ZCom_ConnID* connid, zU32* estimated_time_sent = nullptr);
+	std::unique_ptr<ZCom_BitStream> getNextEvent(eZCom_Event* type, eZCom_NodeRole* role, ZCom_ConnID* connid, zU32* estimated_time_sent = nullptr);
 	eZCom_NodeRole getRole() const { return (eZCom_NodeRole)m_role; }
 	bool getEventNotification() const { return m_eventNotification; }
 
@@ -207,7 +208,7 @@ public:
 	const ZCom_FileTransInfo& getFileInfo(ZCom_ConnID _conn_id, ZCom_FileTransID _ftrans_id) const;
 
 	// Internal
-	ZCom_BitStream* getAnnounceData() const { return m_announceData; }
+	ZCom_BitStream* getAnnounceData() const { return m_announceData.get(); }
 	uint32_t getOwner() const { return m_ownerID; }
 	void setNodeID(uint32_t id) { m_nodeID = id; }
 	void setRole(eZCom_NodeRole role) { m_role = role; }
@@ -240,20 +241,20 @@ private:
 	bool m_eventNotification;
 	bool m_eventNotificationRemove;
 	bool m_authority;
-	ZCom_Control* m_control;
-	ZCom_BitStream* m_announceData;
-	void* m_userData;
-	ZCom_NodeEventInterceptor* m_eventInterceptor;
+	ZCom_Control* m_control;            // non-owning (game owns the node)
+	std::unique_ptr<ZCom_BitStream> m_announceData;
+	void* m_userData;                   // non-owning (set by game)
+	ZCom_NodeEventInterceptor* m_eventInterceptor;  // non-owning
 	int m_updatePriority;
 	float m_defaultRelevance;
 	uint32_t m_relevantConnectionCount;
-	
-	std::vector<ZCom_Replicator*> m_replicators;
+
+	std::vector<std::unique_ptr<ZCom_Replicator>> m_replicators;
 	std::vector<ReplicationEntry> m_autoReplications;
 	std::list<NodeEvent> m_eventQueue;
 	int m_zoidLevel;
 	int m_interceptID;
-	ZCom_NodeReplicationInterceptor* m_replicationInterceptor;
+	ZCom_NodeReplicationInterceptor* m_replicationInterceptor;  // non-owning
 
 	// Set when a new peer needs the initial replicator state (set during the
 	// connection-time node sync, consumed by the next packReplicatorsForRouting).

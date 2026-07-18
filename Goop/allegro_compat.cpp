@@ -68,7 +68,21 @@ BITMAP* load_bitmap(const char* filename, RGB* pal) {
                 }
                 palette_colors[0] = (SDL_Color){255, 0, 255, 255};
                 SDL_SetPaletteColors(SDL_GetSurfacePalette(idx8), palette_colors, 0, 256);
-                
+
+                // Sub-byte source formats (1- or 4-bit, e.g. grayscale/indexed
+                // PNGs) have SDL_BYTESPERPIXEL == 0, so the per-pixel row
+                // indexing below would stride off the end of the row (pitch is in
+                // bytes, not pixels) and read out of bounds. Expand to ARGB8888
+                // first so every pixel is a clean 4-byte value and is decoded
+                // correctly via SDL_GetRGBA.
+                if (SDL_BYTESPERPIXEL(surf->format) == 0) {
+                    SDL_Surface* expanded = SDL_ConvertSurface(surf, SDL_PIXELFORMAT_ARGB8888);
+                    if (expanded) {
+                        SDL_DestroySurface(surf);
+                        surf = expanded;
+                    }
+                }
+
                 // Lock both surfaces for pixel access
                 SDL_LockSurface(surf);
                 SDL_LockSurface(idx8);
@@ -216,6 +230,19 @@ void destroy_bitmap(BITMAP* bmp) {
 }
 
 BITMAP* create_sub_bitmap(BITMAP* parent, int x, int y, int w, int h) {
+    // Clamp to parent bounds so sub-bitmaps never reference rows/columns
+    // past the parent's line array. Some font files declare glyph rects
+    // that extend one row past the bitmap height; without clamping this
+    // triggers an out-of-bounds read on parent->line[].
+    if (x < 0) { w += x; x = 0; }
+    if (y < 0) { h += y; y = 0; }
+    if (x > parent->w) x = parent->w;
+    if (y > parent->h) y = parent->h;
+    if (x + w > parent->w) w = parent->w - x;
+    if (y + h > parent->h) h = parent->h - y;
+    if (w < 0) w = 0;
+    if (h < 0) h = 0;
+
     BITMAP* bmp = new BITMAP();
     bmp->w = w;
     bmp->h = h;
@@ -223,10 +250,9 @@ BITMAP* create_sub_bitmap(BITMAP* parent, int x, int y, int w, int h) {
     bmp->format = parent->format;
     bmp->pixels = parent->pixels; // Pointer to parent pixels
     bmp->line = (unsigned char**)malloc(h * sizeof(void*));
-    
+
     int bpp = bmp->format / 8;
-    int pitch = parent->sdl_surface ? parent->sdl_surface->pitch : parent->w * bpp;
-    
+
     for (int i = 0; i < h; ++i) {
         bmp->line[i] = (unsigned char*)parent->line[y + i] + x * bpp;
     }

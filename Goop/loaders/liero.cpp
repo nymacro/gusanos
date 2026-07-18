@@ -287,10 +287,14 @@ bool LieroFontLoader::load(Font* font, fs::path const& path)
 		
 	font->m_supportColoring = true;
 		
-	std::vector<char> buffer(16000);
+	// 250 glyph blocks of 64 bytes each, plus one extra block of headroom so
+	// the per-glyph width read at buffer[(i+1)*64] (i.e. buffer[16000] for the
+	// last glyph) stays inside the allocated buffer instead of reading one byte
+	// past its end.
+	std::vector<char> buffer(250 * 64 + 64);
 	
 	f.ignore(8); //First 8 bytes are useless
-	f.read(&buffer[0], 16000);
+	f.read(&buffer[0], 250 * 64 + 64);
 	
 	if(f.gcount() < 16000)
 		return false;

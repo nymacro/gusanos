@@ -30,6 +30,7 @@ public:
 	uint32_t m_eventClass;
 	ZCom_Node* m_node;
 
+	~EventServer() { delete m_node; m_node = nullptr; }
 	EventServer(int udpPort)
 		: ZCom_Control()
 		, m_spawnedCount(0)

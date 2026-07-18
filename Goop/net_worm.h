@@ -71,6 +71,8 @@ public:
 	void die();
 	void changeWeaponTo( unsigned int weapIndex );
 	void damage( float amount, BasePlayer* damager, DamageCause const& cause );
+	bool isAuthority() const
+	{ return m_isAuthority; }
 	void setWeapon(size_t index, WeaponType* type );
 	void clearWeapons();
 	

@@ -28,6 +28,7 @@ struct RouteSrv : public ZCom_Control
     int spawns = 0;
     std::vector<uint32_t> spawnedIDs;
     int32_t srvVal = 0; // authority-side value (receiver for OWNER_2_AUTH)
+    ~RouteSrv() { delete node; node = nullptr; }
     RouteSrv(int port) {
         g_currentControl = this;
         ZCom_initSockets(true, port, 4, 0);
@@ -48,6 +49,7 @@ struct RouteCli : public ZCom_Control
     uint32_t gotID = 0;
     int32_t val = 0;
     uint32_t rule = ZCOM_REPRULE_NONE; // rule for this client's replica entry
+    ~RouteCli() { delete node; node = nullptr; }
     RouteCli(int port, uint32_t r = ZCOM_REPRULE_NONE) : rule(r) {
         g_currentControl = this;
         ZCom_initSockets(false, 0, 0, 0);

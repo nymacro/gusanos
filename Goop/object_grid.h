@@ -385,10 +385,20 @@ public:
 				
 		void clear()
 		{
-			ObjectList::iterator next, i;
-			for(i = list.beginS(); i;)
+			// Two-phase: unlink all objects first, then delete them.
+			// This prevents destructors (which may delete other objects
+			// in the same or different layers) from corrupting the list
+			// during iteration.
+			std::vector<BaseObject*> toDelete;
+			ObjectList::iterator i;
+			for(i = list.beginS(); i; ++i)
 			{
-				list.erase(i);
+				toDelete.push_back(static_cast<BaseObject*>(i));
+			}
+			list.unlinkAll();
+			for(size_t n = 0; n < toDelete.size(); ++n)
+			{
+				toDelete[n]->deleteThis();
 			}
 		}
 		
@@ -436,6 +446,17 @@ public:
 	Grid()
 	: width(0), height(0)
 	{
+	}
+	
+	~Grid()
+	{
+		for(std::vector<Layer>::iterator l = layers.begin(); l != layers.end(); ++l)
+		{
+			for(std::vector<Layer::Square>::iterator s = l->grid.begin(); s != l->grid.end(); ++s)
+			{
+				delete s->guardNode;
+			}
+		}
 	}
 	
 	void resize(int x1_, int y1_, int x2_, int y2_)

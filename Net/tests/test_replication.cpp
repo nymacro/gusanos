@@ -5,6 +5,7 @@
 #include <boost/test/unit_test.hpp>
 #include <cstring>
 #include <cstdio>
+#include <memory>
 
 #include "net_control.h"
 #include "net_node.h"
@@ -30,6 +31,7 @@ public:
 	int m_nodeRequestCount;
 	uint32_t m_playerClass;
 	ZCom_Node* m_playerNode;
+	~ReplServer() { delete m_playerNode; m_playerNode = nullptr; }
 
 	ReplServer(int udpPort)
 		: ZCom_Control()
@@ -56,9 +58,9 @@ protected:
 		m_playerNode = new ZCom_Node();
 		m_playerNode->registerNodeDynamic(m_playerClass, this);
 
-		ZCom_BitStream announce;
-		announce.addString("Player1");
-		m_playerNode->setAnnounceData(&announce);
+		auto announce = std::make_unique<ZCom_BitStream>();
+		announce->addString("Player1");
+		m_playerNode->setAnnounceData(std::move(announce));
 	}
 
 	void ZCom_cbNodeRequest_Dynamic(ZCom_ConnID id, uint32_t requested_class,

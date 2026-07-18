@@ -44,13 +44,13 @@ Client::~Client()
 
 void Client::requestPlayer(PlayerOptions const& playerOptions)
 {
-	ZCom_BitStream *req = new ZCom_BitStream;
-	req->addInt(Network::PLAYER_REQUEST,8);
-	req->addString( playerOptions.name.c_str() );
-	req->addInt(playerOptions.colour, 24);
-	req->addSignedInt(playerOptions.team, 8);
-	req->addInt(playerOptions.uniqueID, 32);
-	ZCom_sendData( network.getServerID(), req, eZCom_ReliableOrdered );
+	ZCom_BitStream req;
+	req.addInt(Network::PLAYER_REQUEST,8);
+	req.addString( playerOptions.name.c_str() );
+	req.addInt(playerOptions.colour, 24);
+	req.addSignedInt(playerOptions.team, 8);
+	req.addInt(playerOptions.uniqueID, 32);
+	ZCom_sendData( network.getServerID(), &req, eZCom_ReliableOrdered );
 }
 
 void Client::requestPlayers()
@@ -66,7 +66,7 @@ void Client::sendConsistencyInfo()
 	req->addInt(Network::ConsistencyInfo, 8);
 	req->addInt(Network::protocolVersion, 32);
 	game.addCRCs(req.get());
-	ZCom_sendData( network.getServerID(), req.release(), eZCom_ReliableOrdered );
+	ZCom_sendData( network.getServerID(), req.get(), eZCom_ReliableOrdered );
 }
 
 void Client::ZCom_cbConnectResult( ZCom_ConnID _id, eZCom_ConnectResult _result, ZCom_BitStream &_reply )

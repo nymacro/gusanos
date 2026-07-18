@@ -23,16 +23,15 @@ BOOST_AUTO_TEST_CASE(replicator_setup)
 	setup.setMaxDelay(1000);
 	BOOST_CHECK_EQUAL(setup.getMaxDelay(), 1000);
 
-	ZCom_ReplicatorSetup* dup = setup.Duplicate();
+	auto dup = setup.Duplicate();
 	BOOST_REQUIRE(dup);
 	BOOST_CHECK_EQUAL(dup->getFlags(), setup.getFlags());
 	BOOST_CHECK_EQUAL(dup->getRules(), setup.getRules());
-	delete dup;
 
 	// SETUPPERSISTS test
 	ZCom_ReplicatorSetup setup2(ZCOM_REPFLAG_SETUPPERSISTS, ZCOM_REPRULE_NONE);
-	ZCom_ReplicatorSetup* dup2 = setup2.Duplicate();
-	BOOST_CHECK(dup2 == &setup2);
+	auto dup2 = setup2.Duplicate();
+	BOOST_CHECK(dup2.get() != &setup2);
 	(void)dup2;
 }
 
@@ -45,9 +44,8 @@ BOOST_AUTO_TEST_CASE(rsetup_numeric)
 	rsetup.setRelevantBits(8);
 	BOOST_CHECK_EQUAL(rsetup.getRelevantBits(), 8);
 
-	ZCom_ReplicatorSetup* dup = rsetup.Duplicate();
+	auto dup = rsetup.Duplicate();
 	BOOST_REQUIRE(dup);
-	delete dup;
 }
 
 BOOST_AUTO_TEST_CASE(rsetup_string)

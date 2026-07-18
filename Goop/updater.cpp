@@ -97,10 +97,10 @@ namespace
 				}
 				else
 				{
-					ZCom_BitStream* str = new ZCom_BitStream;
-					str->addInt(MsgRequestDone, 8);
-					str->addInt(t.first, 32);
-					node->sendEventDirect(eZCom_ReliableOrdered, str, connID );
+					ZCom_BitStream str;
+					str.addInt(MsgRequestDone, 8);
+					str.addInt(t.first, 32);
+					node->sendEventDirect(eZCom_ReliableOrdered, &str, connID );
 					fileQueue.pop_front();
 				}
 			}
@@ -179,11 +179,11 @@ void Updater::think()
 						mq_delay();*/
 					
 					DLOG("Requesting level " << data.name);
-					ZCom_BitStream* str = new ZCom_BitStream;
-					str->addInt(MsgRequestLevel, 8);
-					str->addInt(1, 32);
-					str->addString( data.name.c_str() );
-					node->sendEventDirect(eZCom_ReliableOrdered, str, network.getServerID() );
+					ZCom_BitStream str;
+					str.addInt(MsgRequestLevel, 8);
+					str.addInt(1, 32);
+					str.addString( data.name.c_str() );
+					node->sendEventDirect(eZCom_ReliableOrdered, &str, network.getServerID() );
 					//data.sent = true;
 				mq_end_case()
 			mq_end_process_messages();
@@ -200,7 +200,7 @@ void Updater::think()
 			eZCom_NodeRole remote_role;
 			ZCom_ConnID    conn_id;
 			
-			ZCom_BitStream* data = node->getNextEvent(&type, &remote_role, &conn_id);
+			auto data = node->getNextEvent(&type, &remote_role, &conn_id);
 			switch(type)
 			{
 				case eZCom_EventFile_Incoming:
@@ -275,15 +275,15 @@ void Updater::think()
 				{
 					if(network.autoDownloads)
 					{
-						ZCom_BitStream* str = new ZCom_BitStream;
-						str->addInt(MsgHello, 8);
-						node->sendEventDirect(eZCom_ReliableOrdered, str, conn_id );
+						ZCom_BitStream str;
+						str.addInt(MsgHello, 8);
+						node->sendEventDirect(eZCom_ReliableOrdered, &str, conn_id );
 					}
 					else
 					{
-						ZCom_BitStream* str = new ZCom_BitStream;
-						str->addInt(MsgSorry, 8);
-						node->sendEventDirect(eZCom_ReliableOrdered, str, conn_id );
+						ZCom_BitStream str;
+						str.addInt(MsgSorry, 8);
+						node->sendEventDirect(eZCom_ReliableOrdered, &str, conn_id );
 					}
 				}
 				break;

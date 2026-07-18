@@ -22,6 +22,7 @@ class NinjaRope : public BaseObject
 public:
 
 	NinjaRope(PartType* type, BaseObject* worm);
+	~NinjaRope();
 	
 	void shoot(Vec _pos, Vec _spd);
 	void remove();

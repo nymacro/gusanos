@@ -10,6 +10,7 @@
 #include <boost/test/unit_test.hpp>
 #include <cstring>
 #include <cstdio>
+#include <memory>
 
 #include "net_control.h"
 #include "net_node.h"
@@ -44,6 +45,7 @@ public:
 	int m_nodeRequestCount;
 	ZCom_Node* m_dynamicNode;
 
+	~AutoAnnounceServer() { delete m_dynamicNode; m_dynamicNode = nullptr; }
 	AutoAnnounceServer(int port)
 		: ZCom_Control()
 		, m_connSpawned(0)
@@ -202,6 +204,7 @@ public:
 	int m_nodeRequestCount;
 	ZCom_Node* m_node;
 
+	~DupServer() { delete m_node; m_node = nullptr; }
 	DupServer(int port)
 		: ZCom_Control()
 		, m_connSpawned(0)
@@ -448,6 +451,7 @@ BOOST_AUTO_TEST_CASE(owner_aware_role_owner_client)
 
 	srv.Shutdown();
 	cli.Shutdown();
+	delete node;
 	}
 }
 
@@ -492,6 +496,7 @@ BOOST_AUTO_TEST_CASE(owner_aware_role_different_role_for_each_client)
 	srv.Shutdown();
 	cli1.Shutdown();
 	cli2.Shutdown();
+	delete node;
 	}
 }
 
@@ -622,6 +627,7 @@ BOOST_AUTO_TEST_CASE(set_owner_after_register_triggers_reannounce)
 
 	srv.Shutdown();
 	cli.Shutdown();
+	delete node;
 	}
 }
 
@@ -663,6 +669,7 @@ BOOST_AUTO_TEST_CASE(register_then_setowner_announces_once_as_owner)
 
 	srv.Shutdown();
 	cli.Shutdown();
+	delete node;
 	}
 }
 
@@ -727,6 +734,7 @@ public:
 	uint32_t m_receivedNodeId;   // Last confirmed announced node ID from server
 	ZCom_Node* m_clientNode;     // Node created in cbNodeRequest_Dynamic
 
+	~GetNodeIdClient() { delete m_clientNode; m_clientNode = nullptr; }
 	GetNodeIdClient(int port)
 		: ZCom_Control()
 		, m_connected(false)
@@ -829,6 +837,7 @@ BOOST_AUTO_TEST_CASE(register_requested_node_gets_announced_id)
 
 	srv.Shutdown();
 	cli.Shutdown();
+	delete srvNode;
 	}
 }
 
@@ -877,8 +886,7 @@ BOOST_AUTO_TEST_CASE(interceptor_in_pre_update_called)
 
 	// Set up a replicator on the node
 	ZCom_ReplicatorSetup setup(0, 0);
-	ZCom_ReplicatorBasic rep(&setup);
-	node.addReplicator(&rep, true);
+	node.addReplicator(std::make_unique<ZCom_ReplicatorBasic>(&setup), true);
 
 	// Pack and unpack some data to trigger interceptor
 	int testVal = 42;
@@ -911,8 +919,7 @@ BOOST_AUTO_TEST_CASE(interceptor_in_pre_update_item_called)
 
 	// Add a replicator with intercept
 	ZCom_ReplicatorSetup setup(ZCOM_REPFLAG_INTERCEPT, 0, 42);
-	ZCom_ReplicatorBasic rep(&setup);
-	node.addReplicator(&rep, true);
+	node.addReplicator(std::make_unique<ZCom_ReplicatorBasic>(&setup), true);
 
 	ZCom_BitStream packed;
 	node.packAllReplicators(&packed);

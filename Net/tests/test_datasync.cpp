@@ -29,6 +29,7 @@ public:
 	uint32_t m_syncClass;
 	ZCom_Node* m_node;
 
+	~SyncServer() { delete m_node; m_node = nullptr; }
 	SyncServer(int udpPort)
 		: ZCom_Control()
 		, m_spawnedCount(0)
@@ -141,6 +142,7 @@ BOOST_AUTO_TEST_CASE(node_id_unique)
 
 	srv.Shutdown();
 	cli.Shutdown();
+	delete node2;
 	}
 }
 

@@ -61,6 +61,32 @@ int showFps;
 int showDebug;
 int showGamepadInputs;
 
+// Tear down game objects BEFORE the network control: BasePlayer::deleteThis
+// does `delete m_node`, whose destructor calls m_control->removeNode(this).
+// If we destroyed m_control first, that would be a use-after-free on the
+// already-destructed unordered_set m_pendingRemove.
+// Called on every exit path (normal return and both exception handlers) so
+// loaded resources (e.g. WeaponType objects holding BaseAction*s) are freed.
+void shutdown()
+{
+	game.unload();
+	network.shutDown();
+#ifndef DEDSERV
+	OmfgGUI::menu.destroy();
+#endif
+	console.shutDown();
+#ifndef DEDSERV
+		sfx.shutDown();
+
+		/* Shut down gamepad */
+		gamepadHandler.shutDown();
+#endif
+	gfx.shutDown();
+	lua.close();
+
+	SDL_Quit();
+}
+
 //millisecond timer
 volatile unsigned int timer = 0;
 void timerUpdate(void) { timer++; } END_OF_FUNCTION(timerUpdate);
@@ -542,34 +568,16 @@ try
 #endif
 	}
 	
-	// Tear down game objects BEFORE the network control: BasePlayer::deleteThis
-	// does `delete m_node`, whose destructor calls m_control->removeNode(this).
-	// If we destroyed m_control first, that would be a use-after-free on the
-	// already-destructed unordered_set m_pendingRemove.
-	game.unload();
-	network.shutDown();
-#ifndef DEDSERV
-	OmfgGUI::menu.destroy();
-#endif
-	console.shutDown();
-#ifndef DEDSERV
-		sfx.shutDown();
-
-		/* Shut down gamepad */
-		gamepadHandler.shutDown();
-	#endif
-	gfx.shutDown();
-	lua.close();
-
-	SDL_Quit();
-
+	shutdown();
 	return(0);
 }
 catch(std::exception& e)
 {
 	std::cerr << "Unhandled exception: " << e.what() << '\n';
+	shutdown();
 }
 catch(...)
 {
 	std::cerr << "Unknown unhandled exception\n";
+	shutdown();
 }

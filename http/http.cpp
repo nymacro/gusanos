@@ -254,7 +254,7 @@ std::string Host::urlencode(std::list<std::pair<std::string, std::string> > cons
 }
 
 
-Request* Host::query(
+std::unique_ptr<Request> Host::query(
 	std::string const& command,
 	std::string const& url,
 	std::string const& addHeader,
@@ -312,15 +312,15 @@ Request* Host::query(
     
     //cout << "Returning request" << endl;
 
-    return new Request(s, ss.str(), data);
+    return std::unique_ptr<Request>(new Request(s, ss.str(), data));
 }
 
-Request* Host::get(std::string const& url)
+std::unique_ptr<Request> Host::get(std::string const& url)
 {
 	return query("GET", url, "", "");
 }
 
-Request* Host::post(std::string const& url, std::list<std::pair<std::string, std::string> > const& values)
+std::unique_ptr<Request> Host::post(std::string const& url, std::list<std::pair<std::string, std::string> > const& values)
 {
 	return query("POST", url, "Content-Type: application/x-www-form-urlencoded\015\012", urlencode(values));
 }
