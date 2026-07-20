@@ -73,6 +73,21 @@ public:
 	void damage( float amount, BasePlayer* damager, DamageCause const& cause );
 	bool isAuthority() const
 	{ return m_isAuthority; }
+
+	// This machine simulates this worm's physics/rope only when it is the
+	// true source of truth for the worm:
+	//  - On the server (m_isAuthority): local/AI worms (getOwner()==0) are
+	//    simulated here; remote-client-owned worms (getOwner()!=0) are
+	//    driven by their owner and only relayed to proxies.
+	//  - On a client (!m_isAuthority): the owner of its own worm
+	//    (role==Owner) simulates; other players' worms (role==Proxy) are
+	//    rendered from replicated state.
+	bool isLocalAuthority() const override
+	{
+		if (!m_node) return m_isAuthority;
+		if (m_isAuthority) return m_node->getOwner() == 0;
+		return m_node->getRole() == eZCom_RoleOwner;
+	}
 	void setWeapon(size_t index, WeaponType* type );
 	void clearWeapons();
 	

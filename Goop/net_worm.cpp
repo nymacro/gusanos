@@ -106,7 +106,59 @@ void NetWorm::addEvent(ZCom_BitStream* data, NetWorm::NetEvents event)
 
 void NetWorm::think()
 {
-	BaseWorm::think();
+	// Authority gate for remote-client-owned worms on the server.
+	//
+	// On the server, a worm whose ZCom_Node is owned by a remote client
+	// (m_isAuthority && !isLocalAuthority(), i.e. getOwner() != 0) is
+	// driven by that client: the owner runs the physics locally and pushes
+	// pos/spd/rope/aim/m_dir via the ZCOM_REPRULE_OWNER_2_AUTH replicators.
+	// The server's job for such a worm is to RELAY those updates to proxies
+	// (ZCOM_REPRULE_AUTH_2_PROXY), not to simulate physics. Running
+	// BaseWorm::think() here would integrate physics from the throttled,
+	// ~RTT/2-stale input events the server received from the owner,
+	// producing a pos/spd that diverges from the owner's truth; the next
+	// replication update then snaps pos/spd back to the owner's value
+	// (PosSpdReplicator::unpackData). The server's pos thus oscillates
+	// between its physics result and the owner's snap every tick, and that
+	// oscillation is relayed to proxies, which render it as rubber-banding
+	// (very visible with the ninja rope when the owner holds opposite-
+	// direction input to redirect a swing).
+	//
+	// We still must run the server-authoritative bookkeeping that lives in
+	// BaseWorm::think(): death detection (-> NetWorm::die() broadcasts the
+	// Die event and updates stats) and the auto-respawn timer (->
+	// NetWorm::respawn() broadcasts the Respawn event). die()/respawn()
+	// are virtual, so these calls dispatch to the NetWorm overrides. The
+	// pure-physics branches (reaction forces, processPhysics, move/dig,
+	// aim/weapon ticks, animation) are intentionally skipped.
+	//
+	// Proxies (m_isAuthority == false, isLocalAuthority() == false for
+	// another player's worm) are NOT gated here: they still run
+	// BaseWorm::think() so walk/firecone animation keeps ticking. The
+	// proxy worm's pos/spd are snapped from the owner every tick (spd is
+	// replicated too, so dead-reckoning stays close), and the rope is
+	// gated separately in NinjaRope::think() so it cannot apply an
+	// oscillating addSpeed() to the worm body. The owner's rope pull is
+	// already baked into the replicated spd, so the proxy worm follows
+	// the owner's trajectory without a local rope force.
+	if (m_isAuthority && !isLocalAuthority())
+	{
+		if (m_isActive)
+		{
+			if (health <= 0) die();
+		}
+		else
+		{
+			if (m_timeSinceDeath > game.options.maxRespawnTime
+			    && game.options.maxRespawnTime >= 0)
+				respawn();
+			++m_timeSinceDeath;
+		}
+	}
+	else
+	{
+		BaseWorm::think();
+	}
 #ifndef DEDSERV
 	//renderPos += (pos - renderPos)*0.2;
 	double fact = 1.0 / (1.0 + Vec(renderPos, pos).length() / 4.0);

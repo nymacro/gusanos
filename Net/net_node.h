@@ -102,8 +102,14 @@ public:
 	static void Sleep(int ms);
 	static zU32 getTime();
 
+	// C6: global default connection auto-close timeout (ms). Applied per-peer
+	// via enet_peer_timeout by ZCom_Control (see ZCom_setConnectionTimeout).
+	static void setConnectionTimeout(zU32 timeout_ms) { s_connectionTimeout = timeout_ms; }
+	static zU32 getConnectionTimeout() { return s_connectionTimeout; }
+
 private:
 	void (*m_logFunc)(const char*);
+	static zU32 s_connectionTimeout;
 };
 
 // Auto replication entry (see net_auto_replicator.h).
@@ -122,6 +128,7 @@ struct NodeEvent {
 	eZCom_NodeRole role;
 	uint32_t connID;
 	std::unique_ptr<ZCom_BitStream> data;
+	zU32 estimatedTimeSent = 0;  // ENet-RTT estimate for interpolation timing
 };
 
 class ZCom_Node {
@@ -158,6 +165,11 @@ public:
 	// dirty flags. Used by ZCom_Control when a new peer connects to ensure the
 	// peer receives the current state of authority nodes created earlier.
 	void forceReplicationUpdate() { m_forceReplicationUpdate = true; }
+
+	// T1.3: drive per-replicator Process() callbacks (dead-reckoning /
+	// interpolation hooks, e.g. ZCom_Interpolate). Throttling (min/max delay)
+	// is applied at pack time in packReplicatorsForRouting.
+	void processReplicators(uint32_t simulation_time_passed);
 
 	// Build announce data by firing the outPreReplicateNode interceptor (if set),
 	// then returning the announce data stream. Must be called before the node
@@ -206,7 +218,7 @@ public:
 	uint32_t getClassID() const { return m_classID; }
 	void setClassID(uint32_t id) { m_classID = id; }
 
-	void pushEvent(eZCom_Event type, eZCom_NodeRole role, uint32_t connID, ZCom_BitStream* data);
+	void pushEvent(eZCom_Event type, eZCom_NodeRole role, uint32_t connID, ZCom_BitStream* data, zU32 estimatedTimeSent = 0);
 	
 	void packAllReplicators(ZCom_BitStream* stream);
 	void unpackAllReplicators(ZCom_BitStream* stream, bool store, uint32_t estimatedTimeSent);

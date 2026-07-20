@@ -14,6 +14,10 @@
 #include <fstream>
 #include <enet/enet.h>
 
+// C1: map a Zoidcom send mode to ENet packet flags (ReliableUnordered ->
+// RELIABLE | UNSEQUENCED). Declared here so unit tests can call it directly.
+enet_uint32 enetPacketFlags(eZCom_SendMode mode);
+
 struct ZCom_ConnStats {
 	int avg_ping;
 	int min_ping;
@@ -59,6 +63,37 @@ static const int MSG_FILE_ACCEPT = 108;   // receiver -> sender: accept/deny
 static const int MSG_FILE_DATA = 109;     // sender -> receiver: file chunk
 static const int MSG_FILE_ABORT = 110;    // either side: abort
 static const int MSG_FILE_COMPLETE = 111; // sender -> receiver: all chunks sent
+static const int MSG_DOWNSTREAM_REQUEST = 112; // peer asks us to cap our upstream to it (T1.1)
+
+// Wire-protocol version. Stamped by the server into MSG_CONNECTION_REPLY and
+// checked by the client; a mismatch refuses the connection with
+// eZCom_ConnWrongVersion. Bump this whenever the wire format changes
+// (e.g. string encoding, replicator slot tagging, new channel semantics).
+// Current version 2 adds the MSG_DOWNSTREAM_REQUEST control message (T1.1).
+// Future Tier-2/3 wire-format changes (T2.6/T2.7/T3.2) must bump this further
+// and gate new behavior on it.
+static const int PROTOCOL_VERSION = 2;
+
+// Per-connection emulation state (T1.2 lag/loss). Bandwidth limiting is handled
+// entirely by ENet (enet_host_bandwidth_limit); the former app-level limiter was
+// removed because it destroyed reliable packets (networked rubber-banding).
+struct PeerNetState {
+	zU32 upstreamLimit = 0;   // recorded "downstream limit" request from this peer
+	                        // (set when the peer sends MSG_DOWNSTREAM_REQUEST). ENet
+	                        // is the bandwidth authority; this is retained only as a
+	                        // record of the peer's request.
+	zU32 lagMsec = 0;         // T1.2: defer outgoing packets by this many ms (0 = off)
+	zFloat lossPct = 0.0f;    // T1.2: drop this fraction [0,1] of outgoing packets
+};
+
+// A packet deferred by T1.2 lag emulation, awaiting its send time.
+struct PendingLagSend {
+	uint32_t connID;
+	ENetPeer* peer;
+	int channel;
+	ENetPacket* packet;
+	uint32_t sendAt;          // ZCom_getCurrentTime() at which to transmit
+};
 
 class ZCom_Control {
 
@@ -97,7 +132,6 @@ public:
 	void sendNodeAnnouncement(uint32_t connID, ZCom_Node* node, int role);
 	void announceNodeWithOwner(ZCom_Node* node); // announce with owner-aware roles
 	void announceNodeToAll(ZCom_Node* node, int role);
-	void syncNodesToPeer(ENetPeer* peer);
 	void clearAnnouncedNode(uint32_t nodeID); // clear per-peer tracking for re-announce
 	void flushPendingAnnounces(); // flush deferred node announcements to peers
 
@@ -135,6 +169,11 @@ public:
 	void setLogFunction(void (*logFn)(const char*)) { m_logFn = logFn; }
 	void (*m_logFn)(const char*);
 
+	// Wire-protocol version this peer advertises (server reply) and accepts
+	// (client check). Defaults to PROTOCOL_VERSION. Overridable by tests to
+	// exercise the version-mismatch refusal path; production never overrides.
+	virtual int getProtocolVersion() const { return PROTOCOL_VERSION; }
+
 	// Group manager
 	ZCom_ConnGroupManager& ZCom_getGroupManager() { return m_groupManager; }
 
@@ -143,6 +182,7 @@ public:
 	void ZCom_setControlID(zU8 _id);
 	void ZCom_setDebugName(const char* _name);
 	void ZCom_setUpstreamLimit(zU32 _total_bps, zU32 _perconn_bps);
+	void ZCom_setConnectionTimeout(zU32 _ms);  // C6: re-applies to all live peers
 	void ZCom_requestDownstreamLimit(ZCom_ConnID _id, zU16 _pps, zU16 _bpp);
 	void ZCom_simulateLag(ZCom_ConnID _id, zU32 _lagmsec);
 	void ZCom_simulateLoss(ZCom_ConnID _id, zFloat _amount);
@@ -251,6 +291,10 @@ protected:
 	/// Set by every announcement path; cleared on disconnect / re-announce.
 	std::map<uint32_t, std::map<uint32_t, eZCom_NodeRole>> m_peerRole;
 
+	/// Per-connection emulation state (T1.2 lag/loss).
+	std::map<uint32_t, PeerNetState> m_peerState;
+	std::vector<PendingLagSend> m_lagQueue;      ///< T1.2: packets deferred by lag emulation
+
 	/// Buffered replicator data for nodes that haven't been registered locally yet.
 	/// Keyed by nodeID; replayed when the node is registered via registerExistingNode or registerNode.
 	std::map<uint32_t, ZCom_BitStream> m_pendingReplicas;
@@ -262,6 +306,7 @@ protected:
 		int role;
 		uint32_t connID;
 		ZCom_BitStream data;
+		zU32 estimatedTimeSent = 0;  // ENet-RTT estimate, for replayed events
 	};
 	std::map<uint32_t, std::vector<PendingNodeEvent>> m_pendingNodeEvents;
 
@@ -317,7 +362,13 @@ protected:
 	ZCom_ConnGroupManager m_groupManager;
 
 	void processENetEvent(ENetEvent& event);
-	void dispatchNodeEvent(uint32_t nodeID, int type, int role, uint32_t connID, ZCom_BitStream* data);
+	// T1.1/T1.2: centralized outgoing-packet path applying lag/loss/upstream
+	// limiting. `critical` packets (connect/announce/events) bypass emulation
+	// and limiting so connections stay alive under load.
+	void sendPacket(uint32_t connID, ENetPeer* peer, int channel, ENetPacket* packet, bool critical);
+	void drainLagQueue();
+	void dropPeerState(uint32_t connID);  // erase per-conn state + queued lag packets
+	void dispatchNodeEvent(uint32_t nodeID, int type, int role, uint32_t connID, ZCom_BitStream* data, zU32 estimatedTimeSent = 0);
 	uint32_t allocateConnID();
 	void sendConnectionReply(ENetPeer* peer, ZCom_BitStream& reply, bool accepted);
 };

@@ -387,7 +387,12 @@ void Network::registerInConsole()
 		("NET_REGISTER", &registerGlobally, 1)
 		("NET_SIM_LAG", &network.simLag, 0)
 		("NET_SIM_LOSS", &network.simLoss, -1.f)
-		("NET_UP_LIMIT", &network.upLimit, 10000)
+		// Upstream bandwidth cap (bytes/sec). 0 = unlimited. The transport
+		// layer (ENet, via enet_host_bandwidth_limit) still throttles when set,
+		// but it queues reliable packets instead of dropping them. A low,
+		// non-zero default previously starved MSG_REPLICATORS position updates
+		// (the app-level limiter destroyed them) causing networked rubber-banding.
+		("NET_UP_LIMIT", &network.upLimit, 0)
 		("NET_DOWN_BPP", &network.downBPP, 200)
 		("NET_DOWN_PPS", &network.downPPS, 20)
 		("NET_CHECK_CRC", &network.checkCRC, 1)

@@ -19,6 +19,9 @@ zU32 ZoidCom::getTime()
 		std::chrono::steady_clock::now().time_since_epoch()).count());
 }
 
+// C6: default connection auto-close timeout (matches Zoidcom reference default).
+zU32 ZoidCom::s_connectionTimeout = 20000;
+
 ZCom_Node::ZCom_Node()
 	: m_nodeID(0), m_classID(0), m_ownerID(0)
 	, m_role(0), m_isUnique(false), m_isPrivate(false)
@@ -188,13 +191,14 @@ void ZCom_Node::setOwner(ZCom_ConnID id, bool auth)
 	}
 }
 
-void ZCom_Node::pushEvent(eZCom_Event type, eZCom_NodeRole role, uint32_t connID, ZCom_BitStream* data)
+void ZCom_Node::pushEvent(eZCom_Event type, eZCom_NodeRole role, uint32_t connID, ZCom_BitStream* data, zU32 estimatedTimeSent)
 {
 	NodeEvent ev;
 	ev.type = type;
 	ev.role = role;
 	ev.connID = connID;
 	ev.data = data ? data->Duplicate() : nullptr;
+	ev.estimatedTimeSent = estimatedTimeSent;
 	m_eventQueue.push_back(std::move(ev));
 }
 
@@ -258,7 +262,7 @@ std::unique_ptr<ZCom_BitStream> ZCom_Node::getNextEvent(eZCom_Event* type, eZCom
 	if (type) *type = ev.type;
 	if (role) *role = ev.role;
 	if (connid) *connid = ev.connID;
- 	if (estimated_time_sent) *estimated_time_sent = 0;
+ 	if (estimated_time_sent) *estimated_time_sent = ev.estimatedTimeSent;
  	auto data = std::move(ev.data);
  	m_eventQueue.pop_front();
  	return data;
@@ -343,6 +347,11 @@ void ZCom_Node::packReplicatorsForRouting(std::vector<PackedReplicator>& out)
 	}
 
 	// Explicit replicators (ZCom_Replicator subclasses).
+	// T1.3: apply per-replicator min/max-delay throttling here, where the
+	// dirty/send decision is made. A replicator sent too recently (within
+	// minDelay) is skipped but kept dirty so it retries next tick; a
+	// replicator not changed but older than maxDelay is force-sent.
+	const uint32_t nowTicks = ZoidCom::getTime();
 	for (auto& rep : m_replicators) {
 		PackedReplicator p;
 		p.rule = rep->getSetup()->getRules();
@@ -356,9 +365,29 @@ void ZCom_Node::packReplicatorsForRouting(std::vector<PackedReplicator>& out)
 			proceed = m_replicationInterceptor->outPreUpdateItem(
 				this, 0, eZCom_RoleProxy, rep.get());
 		}
-		if (proceed && (forceAll || rep->checkState())) {
+		bool send = false;
+		if (proceed) {
+			bool changed = rep->checkState();
+			int minD = rep->getSetup()->getMinDelay();
+			int maxD = rep->getSetup()->getMaxDelay();
+			bool force = forceAll;
+			if (!force && maxD > 0 &&
+				(nowTicks - rep->getLastSendTime()) >= static_cast<uint32_t>(maxD))
+				force = true;
+			if (force) {
+				send = true;
+			} else if (changed) {
+				if (minD > 0 &&
+					(nowTicks - rep->getLastSendTime()) < static_cast<uint32_t>(minD))
+				send = false; // too soon since last send; keep dirty
+				else
+					send = true;
+			}
+		}
+		if (send) {
 			p.hasUpdate = true;
 			rep->packData(&p.data); // clears dirty
+			rep->setLastSendTime(nowTicks);
 		} else {
 			p.hasUpdate = false;
 		}
@@ -366,13 +395,24 @@ void ZCom_Node::packReplicatorsForRouting(std::vector<PackedReplicator>& out)
 	}
 
 	// Auto-replications.
-	for (auto& entry : m_autoReplications) {
-		PackedReplicator p;
-		p.rule = entry->rule;
-		p.hasUpdate = entry->detect(forceAll);
-		if (p.hasUpdate)
-			entry->emit(p.data);
-		out.push_back(std::move(p));
+		for (auto& entry : m_autoReplications) {
+			PackedReplicator p;
+			p.rule = entry->rule;
+			p.hasUpdate = entry->detect(forceAll);
+			if (p.hasUpdate)
+				entry->emit(p.data);
+			out.push_back(std::move(p));
+		}
+	}
+
+void ZCom_Node::processReplicators(uint32_t simulation_time_passed)
+{
+	// T1.3: drive per-replicator Process() callbacks (dead-reckoning /
+	// interpolation hooks, e.g. ZCom_Interpolate). Throttling (min/max delay)
+	// is applied at pack time in packReplicatorsForRouting.
+	for (auto& rep : m_replicators) {
+		if (rep->callProcess())
+			rep->Process(getRole(), simulation_time_passed);
 	}
 }
 
