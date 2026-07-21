@@ -169,9 +169,20 @@ void NetWorm::think()
 		BaseWorm::think();
 	}
 #ifndef DEDSERV
-	//renderPos += (pos - renderPos)*0.2;
-	double fact = 1.0 / (1.0 + Vec(renderPos, pos).length() / 4.0);
-	renderPos = renderPos * (1.0 - fact) + pos * fact;
+	// Snap on large jumps (initial spawn, server correction, teleport) so the
+	// worm doesn't slide from its (0,0) default to the spawn point; smooth
+	// small gaps (normal movement) exactly as before.
+	Vec delta(renderPos, pos); // == pos - renderPos (see BaseVec two-arg ctor)
+	double dist = delta.length();
+	if (dist > RENDER_SNAP_THRESHOLD)
+	{
+		renderPos = pos;
+	}
+	else
+	{
+		double fact = 1.0 / (1.0 + dist / 4.0);
+		renderPos = renderPos * (1.0 - fact) + pos * fact;
+	}
 #endif
 
 	++timeSinceLastUpdate;

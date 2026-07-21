@@ -39,6 +39,14 @@ public:
 		
 	static ZCom_ClassID  classID;
 	static constexpr float MAX_ERROR_RADIUS = 10.0f;
+	
+	// Minimum distance (px) between renderPos and pos at which a position update
+	// is treated as a teleport (initial spawn, server correction, level change)
+	// and renderPos snaps to pos instead of interpolating. Worms move only a few
+	// pixels per network update, so any gap beyond this is a teleport, not
+	// movement. Tune here if needed (expose as a cvar only if runtime tuning is
+	// later required).
+	static constexpr float RENDER_SNAP_THRESHOLD = 64.0f;
 		
 	NetWorm(bool isAuthority);
 	~NetWorm();
