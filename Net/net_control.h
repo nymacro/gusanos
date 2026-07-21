@@ -131,7 +131,6 @@ public:
 	void removeNode(ZCom_Node* node);
 	void sendNodeAnnouncement(uint32_t connID, ZCom_Node* node, int role);
 	void announceNodeWithOwner(ZCom_Node* node); // announce with owner-aware roles
-	void announceNodeToAll(ZCom_Node* node, int role);
 	void clearAnnouncedNode(uint32_t nodeID); // clear per-peer tracking for re-announce
 	void flushPendingAnnounces(); // flush deferred node announcements to peers
 
@@ -297,7 +296,14 @@ protected:
 
 	/// Buffered replicator data for nodes that haven't been registered locally yet.
 	/// Keyed by nodeID; replayed when the node is registered via registerExistingNode or registerNode.
-	std::map<uint32_t, ZCom_BitStream> m_pendingReplicas;
+	/// connID/estimatedTimeSent are stashed so a peer disconnect drops only this
+	/// peer's entry (M2) and replay preserves the original RTT estimate (L2).
+	struct PendingReplica {
+		ZCom_ConnID connID = 0;
+		zU32 estimatedTimeSent = 0;
+		ZCom_BitStream data;
+	};
+	std::map<uint32_t, PendingReplica> m_pendingReplicas;
 
 	/// Buffered node events (e.g. sync messages) that arrived before the target
 	/// node was registered locally. Keyed by nodeID; replayed on registration.
@@ -336,6 +342,7 @@ protected:
 		std::ofstream outFile;      ///< receiver: destination file
 		zU32 bytesThisSec = 0;
 		zU32 lastBpsTime = 0;
+		zU32 finishedTime = 0;  ///< M3: tick done/aborted was set; entry reaped after a 2s grace
 	};
 	std::map<ZCom_FileTransID, FileTransfer> m_fileTransfers;
 	/// Offers that arrived before the target node was registered locally,

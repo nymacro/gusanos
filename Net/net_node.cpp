@@ -326,6 +326,11 @@ void ZCom_Node::packReplicatorsForRouting(std::vector<PackedReplicator>& out)
 	// Call outPreUpdate on the sender side. If it returns false, skip all
 	// replicators for this node. The forceAll path bypasses this check so
 	// a freshly connecting peer always receives the initial state.
+	// M1 (latent): the remote role is hardcoded to eZCom_RoleProxy and the
+	// `to` connID to 0; this pack is once-per-node, but the peer role varies
+	// per peer in ZCom_processOutput. Correct per-peer interception would move
+	// this call into the per-peer loop. Deferred until a consumer reads
+	// remote_role (none do today).
 	if (!forceAll && m_replicationInterceptor &&
 		!m_replicationInterceptor->outPreUpdate(this, 0, eZCom_RoleProxy))
 	{
@@ -418,6 +423,13 @@ void ZCom_Node::processReplicators(uint32_t simulation_time_passed)
 
 void ZCom_Node::unpackAllReplicators(ZCom_BitStream* stream, bool store, uint32_t estimatedTimeSent)
 {
+	// M1 (latent): the remote role passed to inPreUpdate/inPreUpdateItem below
+	// is hardcoded to eZCom_RoleAuthority and the `from` connID to 0. This is
+	// correct when the authority is the sender (the common case), but wrong when
+	// an Owner sends replicas to the Authority. Threading the sender's connID +
+	// looked-up role requires adding a connID param here and at the call sites in
+	// net_control.cpp; deferred until a game consumer actually reads remote_role
+	// (none do today).
 	// Call inPreUpdate before processing updates
 	if (m_replicationInterceptor && !m_replicationInterceptor->inPreUpdate(this, 0, eZCom_RoleAuthority))
 		return;

@@ -130,7 +130,8 @@ void NetWorm::think()
 	// NetWorm::respawn() broadcasts the Respawn event). die()/respawn()
 	// are virtual, so these calls dispatch to the NetWorm overrides. The
 	// pure-physics branches (reaction forces, processPhysics, move/dig,
-	// aim/weapon ticks, animation) are intentionally skipped.
+	// aim integration, animation) are intentionally skipped; weapon ticks are
+	// still run via runWeaponThink() below so firing replicates.
 	//
 	// Proxies (m_isAuthority == false, isLocalAuthority() == false for
 	// another player's worm) are NOT gated here: they still run
@@ -146,6 +147,14 @@ void NetWorm::think()
 		if (m_isActive)
 		{
 			if (health <= 0) die();
+			// The owner client owns this worm's physics (pos/spd/aim are
+			// replicated to us), so we must NOT run BaseWorm::think() or we
+			// reintroduce the rubber-band. But the owner cannot spawn the
+			// authoritative projectile itself (particles are authority-only),
+			// so we still tick weapons here: the networked FIRE action has
+			// set primaryShooting on this authority worm, and
+			// runWeaponThink() consumes it, fires, and broadcasts SHOOT.
+			runWeaponThink();
 		}
 		else
 		{

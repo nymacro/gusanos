@@ -432,6 +432,7 @@ void ZCom_Control::Shutdown()
 	m_pendingReplicas.clear();
 	m_pendingNodeEvents.clear();
 	m_pendingFileOffers.clear();
+	m_fileTransfers.clear();
 }
 
 void ZCom_Control::disconnectPeer(uint32_t connID)
@@ -487,8 +488,11 @@ void ZCom_Control::replayPendingReplicators(ZCom_Node* node)
 	if (it == m_pendingReplicas.end()) return;
 
 	NET_LOG("Replaying buffered replicator data for nodeID=" << nid);
-	it->second.resetReadState();
-	node->unpackAllReplicators(&it->second, true, 0);
+	auto& pr = it->second;
+	pr.data.resetReadState();
+	// L2: pass through the stashed RTT estimate so replayed replicas get the
+	// same interpolation timing as a live receive (was hardcoded 0).
+	node->unpackAllReplicators(&pr.data, true, pr.estimatedTimeSent);
 	m_pendingReplicas.erase(it);
 }
 
@@ -582,44 +586,6 @@ void ZCom_Control::sendNodeAnnouncement(uint32_t connID, ZCom_Node* node, int ro
 	// Push eEvent_Init for nodes with event notification enabled
 	if (node->getEventNotification()) {
 		node->pushEvent(eZCom_EventInit, static_cast<eZCom_NodeRole>(role), connID, nullptr);
-	}
-}
-
-void ZCom_Control::announceNodeToAll(ZCom_Node* node, int role)
-{
-	if (!m_host || !node) return;
-
-	ZCom_BitStream pkt;
-	pkt.addInt(MSG_NODE_ANNOUNCE, 8);
-	pkt.addInt(node->getClassID(), 8);
-	pkt.addInt(node->getNetworkID(), 16);
-	pkt.addInt(role, 8);
-
-	ZCom_BitStream* ad = node->buildAnnounceData(0, static_cast<eZCom_NodeRole>(node->getRole()));
-	if (ad && ad->getDataLength() > 0) {
-		pkt.addInt(static_cast<int>(ad->getDataLength()), 16);
-		for (size_t i = 0; i < ad->getDataLength(); ++i)
-			pkt.addInt(ad->getData()[i], 8);
-	} else {
-		pkt.addInt(0, 16);
-	}
-	
-	ENetPacket* packet = enet_packet_create(
-		pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
-	enet_host_broadcast(m_host, 0, packet);
-
-	// Track per-peer so re-announcements are skipped
-	for (auto& pair : m_peerMap) {
-		if (m_announcedNodes[pair.first].count(node->getNetworkID())) continue;
-		m_announcedNodes[pair.first].insert(node->getNetworkID());
-		m_peerRole[pair.first][node->getNetworkID()] = static_cast<eZCom_NodeRole>(role);
-	}
-
-	// Push eEvent_Init for each peer if node has event notification enabled
-	if (node->getEventNotification()) {
-		for (auto& pair : m_peerMap) {
-			node->pushEvent(eZCom_EventInit, static_cast<eZCom_NodeRole>(role), pair.first, nullptr);
-		}
 	}
 }
 
@@ -1098,57 +1064,71 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 			}
 			
 			// Handle node events (msgType == 0 means node event)
-			if (msgType == MSG_NODE_EVENT) {
-				streamData.getInt(8); // consume msgType
-				int nodeID = streamData.getInt(16);
-				// addBitStream inlines the payload bits directly (no length
-				// prefix), so the remaining bits are the event payload.
-				// Pass ENet's RTT-based send-time estimate so event consumers
-				// (interceptors) can do time-correct interpolation.
-				zU32 est = estimatedSendTimeFromPeer(event.peer);
-				dispatchNodeEvent(nodeID, eZCom_EventUser, eZCom_RoleProxy, connID, &streamData, est);
+		if (msgType == MSG_NODE_EVENT) {
+			streamData.getInt(8); // consume msgType
+			int nodeID = streamData.getInt(16);
+			// addBitStream inlines the payload bits directly (no length
+			// prefix), so the remaining bits are the event payload.
+			// Pass ENet's RTT-based send-time estimate so event consumers
+			// (interceptors) can do time-correct interpolation.
+			zU32 est = estimatedSendTimeFromPeer(event.peer);
+			// M1: report the remote peer's actual role for this node (recorded
+			// when the node was announced to us) instead of a hardcoded Proxy.
+			// Falls back to Proxy if unknown (e.g. event arrived before the
+			// announce). Currently latent — no game consumer reads remote_role.
+			eZCom_NodeRole remoteRole = getPeerRole(connID, nodeID);
+			if (remoteRole == eZCom_RoleUndefined) remoteRole = eZCom_RoleProxy;
+			dispatchNodeEvent(nodeID, eZCom_EventUser, remoteRole, connID, &streamData, est);
 
-				enet_packet_destroy(event.packet);
-				break;
-			}
+			enet_packet_destroy(event.packet);
+			break;
+		}
 
 			// Handle replicator state updates
 			if (msgType == MSG_REPLICATORS) {
 				streamData.getInt(8); // consume msgType
 				uint32_t repNodeID = streamData.getInt(16);
 
-				// Find the matching local node by networkID
-				ZCom_Node* repNode = ZCom_getNode(repNodeID);
+			// Find the matching local node by networkID
+			ZCom_Node* repNode = ZCom_getNode(repNodeID);
 
-				if (repNode) {
-					NET_LOG("Received MSG_REPLICATORS for nodeID=" << repNodeID
-						<< " classID=" << repNode->getClassID() << " ("
-						<< ZCom_getClassName(repNode->getClassID()) << ")"
-						<< " role=" << repNode->getRole()
-						<< " dataLen=" << (event.packet->dataLength - 3));
+			// Feed ENet's RTT-based send-time estimate into the replicator
+			// unpack so interceptors / interpolation get a real travel time
+			// instead of the hardcoded 0 (enables snapshot interpolation
+			// and dead-reckoning, previously impossible). Also stashed into the
+			// buffered entry below for replay (L2).
+			zU32 est = estimatedSendTimeFromPeer(event.peer);
 
-					// Replicator data starts at byte offset 3 (msgType=1 + nodeID=2)
-					size_t offset = 3;
-					ZCom_BitStream repData(
-						event.packet->data + offset,
-						event.packet->dataLength - offset
-					);
-					// Feed ENet's RTT-based send-time estimate into the replicator
-					// unpack so interceptors / interpolation get a real travel time
-					// instead of the hardcoded 0 (enables snapshot interpolation
-					// and dead-reckoning, previously impossible).
-					zU32 est = estimatedSendTimeFromPeer(event.peer);
-					repNode->unpackAllReplicators(&repData, true, est);
-				} else {
-					NET_LOG("MSG_REPLICATORS: nodeID=" << repNodeID << " NOT FOUND locally — buffering for later (" << m_nodes.size() << " nodes)");
+			if (repNode) {
+				NET_LOG("Received MSG_REPLICATORS for nodeID=" << repNodeID
+				<< " classID=" << repNode->getClassID() << " ("
+				<< ZCom_getClassName(repNode->getClassID()) << ")"
+				<< " role=" << repNode->getRole()
+				<< " dataLen=" << (event.packet->dataLength - 3));
 
-					// Buffer the replica data so it can be replayed when the node is registered
-					size_t offset = 3;
-					m_pendingReplicas[repNodeID].assign(
-						event.packet->data + offset,
-						event.packet->dataLength - offset
-					);
-				}
+				// Replicator data starts at byte offset 3 (msgType=1 + nodeID=2)
+				size_t offset = 3;
+				ZCom_BitStream repData(
+					event.packet->data + offset,
+					event.packet->dataLength - offset
+				);
+				repNode->unpackAllReplicators(&repData, true, est);
+			} else {
+				NET_LOG("MSG_REPLICATORS: nodeID=" << repNodeID << " NOT FOUND locally — buffering for later (" << m_nodes.size() << " nodes)");
+
+				// Buffer the replica data so it can be replayed when the node is
+				// registered. Record the sending peer (M2: so its disconnect can
+				// drop only this entry, not every peer's) and the RTT estimate
+				// (L2: so replay feeds interpolation a real travel time).
+				size_t offset = 3;
+				auto& pr = m_pendingReplicas[repNodeID];
+				pr.connID = connID;
+				pr.estimatedTimeSent = est;
+				pr.data.assign(
+					event.packet->data + offset,
+					event.packet->dataLength - offset
+				);
+			}
 
 				enet_packet_destroy(event.packet);
 				break;
@@ -1372,9 +1352,25 @@ void ZCom_Control::processENetEvent(ENetEvent& event)
 			m_waitingForReply.erase(connID);
 			m_announcedNodes.erase(connID);
 			m_peerRole.erase(connID);
-			m_pendingReplicas.clear(); // stale replica data from disconnected peer
-			m_pendingNodeEvents.clear();
-			m_pendingAnnounce.clear();
+			// M2: the per-nodeID buffers below are shared across ALL peers (keyed
+			// by nodeID), so a blanket clear() would wipe other clients' buffered
+			// data on a multi-client server. Drop only the entries that came from
+			// the disconnecting peer.
+			for (auto it = m_pendingReplicas.begin(); it != m_pendingReplicas.end(); ) {
+				if (it->second.connID == connID) it = m_pendingReplicas.erase(it);
+				else ++it;
+			}
+			for (auto it = m_pendingNodeEvents.begin(); it != m_pendingNodeEvents.end(); ) {
+				auto& vec = it->second;
+				vec.erase(std::remove_if(vec.begin(), vec.end(),
+					[&](const PendingNodeEvent& ev) { return ev.connID == connID; }),
+					vec.end());
+				if (vec.empty()) it = m_pendingNodeEvents.erase(it);
+				else ++it;
+			}
+			// m_pendingAnnounce holds LOCAL node IDs awaiting outbound announce
+			// to all currently-connected peers; do NOT clear it here, or nodes
+			// registered this tick would never reach the remaining peers.
 			dropPeerState(connID);
 
 			// Use pending disconnect data if available, otherwise empty
@@ -1769,22 +1765,48 @@ void ZCom_Control::pumpFileTransfers()
 		std::streamsize got = ft.inFile.gcount();
 
 		if (got <= 0) {
-			// EOF: if everything was sent, complete the transfer.
 			if (ft.transferred >= ft.size) {
+				// Clean EOF: every byte was sent — complete the transfer.
 				ft.done = true;
 				ft.inFile.close();
 				ZCom_BitStream pkt;
 				pkt.addInt(MSG_FILE_COMPLETE, 8);
 				pkt.addInt(ft.id, ZCOM_FTRANS_ID_BITS);
-					if (ENetPeer* peer = findPeer(ft.peerConnID)) {
-						ENetPacket* p = enet_packet_create(pkt.getData(), pkt.getDataLength(),
-							ENET_PACKET_FLAG_RELIABLE);
-						// File data + complete share channel 1 so they stay ordered
-						// among themselves AND don't head-of-line-block gameplay
-						// traffic on channel 0 during large level downloads.
-						enet_peer_send(peer, CH_FILE, p);
+				if (ENetPeer* peer = findPeer(ft.peerConnID)) {
+					ENetPacket* p = enet_packet_create(pkt.getData(), pkt.getDataLength(),
+						ENET_PACKET_FLAG_RELIABLE);
+					// File data + complete share channel 1 so they stay ordered
+					// among themselves AND don't head-of-line-block gameplay
+					// traffic on channel 0 during large level downloads.
+					enet_peer_send(peer, CH_FILE, p);
 					anySent = true;
 				}
+				// Notify the SENDER's own node that the transfer completed,
+				// mirroring the aborted branch below and the receiver-side
+				// MSG_FILE_COMPLETE handler. Without this the sender's game
+				// code never sees eZCom_EventFile_Complete, so its sendingFile
+				// flag stays set and the connection flow stalls (the updater
+				// never dequeues the trailing MsgRequestDone, and the client
+				// never reconnects to load the freshly-downloaded level).
+				pushFileEvent(ZCom_getNode(ft.nodeID), eZCom_EventFile_Complete,
+				              ft.peerConnID, ft.id, nullptr);
+			} else {
+				// L1: premature EOF / read error before all bytes were sent.
+				// Without this the transfer would stall forever (no complete,
+				// no abort, no event) and the receiver would hang waiting.
+				ft.aborted = true;
+				if (ft.inFile.is_open()) ft.inFile.close();
+				ZCom_BitStream pkt;
+				pkt.addInt(MSG_FILE_ABORT, 8);
+				pkt.addInt(ft.id, ZCOM_FTRANS_ID_BITS);
+				if (ENetPeer* peer = findPeer(ft.peerConnID)) {
+					ENetPacket* p = enet_packet_create(pkt.getData(), pkt.getDataLength(),
+						ENET_PACKET_FLAG_RELIABLE);
+					enet_peer_send(peer, CH_FILE, p);
+					anySent = true;
+				}
+				pushFileEvent(ZCom_getNode(ft.nodeID), eZCom_EventFile_Aborted,
+				              ft.peerConnID, ft.id, nullptr);
 			}
 			continue;
 		}
@@ -1812,6 +1834,23 @@ void ZCom_Control::pumpFileTransfers()
 			ft.bytesThisSec = 0;
 			ft.lastBpsTime = now;
 		}
+	}
+
+	// M3: reap finished transfers after a short grace. Completed/aborted
+	// entries were never erased, so a long-running server leaked every
+	// transfer's std::string/vector/fstream forever. The 2s grace lets the
+	// game's event handler (which calls getFileInfo on the queued
+	// Complete/Aborted event) still see valid info before we drop the entry.
+	for (auto it = m_fileTransfers.begin(); it != m_fileTransfers.end(); ) {
+		auto& ft = it->second;
+		if (ft.done || ft.aborted) {
+			if (ft.finishedTime == 0) ft.finishedTime = now;
+			if (now - ft.finishedTime > 2000) {
+				it = m_fileTransfers.erase(it);
+				continue;
+			}
+		}
+		++it;
 	}
 
 	if (anySent) enet_host_flush(m_host);

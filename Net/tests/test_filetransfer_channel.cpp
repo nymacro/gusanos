@@ -30,6 +30,8 @@ struct FCSrv : public ZCom_Control
 	int32_t val = 0;
 	int dataReceived = 0;
 	std::string lastData;
+	bool gotComplete = false;       // sender-side eZCom_EventFile_Complete
+	ZCom_FileTransID lastFid = 0;
 
 	~FCSrv() { delete node; node = nullptr; }
 	FCSrv(int port) {
@@ -42,6 +44,22 @@ struct FCSrv : public ZCom_Control
 	void ZCom_cbDataReceived(uint32_t, ZCom_BitStream& data) override {
 		dataReceived++;
 		lastData = data.getStringStatic();
+	}
+	// Mirror FCCli::drainFileEvents' eZCom_EventFile_Complete branch. The
+	// server is the file sender, so it only ever sees Complete/Aborted (never
+	// Incoming/Data). Capturing gotComplete here pins the sender-side push
+	// contract that pumpFileTransfers' complete branch must fire.
+	void drainFileEvents() {
+		if (!node) return;
+		eZCom_Event type; eZCom_NodeRole role; ZCom_ConnID conn;
+		while (node->checkEventWaiting()) {
+			auto d = node->getNextEvent(&type, &role, &conn);
+			if (!d) continue;
+			if (type == eZCom_EventFile_Complete) {
+				lastFid = static_cast<ZCom_FileTransID>(d->getInt(ZCOM_FTRANS_ID_BITS));
+				gotComplete = true;
+			}
+		}
 	}
 };
 
@@ -109,6 +127,7 @@ static void pump2(FCSrv* s, FCCli* c, int n)
 		g_currentControl = s; s->ZCom_processInput(eZCom_NoBlock); s->ZCom_processOutput();
 		g_currentControl = c; c->ZCom_processInput(eZCom_NoBlock); c->ZCom_processOutput();
 		c->drainFileEvents();
+		s->drainFileEvents();
 	}
 	g_currentControl = nullptr;
 }
@@ -189,6 +208,14 @@ BOOST_AUTO_TEST_CASE(file_transfer_completes_with_concurrent_userdata)
 	g_currentControl = nullptr;
 
 	pump2(&srv, &cli, 120);
+
+	// The sender (server) must also receive eZCom_EventFile_Complete on its
+	// own node — the sender-side push in pumpFileTransfers' complete branch.
+	// Without it the server's game code (the updater) never resets its
+	// sendingFile flag, so it never dequeues the trailing MsgRequestDone and
+	// the client never reconnects to load the downloaded level.
+	BOOST_REQUIRE(srv.gotComplete);
+	BOOST_CHECK_EQUAL(srv.lastFid, fid);
 
 	// File transfer (channel 1) completed.
 	BOOST_REQUIRE(cli.gotIncoming);

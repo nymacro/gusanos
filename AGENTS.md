@@ -5,6 +5,9 @@ tools) that need to understand and work with the Gusanos codebase.
 
 Always keep AGENTS.md and other project documentation up to date.
 
+Use the task tool to launch subagents specifying the model tier where possible to
+execute tasks that can be performed easily with medium or weak model tiers.
+
 ## Overview
 
 Gusanos is a C++17 game engine (SDL3 + ENet + SDL3_mixer) ported from the

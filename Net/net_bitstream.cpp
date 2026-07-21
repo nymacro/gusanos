@@ -59,9 +59,9 @@ void ZCom_BitStream::ensureCapacity(size_t neededBits)
 bool ZCom_BitStream::addInt(zU32 val, zU8 bits)
 {
 	if (bits <= 0) return true;
-		// `1u << i` below is UB for i >= 32, so cap bits at 32. Callers keep bits
-		// small; this catches misuse in debug builds and is free in NDEBUG.
-		assert(bits >= 1 && bits <= 32);
+		// `1u << i` below is UB for i >= 32; clamp instead of only asserting so
+		// release/dedserv (NDEBUG) builds don't hit UB on misuse.
+		if (bits > 32) bits = 32;
 	ensureCapacity(m_writeBit + bits);
 
 	for (int i = 0; i < bits; ++i) {
@@ -83,8 +83,8 @@ bool ZCom_BitStream::addSignedInt(zS32 val, zU8 bits)
 {
 	// Write as two's complement. `(1u << bits)` for bits >= 32 is UB; the
 		// ternary below already special-cases bits==32, but bits > 32 would still
-		// fall through to addInt's `1u << i` UB. Assert the legal range.
-		assert(bits >= 1 && bits <= 32);
+		// fall through to addInt's `1u << i` UB. Clamp the legal range.
+		if (bits > 32) bits = 32;
 	zU32 mask = (bits < 32) ? ((1u << bits) - 1) : 0xFFFFFFFFu;
 	addInt(static_cast<zU32>(val) & mask, bits);
 	return true;
@@ -93,8 +93,8 @@ bool ZCom_BitStream::addSignedInt(zS32 val, zU8 bits)
 void ZCom_BitStream::addInt64(int64_t val, int bits)
 {
 	if (bits <= 0) return;
-		// `1ULL << i` is UB for i >= 64; cap at 64.
-		assert(bits >= 1 && bits <= 64);
+		// `1ULL << i` is UB for i >= 64; clamp at 64.
+		if (bits > 64) bits = 64;
 	ensureCapacity(m_writeBit + bits);
 
 	for (int i = 0; i < bits; ++i) {
@@ -115,8 +115,8 @@ void ZCom_BitStream::addInt64(int64_t val, int bits)
 zU32 ZCom_BitStream::getInt(zU8 bits)
 {
 	if (bits <= 0) return 0;
-	// `1u << i` below is UB for i >= 32; cap bits at 32 (matches addInt).
-	assert(bits <= 32);
+	// `1u << i` below is UB for i >= 32; clamp at 32 (matches addInt).
+	if (bits > 32) bits = 32;
 	if (m_readBit + static_cast<size_t>(bits) > m_writeBit) {
 		m_readError = true;  // over-read: make the desync observable (T3.1)
 		return 0;
@@ -148,7 +148,7 @@ int64_t ZCom_BitStream::getInt64(int bits)
 {
 	if (bits <= 0) return 0;
 	// `1ULL << i` is UB for i >= 64; cap at 64 (matches addInt64).
-	assert(bits <= 64);
+	if (bits > 64) bits = 64;
 	if (m_readBit + static_cast<size_t>(bits) > m_writeBit) {
 		m_readError = true;  // over-read: make the desync observable (T3.1)
 		return 0;

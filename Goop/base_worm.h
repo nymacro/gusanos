@@ -175,6 +175,17 @@ public:
 protected:
 	//LuaReference luaReference;
 
+	// Tick every weapon's Weapon::think() (timers, fire trigger ->
+	// primaryShoot->run() spawns the authoritative projectile, ammo/reload
+	// bookkeeping, SHOOT/OutOfAmmo net messages). Extracted from think() so
+	// the server can run it for remote-client-owned worms inside the
+	// NetWorm::think() authority gate. Safe there because it neither
+	// integrates physics nor mutates pos/spd; aimAngle/currentWeapon arrive
+	// replicated from the owner and the FIRE action sets primaryShooting via
+	// the networked event. The owner client cannot spawn networked particles,
+	// so the server MUST run this for shots to replicate.
+	void runWeaponThink();
+
 #ifndef DEDSERV
 	Vec renderPos;
 #endif
