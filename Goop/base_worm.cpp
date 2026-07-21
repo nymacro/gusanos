@@ -131,12 +131,22 @@ void BaseWorm::setWeapon( size_t index, WeaponType* type )
 {
 	if(index >= m_weapons.size())
 		return;
-		
+
+	// Maintain m_weaponCount (count of non-null slots) so getWeaponIndexOffset
+	// can cycle weapons. setWeapons()/the constructor set this directly, but a
+	// networked CLIENT receives its loadout as individual SetWeapon events
+	// that route here — without this its m_weaponCount stays 0 (ClearWeapons
+	// reset it) and weapon switching is a no-op.
+	if (m_weapons[index])
+		--m_weaponCount;
 	luaDelete(m_weapons[index]);
 	m_weapons[index] = 0;
 
 	if ( type )
+	{
 		m_weapons[index] = new Weapon( type, this );
+		++m_weaponCount;
+	}
 }
 
 void BaseWorm::setWeapons( std::vector<WeaponType*> const& weaps )
@@ -146,11 +156,12 @@ void BaseWorm::setWeapons( std::vector<WeaponType*> const& weaps )
 	
 	// Here is where the interception of the server can be done on the weapon selection
 	clearWeapons();
+	// m_weaponCount is maintained per-slot by setWeapon() (it is the single
+	// primitive that mutates a slot); the per-call increment that used to live
+	// here would now double-count.
 	for ( size_t i = 0; i < weaps.size(); ++i )
 	{
 		setWeapon( i, weaps[i] );
-		if ( weaps[i] )
-			++m_weaponCount;
 	}
 }
 
@@ -460,6 +471,15 @@ void BaseWorm::processMoveAndDig(void)
 	}
 }
 
+void BaseWorm::runWeaponThink()
+{
+	for ( size_t i = 0; i < m_weapons.size(); ++i )
+	{
+		if ( m_weapons[i] )
+			m_weapons[i]->think( i == currentWeapon, i );
+	}
+}
+
 void BaseWorm::think()
 {
 		if(m_isActive)
@@ -488,11 +508,7 @@ void BaseWorm::think()
 			aimSpeed = 0;
 		}
 
-		for ( size_t i = 0; i < m_weapons.size(); ++i )
-		{
-			if ( m_weapons[i] )
-				m_weapons[i]->think( i == currentWeapon, i );
-		}
+		runWeaponThink();
 
 #ifndef DEDSERV
 		if(animate)

@@ -89,6 +89,17 @@ public:
 	// clients must rely on the replicated Die event instead.
 	virtual bool isAuthority() const
 	{ return true; }
+
+	// True if THIS machine is the simulator for this worm's physics/rope.
+	// This is the gate that decides whether to run BaseWorm::think() /
+	// NinjaRope::think() locally. Defaults to isAuthority() (correct for
+	// single-player/local worms). NetWorm overrides it with the combined
+	// role/owner test: a server relays a remote-client-owned worm (don't
+	// simulate), and a proxy renders another player's worm (don't
+	// simulate); only the true simulator (server for local/AI worms, owner
+	// client for its own worm) integrates physics.
+	virtual bool isLocalAuthority() const
+	{ return isAuthority(); }
 	
 	virtual void damage( float amount, BasePlayer* damager, DamageCause const& cause );
 	
@@ -163,6 +174,17 @@ public:
 	
 protected:
 	//LuaReference luaReference;
+
+	// Tick every weapon's Weapon::think() (timers, fire trigger ->
+	// primaryShoot->run() spawns the authoritative projectile, ammo/reload
+	// bookkeeping, SHOOT/OutOfAmmo net messages). Extracted from think() so
+	// the server can run it for remote-client-owned worms inside the
+	// NetWorm::think() authority gate. Safe there because it neither
+	// integrates physics nor mutates pos/spd; aimAngle/currentWeapon arrive
+	// replicated from the owner and the FIRE action sets primaryShooting via
+	// the networked event. The owner client cannot spawn networked particles,
+	// so the server MUST run this for shots to replicate.
+	void runWeaponThink();
 
 #ifndef DEDSERV
 	Vec renderPos;

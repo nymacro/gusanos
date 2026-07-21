@@ -27,6 +27,7 @@ ZCom_BitStream::ZCom_BitStream(const ZCom_BitStream& other)
 	, m_readPos(other.m_readPos)
 	, m_lastString(other.m_lastString)
 	, m_lastWString(other.m_lastWString)
+	, m_readError(other.m_readError)
 {
 }
 
@@ -39,6 +40,7 @@ ZCom_BitStream& ZCom_BitStream::operator=(const ZCom_BitStream& other)
 	m_readPos = other.m_readPos;
 	m_lastString = other.m_lastString;
 	m_lastWString = other.m_lastWString;
+	m_readError = other.m_readError;
 	return *this;
 }
 
@@ -57,6 +59,9 @@ void ZCom_BitStream::ensureCapacity(size_t neededBits)
 bool ZCom_BitStream::addInt(zU32 val, zU8 bits)
 {
 	if (bits <= 0) return true;
+		// `1u << i` below is UB for i >= 32; clamp instead of only asserting so
+		// release/dedserv (NDEBUG) builds don't hit UB on misuse.
+		if (bits > 32) bits = 32;
 	ensureCapacity(m_writeBit + bits);
 
 	for (int i = 0; i < bits; ++i) {
@@ -76,7 +81,10 @@ bool ZCom_BitStream::addInt(zU32 val, zU8 bits)
 
 bool ZCom_BitStream::addSignedInt(zS32 val, zU8 bits)
 {
-	// Write as two's complement
+	// Write as two's complement. `(1u << bits)` for bits >= 32 is UB; the
+		// ternary below already special-cases bits==32, but bits > 32 would still
+		// fall through to addInt's `1u << i` UB. Clamp the legal range.
+		if (bits > 32) bits = 32;
 	zU32 mask = (bits < 32) ? ((1u << bits) - 1) : 0xFFFFFFFFu;
 	addInt(static_cast<zU32>(val) & mask, bits);
 	return true;
@@ -85,6 +93,8 @@ bool ZCom_BitStream::addSignedInt(zS32 val, zU8 bits)
 void ZCom_BitStream::addInt64(int64_t val, int bits)
 {
 	if (bits <= 0) return;
+		// `1ULL << i` is UB for i >= 64; clamp at 64.
+		if (bits > 64) bits = 64;
 	ensureCapacity(m_writeBit + bits);
 
 	for (int i = 0; i < bits; ++i) {
@@ -105,7 +115,12 @@ void ZCom_BitStream::addInt64(int64_t val, int bits)
 zU32 ZCom_BitStream::getInt(zU8 bits)
 {
 	if (bits <= 0) return 0;
-	if (m_readBit + static_cast<size_t>(bits) > m_writeBit) return 0;
+	// `1u << i` below is UB for i >= 32; clamp at 32 (matches addInt).
+	if (bits > 32) bits = 32;
+	if (m_readBit + static_cast<size_t>(bits) > m_writeBit) {
+		m_readError = true;  // over-read: make the desync observable (T3.1)
+		return 0;
+	}
 
 	zU32 val = 0;
 	for (int i = 0; i < bits; ++i) {
@@ -132,7 +147,12 @@ zS32 ZCom_BitStream::getSignedInt(zU8 bits)
 int64_t ZCom_BitStream::getInt64(int bits)
 {
 	if (bits <= 0) return 0;
-	if (m_readBit + static_cast<size_t>(bits) > m_writeBit) return 0;
+	// `1ULL << i` is UB for i >= 64; cap at 64 (matches addInt64).
+	if (bits > 64) bits = 64;
+	if (m_readBit + static_cast<size_t>(bits) > m_writeBit) {
+		m_readError = true;  // over-read: make the desync observable (T3.1)
+		return 0;
+	}
 
 	uint64_t val = 0;
 	for (int i = 0; i < bits; ++i) {
@@ -598,6 +618,7 @@ void ZCom_BitStream::assign(const uint8_t* data, size_t bytes)
 	m_fillPos.bit = 0;
 	m_fillPos.pos = static_cast<uint16_t>(bytes);
 	m_readPos = {0, 0};
+	m_readError = false;  // fresh content: clear any prior over-read flag (T3.1)
 }
 
 // ---- Logging stubs (ref API, game-unused) ----

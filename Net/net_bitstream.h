@@ -87,6 +87,14 @@ public:
 	bool endOfStream() const;
 	zU16 getSizeHint() const;
 
+	// Over-read error tracking (T3.1). getInt/getInt64 return 0 on a read
+	// past end for back-compat; this flag makes such a read observable so
+	// processInput can detect protocol desync and close the connection
+	// instead of cascading garbage through every following read. The flag
+	// is sticky until reset()/Clear()/assign()/clearReadError().
+	bool getReadError() const { return m_readError; }
+	void clearReadError() { m_readError = false; }
+
 	// Serialization
 	bool Serialize(char* ptr, zU16* size, zU16 max_size);
 	bool Deserialize(char* ptr, zU16 size);
@@ -105,8 +113,8 @@ public:
 	zU32 getBitCount() const { return static_cast<zU32>(m_writeBit); }
 	size_t getBitLength() const { return m_writeBit; }
 	void resetRead() { m_readBit = 0; m_readPos = {0, 0}; }
-	void reset() { m_data.clear(); m_writeBit = 0; m_readBit = 0; m_readPos = {0, 0}; m_fillPos = {0, 0}; }
-	void Clear() { m_data.clear(); m_writeBit = 0; m_readBit = 0; m_readPos = {0, 0}; m_fillPos = {0, 0}; }
+	void reset() { m_data.clear(); m_writeBit = 0; m_readBit = 0; m_readPos = {0, 0}; m_fillPos = {0, 0}; m_readError = false; }
+	void Clear() { m_data.clear(); m_writeBit = 0; m_readBit = 0; m_readPos = {0, 0}; m_fillPos = {0, 0}; m_readError = false; }
 
 	// For reading from a prepared buffer
 	void assign(const uint8_t* data, size_t bytes);
@@ -124,6 +132,7 @@ private:
 	BitPos m_readPos;   // read state for save/restore
 	std::string m_lastString; // caches last read string for getStringStatic
 	std::wstring m_lastWString; // caches last read wide string
+	bool m_readError = false; // set on read past end (T3.1); sticky until reset
 };
 
 #endif // NET_BITSTREAM_H

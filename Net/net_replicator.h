@@ -216,6 +216,9 @@ public:
 	zU16 getId() const { return m_id; }
 	bool callProcess() const { return (m_flags & ZCOM_REPLICATOR_CALLPROCESS) ? true : false; }
 
+	uint32_t getLastSendTime() const { return m_lastSendTime; }
+	void setLastSendTime(uint32_t t) { m_lastSendTime = t; }
+
 	virtual bool checkState() { return false; }
 	virtual bool checkInitialState() { return true; }
 	virtual void packData(ZCom_BitStream* stream) {}
@@ -234,6 +237,7 @@ public:
 	void* m_peekData = nullptr;
 	uint32_t m_flags = 0;
 	zU16 m_id = 0;
+	uint32_t m_lastSendTime = 0;  // last pack/send time (ZoidCom::getTime()) for T1.3 min/max-delay throttling
 };
 
 // ---- Basic Replicator (default implementation holder) ----

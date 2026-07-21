@@ -3,6 +3,7 @@
 #include "util/vec.h"
 #include "game.h"
 #include "base_object.h"
+#include "base_worm.h"
 #include "part_type.h"
 #ifndef DEDSERV
 #include "sprite_set.h"
@@ -79,6 +80,25 @@ void NinjaRope::remove()
 
 void NinjaRope::think()
 {
+	// Only the worm's local simulator integrates rope physics. The owner
+	// runs NinjaRope::think() and replicates pos/length/active/attached to
+	// the server (OWNER_2_AUTH), which relays them to proxies
+	// (AUTH_2_PROXY). Everyone else — the server (relaying a remote-client
+	// worm) and proxies (rendering another player's worm) — must NOT
+	// integrate here, because rope spd is NOT replicated: a local
+	// pos += spd would drift away from the just-snapped replicated pos and
+	// get re-snapped next tick, oscillating the hook. Worse, the rope then
+	// calls m_worm->addSpeed() with that oscillating pull, propagating the
+	// jitter to the worm body (the visible "worm + hook oscillation").
+	// Non-simulators get the rope purely from replication; the worm's
+	// replicated spd already carries the owner's rope pull, so no local
+	// rope force is needed.
+	if (BaseWorm* worm = dynamic_cast<BaseWorm*>(m_worm))
+	{
+		if (!worm->isLocalAuthority())
+			return;
+	}
+
 	if ( m_length > game.options.ninja_rope_maxLength )
 		m_length = game.options.ninja_rope_maxLength;
 

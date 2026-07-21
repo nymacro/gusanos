@@ -39,6 +39,14 @@ public:
 		
 	static ZCom_ClassID  classID;
 	static constexpr float MAX_ERROR_RADIUS = 10.0f;
+	
+	// Minimum distance (px) between renderPos and pos at which a position update
+	// is treated as a teleport (initial spawn, server correction, level change)
+	// and renderPos snaps to pos instead of interpolating. Worms move only a few
+	// pixels per network update, so any gap beyond this is a teleport, not
+	// movement. Tune here if needed (expose as a cvar only if runtime tuning is
+	// later required).
+	static constexpr float RENDER_SNAP_THRESHOLD = 64.0f;
 		
 	NetWorm(bool isAuthority);
 	~NetWorm();
@@ -73,6 +81,21 @@ public:
 	void damage( float amount, BasePlayer* damager, DamageCause const& cause );
 	bool isAuthority() const
 	{ return m_isAuthority; }
+
+	// This machine simulates this worm's physics/rope only when it is the
+	// true source of truth for the worm:
+	//  - On the server (m_isAuthority): local/AI worms (getOwner()==0) are
+	//    simulated here; remote-client-owned worms (getOwner()!=0) are
+	//    driven by their owner and only relayed to proxies.
+	//  - On a client (!m_isAuthority): the owner of its own worm
+	//    (role==Owner) simulates; other players' worms (role==Proxy) are
+	//    rendered from replicated state.
+	bool isLocalAuthority() const override
+	{
+		if (!m_node) return m_isAuthority;
+		if (m_isAuthority) return m_node->getOwner() == 0;
+		return m_node->getRole() == eZCom_RoleOwner;
+	}
 	void setWeapon(size_t index, WeaponType* type );
 	void clearWeapons();
 	

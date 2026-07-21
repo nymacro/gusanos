@@ -935,6 +935,53 @@ BOOST_AUTO_TEST_CASE(interceptor_in_pre_update_item_called)
 	BOOST_CHECK_GE(interceptor.inPreUpdateItemCount, 1);
 }
 
+// The `estimatedTimeSent` argument passed to unpackAllReplicators must be
+// forwarded verbatim to inPreUpdateItem. The real receive path in
+// ZCom_Control computes this from ENet's RTT (estimatedSendTimeFromPeer)
+// and feeds it through unpackAllReplicators -> inPreUpdateItem so that
+// interceptors (e.g. NetWorm's snapshot interpolation / dead-reckoning)
+// get a real travel-time estimate instead of the hardcoded 0. This test
+// guards that plumbing against a refactor silently dropping the value.
+BOOST_AUTO_TEST_CASE(interceptor_in_pre_update_item_receives_estimated_time_sent)
+{
+	g_currentControl = nullptr;
+
+	struct CaptureEstInterceptor : public ZCom_NodeReplicationInterceptor
+	{
+		bool gotCalled = false;
+		uint32_t captured = 0;
+		bool inPreUpdate(ZCom_Node*, uint32_t, eZCom_NodeRole) override { return true; }
+		bool inPreUpdateItem(ZCom_Node*, uint32_t, eZCom_NodeRole,
+		                    ZCom_Replicator*, uint32_t estimated_time_sent) override
+		{
+			gotCalled = true;
+			captured = estimated_time_sent;
+			return true;
+		}
+		bool outPreUpdate(ZCom_Node*, uint32_t, eZCom_NodeRole) override { return true; }
+		bool outPreUpdateItem(ZCom_Node*, uint32_t, eZCom_NodeRole, ZCom_Replicator*) override { return true; }
+	};
+
+	ZCom_Node node;
+	CaptureEstInterceptor interceptor;
+	node.setReplicationInterceptor(&interceptor);
+
+	// Replicator with INTERCEPT flag so inPreUpdateItem is invoked.
+	ZCom_ReplicatorSetup setup(ZCOM_REPFLAG_INTERCEPT, 0, 42);
+	node.addReplicator(std::make_unique<ZCom_ReplicatorBasic>(&setup), true);
+
+	ZCom_BitStream packed;
+	node.packAllReplicators(&packed);
+	BOOST_REQUIRE_GT(packed.getDataLength(), 0);
+
+	packed.resetReadState();
+	const uint32_t sentEstimate = 0x12345678u;
+	node.unpackAllReplicators(&packed, true, sentEstimate);
+
+	BOOST_CHECK(interceptor.gotCalled);
+	BOOST_CHECK_EQUAL(interceptor.captured, sentEstimate);
+}
+
 BOOST_AUTO_TEST_CASE(interceptor_auto_replication_triggered)
 {
 	g_currentControl = nullptr;

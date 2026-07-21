@@ -193,6 +193,14 @@ void KeyHandler::init()
 {
 	buildKeyMappings();
 	SDL_StartTextInput(gfx.window);
+
+	// The engine reads mouse position via SDL_GetMouseState and gamepad axes
+	// via SDL_GetGamepadAxis, so motion events serve no consumer here. Without
+	// this, motion events pile up in the SDL event queue and eventually cause
+	// TEXT_INPUT events to be silently dropped, breaking console character
+	// input after prolonged play.
+	SDL_SetEventEnabled(SDL_EVENT_MOUSE_MOTION, false);
+	SDL_SetEventEnabled(SDL_EVENT_GAMEPAD_AXIS_MOTION, false);
 }
 
 void KeyHandler::shutDown()
@@ -231,6 +239,20 @@ void KeyHandler::pollKeyboard()
 	{
 		// Signal quit
 		quit = true;
+	}
+
+	// Drain every remaining queued event. SDL3's event queue is bounded; if it
+	// fills up, new events (including the TEXT_INPUT events the console relies
+	// on) are silently dropped. The state-polling APIs (SDL_GetKeyboardState /
+	// SDL_GetMouseState / SDL_GetGamepadAxis / ...) are unaffected by this drain,
+	// so the rest of the engine keeps working exactly as before.
+	{
+		SDL_Event discard;
+		while (SDL_PollEvent(&discard) > 0)
+		{
+			// intentionally empty — relevant event types are already handled
+			// by the targeted SDL_PeepEvents loops above.
+		}
 	}
 
 	// Diff keyboard state and fire signals
