@@ -15,6 +15,13 @@ class BaseAnimator;
 class BlitterContext;
 class Viewport;
 #endif
+
+#ifndef DEDSERV
+// When non-zero, Particle::draw paints a magenta cross at each particle's
+// projected screen position (world - viewport). Toggle at runtime via the
+// DBG_PARTICLE_WORLD_OVERLAY console variable.
+extern int g_drawParticleWorldOverlay;
+#endif
 struct LuaEventDef;
 class BasePlayer;
 class ParticleInterceptor;

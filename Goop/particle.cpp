@@ -18,6 +18,14 @@
 #include "lua/bindings-objects.h"
 #include "detect_event.h"
 #include "noise_line.h"
+
+#ifndef DEDSERV
+// Debug overlay: when enabled, Particle::draw paints a small magenta cross at
+// each particle's projected screen position (world - viewport). Use this to
+// verify that decoration objects from map config.cfg game_start events render
+// at the expected coordinates, independent of sprite pivot/centering.
+int g_drawParticleWorldOverlay = 0;
+#endif
 #include "util/vec.h"
 #include "util/angle.h"
 #include "util/log.h"
@@ -550,6 +558,19 @@ void Particle::draw(Viewport* viewport)
 	if ( game.level.config()->darkMode && m_type->lightHax )
 	{
 		game.level.culledDrawLight( m_type->lightHax, viewport, IVec(pos), (int)m_alpha );
+	}
+
+	if (g_drawParticleWorldOverlay)
+	{
+		// Magenta cross at the projected screen position. If the sprite uses
+		// its default center pivot, this cross will sit at the visual center
+		// of the sprite. If it sits at the top-left, the sprite's pivot is 0,0.
+		int const c = makecol(255, 0, 255);
+		putpixel(where, x,     y,     c);
+		putpixel(where, x - 1, y,     c);
+		putpixel(where, x + 1, y,     c);
+		putpixel(where, x,     y - 1, c);
+		putpixel(where, x,     y + 1, c);
 	}
 }
 #endif

@@ -220,8 +220,18 @@ Supports smoothing/interpolation for camera movement.
 
 ### Sprite (`Goop/sprite.cpp` + `sprite.h`)
 
-Wraps a BITMAP with pivot point. Supports alignment flags. Drawn via
-`draw()` or `drawCut()` with a `BlitterContext`.
+Wraps a BITMAP with a pivot point. The pivot defaults to the sprite's
+center (`m_xPivot = w/2`, `m_yPivot = h/2`) when not specified, so by
+default `Sprite::draw(where, x, y, ...)` renders the sprite **centered**
+on `(x, y)` (i.e. the bitmap's top-left is drawn at `(x - w/2, y - h/2)`).
+Supports alignment flags (`ALIGN_LEFT | ALIGN_TOP`, etc.) for callers that
+need edge-anchored rendering. Drawn via `draw()` or `drawCut()` with a
+`BlitterContext`.
+
+> **Coordinate convention note**: dynamic particles (worms, weapons,
+> bullets, blood) follow the engine's center-pivot default. Map-authored
+> `put_particle` calls are an exception: by default they interpret `(x, y)`
+> as the sprite's **top-left** (see `obj-format.md` § Map Config).
 
 ### SpriteSet (`Goop/sprite_set.cpp` + `sprite_set.h`)
 

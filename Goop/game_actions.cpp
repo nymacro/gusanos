@@ -9,6 +9,7 @@
 #include "sound.h"
 #include "sound1d.h"
 #include "sprite_set.h"
+#include "sprite.h"
 #endif
 #include "util/text.h"
 #include "util/angle.h"
@@ -300,7 +301,25 @@ void PutParticle::run( ActionParams const& params )
 {
 	if (type)
 	{
-		BaseObject* proj = type->newParticle(type, Vec(x,y), Vec(xspd,yspd), 1, 0, angle);
+		// By default, map-authored PutParticle coords are interpreted as the
+		// sprite's top-left, matching the level.png coordinate space. The
+		// engine renders sprites with their pivot (default = center) at pos,
+		// so we shift pos by the sprite's pivot to put the top-left at (x, y).
+		// Maps authored for the original Gusanos 0.9 center convention can set
+		// `center_aligned_particles 1` in their config.cfg to opt back in.
+		Vec adjustedPos(x, y);
+#ifndef DEDSERV
+		bool centerAligned = false;
+		if (game.level.isLoaded() && game.level.config())
+			centerAligned = game.level.config()->centerAlignedParticles;
+
+		if (!centerAligned && type->sprite && type->sprite->getFramesWidth() > 0)
+		{
+			if (Sprite* s = type->sprite->getSprite(0, Angle(0)))
+				adjustedPos = Vec(x + s->m_xPivot, y + s->m_yPivot);
+		}
+#endif
+		BaseObject* proj = type->newParticle(type, adjustedPos, Vec(xspd,yspd), 1, 0, angle);
 		if (proj) setProjectileCause(proj, params);
 	}
 }

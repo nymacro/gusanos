@@ -200,6 +200,7 @@ try
 		("CL_SHOWFPS", &showFps, 1)
 		("CL_SHOWDEBUG", &showDebug, 0)
 		("CL_SHOWGAMEPADINPUTS", &showGamepadInputs, 0)
+		("DBG_PARTICLE_WORLD_OVERLAY", &g_drawParticleWorldOverlay, 0)
 	;
 	
 	game.init(argc, argv);
