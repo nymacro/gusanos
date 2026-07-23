@@ -4,6 +4,7 @@
 #include "fmod_compat.h"
 
 #include <SDL3/SDL.h>
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <cmath>
@@ -171,7 +172,8 @@ const char* FSOUND_GetDriverName(int driver)
 int FSOUND_SetSFXMasterVolume(int volume)
 {
 	if (!s_mixer) return 0;
-	MIX_SetMixerGain(s_mixer, vol_to_gain(volume));
+	int v = std::clamp(volume, 0, 255);
+	MIX_SetMixerGain(s_mixer, vol_to_gain(v));
 	return 1;
 }
 
@@ -249,6 +251,9 @@ int FSOUND_PlaySoundEx(int channel, FSOUND_SAMPLE* s, void* dsp, int startpaused
 
 	MIX_Track *track = get_or_create_track(channel);
 	if (!track) return -1;
+
+	// Each new playback starts at full channel volume; callers set it afterwards.
+	chan_volume[channel] = 255;
 
 	// Stop anything already on this channel.
 	if (MIX_TrackPlaying(track))
@@ -329,10 +334,11 @@ int FSOUND_GetFrequency(int channel)
 int FSOUND_SetVolume(int channel, int vol)
 {
 	if (channel < 0 || channel >= MAX_CHANNELS) return 0;
-	chan_volume[channel] = vol;
+	int v = std::clamp(vol, 0, 255);
+	chan_volume[channel] = v;
 	MIX_Track *track = track_pool[channel];
 	if (track)
-		MIX_SetTrackGain(track, vol_to_gain(vol));
+		MIX_SetTrackGain(track, vol_to_gain(v));
 	return 1;
 }
 

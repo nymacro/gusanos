@@ -9,6 +9,7 @@
 
 #include <string>
 #include <iostream>
+#include <algorithm>
 #include <boost/filesystem/path.hpp>
 namespace fs = boost::filesystem;
 
@@ -52,7 +53,8 @@ void Sound::play(float volume,float pitch, float volumeVariation, float pitchVar
 			float rndPitch = pitch + rnd()*pitchVariation - pitchVariation / 2;
 			FSOUND_SetFrequency(chan, static_cast<int>(FSOUND_GetFrequency(chan) * rndPitch) );
 			
-			float rndVolume = pitch + rnd()*volumeVariation - volumeVariation / 2;
+			float rndVolume = volume + rnd()*volumeVariation - volumeVariation / 2;
+			rndVolume = std::clamp(rndVolume, 0.0f, 1.0f);
 			FSOUND_SetVolume(chan, static_cast<int>(FSOUND_GetVolume(chan)*rndVolume) );
 			
 			FSOUND_SetLoopMode( chan, FSOUND_LOOP_OFF );
