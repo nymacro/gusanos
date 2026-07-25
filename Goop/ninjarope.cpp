@@ -85,10 +85,11 @@ void NinjaRope::think() {
 	// Non-simulators get the rope purely from replication; the worm's
 	// replicated spd already carries the owner's rope pull, so no local
 	// rope force is needed.
-	if (BaseWorm *worm = dynamic_cast<BaseWorm *>(m_worm)) {
-		if (!worm->isLocalAuthority())
-			return;
-	}
+	BaseWorm *worm = dynamic_cast<BaseWorm *>(m_worm);
+	if (!worm)
+		return;
+	if (!worm->isLocalAuthority())
+		return;
 
 	if (m_length > game.options.ninja_rope_maxLength)
 		m_length = game.options.ninja_rope_maxLength;

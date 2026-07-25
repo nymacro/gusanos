@@ -55,6 +55,10 @@ BITMAP *load_bitmap(const char *filename, RGB *pal) {
 	SDL_Surface *surf = IMG_Load(filename);
 	if (!surf)
 		return NULL;
+	if (surf->w <= 0 || surf->h <= 0) {
+		SDL_DestroySurface(surf);
+		return NULL;
+	}
 
 	// Convert to current color depth if needed (Allegro behavior)
 	int target_depth = current_color_depth;
@@ -199,6 +203,11 @@ BITMAP *load_bitmap(const char *filename, RGB *pal) {
 		}
 	}
 
+	if (surf->w <= 0 || surf->h <= 0) {
+		SDL_DestroySurface(surf);
+		return NULL;
+	}
+
 	BITMAP *bmp = new BITMAP();
 	bmp->w = surf->w;
 	bmp->h = surf->h;
@@ -230,7 +239,7 @@ BITMAP *load_bitmap(const char *filename, RGB *pal) {
 	if (bmp->format == 32) {
 		SDL_LockSurface(surf);
 		for (int i = 0; i < surf->h; ++i) {
-			Uint32 *row = (Uint32 *)bmp->line[i];
+			Uint32 *row = (Uint32 *)((unsigned char *)bmp->pixels + i * surf->pitch);
 			for (int x = 0; x < surf->w; ++x) {
 				if (row[x] == 0xFFFF00FF)
 					row[x] = 0x00000000;
@@ -276,7 +285,7 @@ BITMAP *create_bitmap_ex(int depth, int w, int h) {
 		return NULL;
 	}
 	bmp->pixels = bmp->sdl_surface->pixels;
-	bmp->line = (unsigned char **)malloc(h * sizeof(void *));
+	bmp->line = (unsigned char **)malloc((h > 0 ? h : 1) * sizeof(void *));
 	for (int i = 0; i < h; ++i) {
 		bmp->line[i] = (unsigned char *)bmp->pixels + i * bmp->sdl_surface->pitch;
 	}
@@ -336,7 +345,7 @@ BITMAP *create_sub_bitmap(BITMAP *parent, int x, int y, int w, int h) {
 	bmp->cb = h;
 	bmp->format = parent->format;
 	bmp->pixels = parent->pixels; // Pointer to parent pixels
-	bmp->line = (unsigned char **)malloc(h * sizeof(void *));
+	bmp->line = (unsigned char **)malloc((h > 0 ? h : 1) * sizeof(void *));
 
 	int bpp = bmp->format / 8;
 

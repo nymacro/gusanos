@@ -177,10 +177,12 @@ void Viewport::render(BasePlayer *player) {
 		}
 	}
 
-	if (BaseWorm *worm = player->getWorm()) {
-		EACH_CALLBACK(i, viewportRender) {
-			// lua.callReference(0, *i, luaReference, worm->luaReference);
-			(lua.call(*i), luaReference, worm->getLuaReference())();
+	if (player) {
+		if (BaseWorm *worm = player->getWorm()) {
+			EACH_CALLBACK(i, viewportRender) {
+				// lua.callReference(0, *i, luaReference, worm->luaReference);
+				(lua.call(*i), luaReference, worm->getLuaReference())();
+			}
 		}
 	}
 }

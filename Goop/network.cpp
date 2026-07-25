@@ -270,12 +270,14 @@ Network network;
 
 void LuaEventDef::call(ZCom_BitStream *s) {
 	auto n = s->Duplicate();
-	(lua.call(callb), luaReference, lua.fullReference(*n, LuaBindings::ZCom_BitStreamMetaTable))();
+	ZCom_BitStream *data = n.release();
+	(lua.call(callb), luaReference, lua.fullReference(*data, LuaBindings::ZCom_BitStreamMetaTable))();
 }
 
 void LuaEventDef::call(LuaReference obj, ZCom_BitStream *s) {
 	auto n = s->Duplicate();
-	(lua.call(callb), luaReference, obj, lua.fullReference(*n, LuaBindings::ZCom_BitStreamMetaTable))();
+	ZCom_BitStream *data = n.release();
+	(lua.call(callb), luaReference, obj, lua.fullReference(*data, LuaBindings::ZCom_BitStreamMetaTable))();
 }
 
 LuaEventDef::~LuaEventDef() {

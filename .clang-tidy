@@ -3,7 +3,7 @@
 # Currently enables only the static analyzer to keep output manageable on a
 # large, recently-migrated C++17 codebase. Add more checks as the code is
 # cleaned up.
-Checks: '-*,clang-analyzer-*,boost-*,portability-*'
+Checks: '-*,clang-analyzer-*,portability-*'
 WarningsAsErrors: ''
 HeaderFilterRegex: '.*'
 # AnalyzeTemporaryDtors: false

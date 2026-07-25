@@ -112,6 +112,9 @@ bool SpriteSet::load(fs::path const &filename) {
 
 	destroy_bitmap(tempBitmap);
 
+	if (angleCount == 0)
+		return false;
+
 	m_angleFactor = (angleCount - 1) * 2;
 	m_halfAngleDivisonSize = (1 << 15) / angleCount / 2;
 

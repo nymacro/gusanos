@@ -279,6 +279,8 @@ def _load_compile_db_cpp_files():
     except Exception:
         return set()
 
+_CLANG_TIDY = os.environ.get('CLANG_TIDY', 'clang-tidy')
+
 def _run_clang_tidy(target, source, env):
     all_cpp = [f for f in _collect_project_sources(env) if f.endswith('.cpp')]
     cdb_files = _load_compile_db_cpp_files()
@@ -289,10 +291,11 @@ def _run_clang_tidy(target, source, env):
     if not files:
         print("No C++ source files found for tidy")
         return 0
+    print(f"Running {_CLANG_TIDY} on {len(files)} file(s)...")
     try:
-        subprocess.run(['clang-tidy', '-p', '.'] + files, check=True)
+        subprocess.run([_CLANG_TIDY, '-p', '.'] + files, check=True)
     except FileNotFoundError:
-        print("Error: clang-tidy not found in PATH")
+        print(f"Error: {_CLANG_TIDY} not found in PATH")
         return 1
     except subprocess.CalledProcessError as e:
         # emit-only: report diagnostics but do not fail the scons build

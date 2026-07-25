@@ -242,11 +242,6 @@ int main(int argc, char **argv) {
 					}
 				}
 				if (color != 0) {
-					float fade = 1 - minDistanceSqr / (fadeDistance * fadeDistance);
-					// float fade = sqrt( 1 / (sqrt(minDistanceSqr)*0.1f) );
-					if (fade < 0)
-						fade = 0;
-					// color *= fade;
 					color /= appliedCount;
 					if (color > 255)
 						color = 255;
@@ -257,7 +252,7 @@ int main(int argc, char **argv) {
 		}
 #endif
 
-		bool success = gfx.saveBitmap("newLightmap.png", lightmap, 0);
+		gfx.saveBitmap("newLightmap.png", lightmap, 0);
 	}
 
 	allegro_message("done");

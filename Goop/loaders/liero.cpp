@@ -121,7 +121,6 @@ void initMaterialMappings() {
 		bool dirt2 = getLieroMaterialFlag(Dirt2, i);
 		bool rock = getLieroMaterialFlag(Rock, i);
 		bool back = getLieroMaterialFlag(Back, i);
-		bool shadow = getLieroMaterialFlag(Shadow, i);
 
 		int mapTo = 0;
 

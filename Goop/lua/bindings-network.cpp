@@ -369,7 +369,7 @@ int l_network_game_event(lua_State *L) {
 	lua_pushvalue(context, 2);
 	LuaReference ref = context.createReference();
 	LuaEventDef *event = lua_new_m_keep(LuaEventDef, (name, ref), context, LuaGameEventMetaTable);
-	event = network.addLuaEvent(Network::LuaEventGroup::Game, name, event);
+	network.addLuaEvent(Network::LuaEventGroup::Game, name, event);
 
 	return 1;
 }
@@ -395,7 +395,7 @@ int l_network_player_event(lua_State *L) {
 	lua_pushvalue(context, 2);
 	LuaReference ref = context.createReference();
 	LuaEventDef *event = lua_new_m_keep(LuaEventDef, (name, ref), context, LuaPlayerEventMetaTable);
-	event = network.addLuaEvent(Network::LuaEventGroup::Player, name, event);
+	network.addLuaEvent(Network::LuaEventGroup::Player, name, event);
 
 	return 1;
 }
@@ -421,7 +421,7 @@ int l_network_worm_event(lua_State *L) {
 	lua_pushvalue(context, 2);
 	LuaReference ref = context.createReference();
 	LuaEventDef *event = lua_new_m_keep(LuaEventDef, (name, ref), context, LuaWormEventMetaTable);
-	event = network.addLuaEvent(Network::LuaEventGroup::Worm, name, event);
+	network.addLuaEvent(Network::LuaEventGroup::Worm, name, event);
 
 	return 1;
 }
@@ -449,7 +449,7 @@ int l_network_particle_event(lua_State *L) {
 	lua_pushvalue(context, 2);
 	LuaReference ref = context.createReference();
 	LuaEventDef *event = lua_new_m_keep(LuaEventDef, (name, ref), context, LuaParticleEventMetaTable);
-	event = network.addLuaEvent(Network::LuaEventGroup::Particle, name, event);
+	network.addLuaEvent(Network::LuaEventGroup::Particle, name, event);
 
 	return 1;
 }

@@ -27,7 +27,7 @@ struct TokenSet {
 
 struct Handler {
 	Handler(std::istream &str_, std::string const &file_)
-		: str(str_), file(file_), assumeset(0), setNumber(1), tokenNumber(1), line(1) {
+		: str(str_), file(file_), assumeset(0), setNumber(1), tokenNumber(1), assumeToken(0), line(1) {
 		/*
 		Token* t = new Token("EOF");
 		t->idx = 0;

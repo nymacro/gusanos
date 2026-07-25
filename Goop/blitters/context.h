@@ -51,11 +51,11 @@ struct BlitterContext {
 		AlphaChannel,
 	};
 
-	BlitterContext() : m_type(None) {}
+	BlitterContext() : m_type(None), m_fact(0) {}
 
 	BlitterContext(Type type_, int fact_) : m_type(type_), m_fact(fact_) {}
 
-	BlitterContext(none) : m_type(None) {}
+	BlitterContext(none) : m_type(None), m_fact(0) {}
 
 	BlitterContext(add, int fact_) : m_type(Add), m_fact(fact_) {}
 
