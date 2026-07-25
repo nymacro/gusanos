@@ -227,10 +227,8 @@ BOOST_AUTO_TEST_CASE(node_user_data) {
 
 BOOST_AUTO_TEST_CASE(node_properties) {
 	// No networking needed — just testing node API
-	// We use setControl() directly to avoid potential issues with
-	// full node registration (registerNodeUnique) which adds the node
-	// to the control's m_nodes list and can cause double-free in
-	// the control destructor if the node is deleted first.
+	// We use setControl() directly so we don't need a full registration path
+	// for this purely local property test.
 	g_currentControl = nullptr;
 
 	int port = 19220;

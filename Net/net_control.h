@@ -5,10 +5,10 @@
 #include "net_node.h"
 #include "net_address.h"
 #include "net_bitstream.h"
+#include "node_registry.h"
 #include <vector>
 #include <map>
 #include <set>
-#include <unordered_set>
 #include <string>
 #include <cstdint>
 #include <fstream>
@@ -216,11 +216,6 @@ class ZCom_Control {
 		return m_debugName;
 	}
 
-	// Access to registered nodes
-	const std::vector<ZCom_Node *> &getNodesConst() const {
-		return m_nodes;
-	}
-
 	// Access to peer map for iteration
 	const std::map<uint32_t, ENetPeer *> &getPeers() const {
 		return m_peerMap;
@@ -283,7 +278,7 @@ class ZCom_Control {
 	uint32_t m_nextNodeID;
 	uint32_t m_nextClassID;
 	std::vector<ZCom_ClassInfo> m_classes;
-	std::vector<ZCom_Node *> m_nodes;		  ///< non-owning (game owns the nodes)
+	NodeRegistry m_nodeRegistry;			  ///< owns registration order and lookups
 	std::map<uint32_t, ENetPeer *> m_peerMap; ///< non-owning (ENet owns the peers)
 	std::map<uint32_t, ZCom_Address> m_addressMap;
 	mutable std::map<ZCom_ConnID, ZCom_ConnStats>
@@ -301,13 +296,6 @@ class ZCom_Control {
 	/// (same tick) is reflected as a single owner-aware announce instead of a
 	/// premature Proxy announce followed by an Owner re-announce.
 	std::set<uint32_t> m_pendingAnnounce;
-
-	/// Nodes whose removal has been deferred to the next ZCom_processOutput().
-	/// removeNode() adds here instead of erasing m_nodes directly, so that
-	/// destructors triggered mid-iteration (e.g. Game::reset -> deleteThis ->
-	/// delete m_node) don't invalidate iterators in active range-for loops
-	/// over m_nodes. The actual erase happens at the top of ZCom_processOutput.
-	std::unordered_set<ZCom_Node *> m_pendingRemove;
 
 	/// Per-connection role each peer holds for each node (Phase D1 routing).
 	/// m_peerRole[connID][nodeID] = the role the peer at connID has for nodeID.

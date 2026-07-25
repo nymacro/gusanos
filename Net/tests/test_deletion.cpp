@@ -104,7 +104,7 @@ BOOST_AUTO_TEST_CASE(server_client_connect_and_delete_node) {
 // crash where Network::disconnect completion does `delete m_control` while
 // BasePlayer::m_node / NetWorm::m_node still hold an m_control back-pointer;
 // the later game.unload -> ~ZCom_Node -> unregisterNode -> removeNode would
-// dereference the freed control and crash inside m_pendingRemove.insert.
+// dereference the freed control and crash.
 BOOST_AUTO_TEST_CASE(shutdown_then_delete_node) {
 	g_currentControl = nullptr;
 	int port = 19150;
@@ -123,6 +123,25 @@ BOOST_AUTO_TEST_CASE(shutdown_then_delete_node) {
 
 	delete node; // must not crash (unregisterNode is a no-op when m_control==null)
 	BOOST_CHECK(true);
+}
+
+BOOST_AUTO_TEST_CASE(unregister_then_process_no_dangle) {
+	g_currentControl = nullptr;
+	DeletionServer srv(19160);
+	srv.m_playerClass = srv.ZCom_registerClass("Deletable", 0);
+
+	ZCom_Node *node = new ZCom_Node();
+	node->registerNodeDynamic(srv.m_playerClass, &srv);
+	BOOST_REQUIRE(srv.ZCom_getNode(node->getNetworkID()) == node);
+
+	node->unregisterNode();
+	delete node;
+
+	// These used to crash when m_nodes still held the dangling pointer
+	// and no flush had run.
+	srv.ZCom_processReplicators(16);
+	srv.ZCom_processOutput();
+	BOOST_CHECK(srv.ZCom_getNode(node->getNetworkID()) == nullptr);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

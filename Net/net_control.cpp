@@ -142,20 +142,6 @@ void ZCom_Control::ZCom_processOutput() {
 		return;
 	g_currentControl = this;
 
-	// Flush deferred node removals BEFORE anything that iterates m_nodes.
-	// removeNode() is called from ZCom_Node::~ZCom_Node(), which can fire
-	// during game logic (e.g. Game::reset -> BasePlayer::deleteThis -> delete
-	// m_node). Deferring the erase avoids iterator invalidation in active
-	// range-for loops over m_nodes (processOutput, flushPendingAnnounces,
-	// ZCom_getNode, dispatchNodeEvent, etc.).
-	if (!m_pendingRemove.empty()) {
-		auto pending = std::move(m_pendingRemove);
-		m_pendingRemove.clear();
-		m_nodes.erase(
-			std::remove_if(m_nodes.begin(), m_nodes.end(), [&](ZCom_Node *n) { return pending.count(n) != 0; }),
-			m_nodes.end());
-	}
-
 	// Flush deferred node announcements before routing replicators, so a node
 	// registered this tick (and possibly owner-assigned via setOwner) has its
 	// per-peer role (m_peerRole) recorded before getPeerRole() is consulted.
@@ -164,10 +150,10 @@ void ZCom_Control::ZCom_processOutput() {
 	// Both servers and clients may drive replicator output: authority nodes
 	// send to proxies/owners (AUTH_2_*), and owner nodes send to the authority
 	// (OWNER_2_AUTH). Proxy nodes never originate replicator data.
-	for (auto *node : m_nodes) {
+	m_nodeRegistry.forEach([&](ZCom_Node *node) {
 		eZCom_NodeRole localRole = node->getRole();
 		if (localRole != eZCom_RoleAuthority && localRole != eZCom_RoleOwner)
-			continue;
+			return;
 
 		uint32_t nid = node->getNetworkID();
 
@@ -184,7 +170,7 @@ void ZCom_Control::ZCom_processOutput() {
 				break;
 			}
 		if (!anyUpdate)
-			continue;
+			return;
 
 		for (auto &pair : m_peerMap) {
 			uint32_t connID = pair.first;
@@ -228,7 +214,7 @@ void ZCom_Control::ZCom_processOutput() {
 			else
 				enet_packet_destroy(packet);
 		}
-	}
+	});
 
 	drainLagQueue();
 	pumpFileTransfers();
@@ -239,31 +225,11 @@ void ZCom_Control::ZCom_processReplicators(uint32_t simulation_time_passed) {
 	// T1.3 — drive per-replicator Process() callbacks (dead-reckoning /
 	// interpolation hooks). Throttling (min/max delay) is applied at pack time
 	// in ZCom_Node::packReplicatorsForRouting, which owns the dirty/send decision.
-	//
-	// Flush deferred node removals first: a node unregisterNode()'d during the
-	// previous tick's input handling (e.g. server disconnect -> Game::reset ->
-	// delete m_node) is freed but still listed in m_nodes until processOutput
-	// runs. processReplicators runs before processOutput, so it must clear those
-	// dangling pointers itself.
-	if (!m_pendingRemove.empty()) {
-		auto pending = std::move(m_pendingRemove);
-		m_pendingRemove.clear();
-		m_nodes.erase(
-			std::remove_if(m_nodes.begin(), m_nodes.end(), [&](ZCom_Node *n) { return pending.count(n) != 0; }),
-			m_nodes.end());
-	}
-
-	for (auto *node : m_nodes) {
-		node->processReplicators(simulation_time_passed);
-	}
+	m_nodeRegistry.forEach([&](ZCom_Node *node) { node->processReplicators(simulation_time_passed); });
 }
 
 ZCom_Node *ZCom_Control::ZCom_getNode(ZCom_NodeID nid) const {
-	for (auto *node : m_nodes) {
-		if (node->getNetworkID() == nid)
-			return node;
-	}
-	return nullptr;
+	return m_nodeRegistry.find(nid);
 }
 
 eZCom_NodeRole ZCom_Control::getPeerRole(ZCom_ConnID connID, ZCom_NodeID nid) const {
@@ -399,18 +365,6 @@ void ZCom_Control::ZCom_Disconnect(ZCom_ConnID id, ZCom_BitStream *data) {
 }
 
 void ZCom_Control::Shutdown() {
-	// Flush deferred node removals BEFORE iterating m_nodes to null back-pointers.
-	// A node unregisterNode()'d (deferred to m_pendingRemove) then delete'd by its
-	// owner is freed but still listed in m_nodes; iterating it here without
-	// flushing would be a use-after-free (net-control-deferred-node-removal.md).
-	if (!m_pendingRemove.empty()) {
-		auto pending = std::move(m_pendingRemove);
-		m_pendingRemove.clear();
-		m_nodes.erase(
-			std::remove_if(m_nodes.begin(), m_nodes.end(), [&](ZCom_Node *n) { return pending.count(n) != 0; }),
-			m_nodes.end());
-	}
-
 	if (m_host) {
 		for (auto &pair : m_peerMap) {
 			if (pair.second) {
@@ -422,17 +376,15 @@ void ZCom_Control::Shutdown() {
 		enet_host_destroy(m_host);
 		m_host = nullptr;
 	}
-	// Null node back-pointers BEFORE clearing m_nodes: nodes are owned by the
-	// game (BasePlayer::m_node, NetWorm::m_node, etc.) and outlive the control.
-	// Without this, a later ~ZCom_Node -> unregisterNode -> removeNode would
-	// dereference this freed control (use-after-free crash on server exit:
+	// Null node back-pointers BEFORE clearing the registry: nodes are owned by
+	// the game (BasePlayer::m_node, NetWorm::m_node, etc.) and may outlive the
+	// control. Without this, a later ~ZCom_Node -> unregisterNode -> removeNode
+	// would dereference this freed control (use-after-free crash on server exit:
 	// disconnect completion does `delete m_control` while player/worm nodes
 	// still hold m_control pointers; then game.unload -> deleteThis -> ~ZCom_Node
-	// -> removeNode -> m_pendingRemove.insert crashes inside the hashtable).
-	for (auto *node : m_nodes)
-		node->setControl(nullptr);
-	m_nodes.clear();
-	m_pendingRemove.clear();
+	// -> removeNode dereferences the freed control).
+	m_nodeRegistry.forEach([](ZCom_Node *node) { node->setControl(nullptr); });
+	m_nodeRegistry.clear();
 	m_pendingAnnounce.clear();
 	m_pendingReplicas.clear();
 	m_pendingNodeEvents.clear();
@@ -496,7 +448,7 @@ bool ZCom_Control::registerExistingNode(ZCom_Node *node) {
 	if (!node)
 		return false;
 	node->setControl(this);
-	m_nodes.push_back(node);
+	m_nodeRegistry.insert(node);
 	// Replay any buffered replicator data for this node
 	replayPendingReplicators(node);
 	// Replay any buffered node events for this node
@@ -511,12 +463,12 @@ bool ZCom_Control::registerNode(ZCom_Node *node) {
 		return false;
 	node->setNodeID(m_nextNodeID++);
 	node->setControl(this);
-	m_nodes.push_back(node);
+	m_nodeRegistry.insert(node);
 
 	NET_LOG("Registered nodeID=" << node->getNetworkID() << " classID=" << node->getClassID() << " ("
 								 << ZCom_getClassName(node->getClassID()) << ")"
 								 << " unique=" << node->isUnique() << " role=" << node->getRole()
-								 << " owner=" << node->getOwner() << " totalNodes=" << m_nodes.size());
+								 << " owner=" << node->getOwner() << " totalNodes=" << m_nodeRegistry.size());
 
 	// Replay any buffered replicator data for this node
 	replayPendingReplicators(node);
@@ -657,15 +609,13 @@ void ZCom_Control::announceNodeWithOwner(ZCom_Node *node) {
 void ZCom_Control::removeNode(ZCom_Node *node) {
 	if (!node)
 		return;
-	// Defer the actual erase to the start of the next ZCom_processOutput().
-	// removeNode is called from ZCom_Node::~ZCom_Node(), which can fire while
-	// other code is iterating m_nodes (e.g. Game::reset -> deleteThis ->
-	// delete m_node during processOutput). Erasing here would invalidate
-	// those iterators and crash. Mark for deferred removal and clear any
-	// associated per-peer bookkeeping immediately so the node stops being
-	// routed to peers.
+	// Remove immediately from the registry. NodeRegistry uses a std::list so
+	// erasing one entry invalidates only that entry's iterator; the forEach
+	// helper pre-advances before invoking its callback, so destroying the
+	// current node during iteration is safe. Clear per-peer bookkeeping now
+	// so the node stops being routed to peers.
 	uint32_t nid = node->getNetworkID();
-	m_pendingRemove.insert(node);
+	m_nodeRegistry.remove(node);
 	for (auto &pair : m_peerMap) {
 		m_announcedNodes[pair.first].erase(nid);
 		m_peerRole[pair.first].erase(nid);
@@ -908,12 +858,12 @@ void ZCom_Control::processENetEvent(ENetEvent &event) {
 				// Send reply data back to client as MSG_CONNECTION_REPLY
 				sendConnectionReply(event.peer, reply, true);
 				// Sync existing nodes to the new client (skip unique nodes — registered locally)
-				for (auto *node : m_nodes) {
+				m_nodeRegistry.forEach([&](ZCom_Node *node) {
 					if (node->isUnique())
-						continue;
+						return;
 					// Track per-peer so re-announcements are skipped
 					if (m_announcedNodes[connID].count(node->getNetworkID()))
-						continue;
+						return;
 					m_announcedNodes[connID].insert(node->getNetworkID());
 
 					// Determine role for this client: Owner if node is owned by them, otherwise Proxy
@@ -955,7 +905,7 @@ void ZCom_Control::processENetEvent(ENetEvent &event) {
 					// processOutput passes, so the new peer would only see future
 					// dirty updates — missing the worm's position, health, etc.
 					node->forceReplicationUpdate();
-				}
+				});
 				// Fire connection spawned after reply is sent
 				ZCom_cbConnectionSpawned(connID);
 			} else {
@@ -1098,7 +1048,7 @@ void ZCom_Control::processENetEvent(ENetEvent &event) {
 					repNode->unpackAllReplicators(&repData, true, est);
 				} else {
 					NET_LOG("MSG_REPLICATORS: nodeID=" << repNodeID << " NOT FOUND locally — buffering for later ("
-													   << m_nodes.size() << " nodes)");
+													   << m_nodeRegistry.size() << " nodes)");
 
 					// Buffer the replica data so it can be replayed when the node is
 					// registered. Record the sending peer (M2: so its disconnect can
@@ -1415,14 +1365,13 @@ void ZCom_Control::sendConnectionReply(ENetPeer *peer, ZCom_BitStream &reply, bo
 void ZCom_Control::dispatchNodeEvent(uint32_t nodeID, int type, int role, uint32_t connID, ZCom_BitStream *data,
 									 zU32 estimatedTimeSent) {
 	bool found = false;
-	for (auto *node : m_nodes) {
+	m_nodeRegistry.forEach([&](ZCom_Node *node) {
 		if (node->getNetworkID() == nodeID) {
 			node->pushEvent(static_cast<eZCom_Event>(type), static_cast<eZCom_NodeRole>(role), connID, data,
 							estimatedTimeSent);
 			found = true;
-			break;
 		}
-	}
+	});
 	if (!found && data) {
 		// Node not registered locally yet (e.g. the announcement is still in
 		// flight). Buffer the event so it can be replayed once the node exists.
