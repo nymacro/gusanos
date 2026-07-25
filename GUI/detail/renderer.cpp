@@ -3,9 +3,4 @@
 using std::cerr;
 using std::endl;
 
-namespace OmfgGUI
-{
-
-
-
-}
+namespace OmfgGUI {}

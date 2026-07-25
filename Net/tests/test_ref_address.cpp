@@ -6,14 +6,12 @@
 
 BOOST_AUTO_TEST_SUITE(ref_address)
 
-BOOST_AUTO_TEST_CASE(default_construction)
-{
+BOOST_AUTO_TEST_CASE(default_construction) {
 	ZCom_Address addr;
 	BOOST_CHECK(true); // construction succeeds
 }
 
-BOOST_AUTO_TEST_CASE(set_ip)
-{
+BOOST_AUTO_TEST_CASE(set_ip) {
 	ZCom_Address addr;
 	addr.setIP(192, 168, 1, 100);
 	addr.setPort(8899);
@@ -29,8 +27,7 @@ BOOST_AUTO_TEST_CASE(set_ip)
 	BOOST_CHECK_EQUAL(addr.getControlID(), 0);
 }
 
-BOOST_AUTO_TEST_CASE(set_address_string)
-{
+BOOST_AUTO_TEST_CASE(set_address_string) {
 	ZCom_Address addr;
 	bool ok = addr.setAddress(eZCom_AddressUDP, 1, "127.0.0.1:8899");
 	BOOST_REQUIRE(ok);
@@ -44,8 +41,7 @@ BOOST_AUTO_TEST_CASE(set_address_string)
 	BOOST_CHECK_EQUAL(addr.getIP(3), 1);
 }
 
-BOOST_AUTO_TEST_CASE(equality)
-{
+BOOST_AUTO_TEST_CASE(equality) {
 	ZCom_Address a, b;
 	a.setAddress(eZCom_AddressUDP, 0, "10.0.0.1:8000");
 	b.setAddress(eZCom_AddressUDP, 0, "10.0.0.1:8000");
@@ -56,8 +52,7 @@ BOOST_AUTO_TEST_CASE(equality)
 	BOOST_CHECK(!(a == c));
 }
 
-BOOST_AUTO_TEST_CASE(copy_assignment)
-{
+BOOST_AUTO_TEST_CASE(copy_assignment) {
 	ZCom_Address a;
 	a.setAddress(eZCom_AddressUDP, 2, "192.168.1.1:5000");
 
@@ -69,8 +64,7 @@ BOOST_AUTO_TEST_CASE(copy_assignment)
 	BOOST_CHECK(c == a);
 }
 
-BOOST_AUTO_TEST_CASE(local_address)
-{
+BOOST_AUTO_TEST_CASE(local_address) {
 	ZCom_Address addr;
 	addr.setType(eZCom_AddressLocal);
 	addr.setPort(1);

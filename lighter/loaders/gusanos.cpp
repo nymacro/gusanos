@@ -12,39 +12,33 @@ using namespace std;
 
 GusanosLevelLoader GusanosLevelLoader::instance;
 
-bool GusanosLevelLoader::canLoad(fs::path const& path, std::string& name)
-{
-	if(fs::exists(path / "config.cfg"))
-	{
+bool GusanosLevelLoader::canLoad(fs::path const &path, std::string &name) {
+	if (fs::exists(path / "config.cfg")) {
 		name = path.filename().string();
 		return true;
 	}
 	return false;
 }
-	
-bool GusanosLevelLoader::load(Level* level, fs::path const& path)
-{
+
+bool GusanosLevelLoader::load(Level *level, fs::path const &path) {
 	std::string materialPath = (path / "material").string();
-	
+
 	level->path = path.string();
-	
+
 	{
 		LocalSetColorDepth cd(8);
 		level->material = gfx.loadBitmap(materialPath.c_str(), 0);
 	}
-	
-	if (level->material)
-	{
+
+	if (level->material) {
 
 		level->loaderSucceeded();
 		return true;
-
 	}
 	level->unload();
 	return false;
 }
 
-const char* GusanosLevelLoader::getName()
-{
+const char *GusanosLevelLoader::getName() {
 	return "Gusanos 0.9 level loader";
 }

@@ -5,16 +5,14 @@
 #include "luaapi/types.h"
 #include <vector>
 
-namespace OmfgGUI
-{
+namespace OmfgGUI {
 class Context;
 }
 
-namespace LuaBindings
-{
-	void initGUI(OmfgGUI::Context& gui, LuaContext& context);
+namespace LuaBindings {
+void initGUI(OmfgGUI::Context &gui, LuaContext &context);
 
-	//extern std::vector<LuaReference> guiWndMetaTable;
-}
+// extern std::vector<LuaReference> guiWndMetaTable;
+} // namespace LuaBindings
 
-#endif //LUA_BINDINGS_GUI_H
+#endif // LUA_BINDINGS_GUI_H

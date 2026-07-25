@@ -2,9 +2,9 @@
 #define GAME_H
 
 #include "level.h"
-//#include "base_object.h"
-//#include "base_action.h"
-//#include "objects_list.h"
+// #include "base_object.h"
+// #include "base_action.h"
+// #include "objects_list.h"
 #include "object_grid.h"
 #include "message_queue.h"
 
@@ -37,15 +37,13 @@ class Sound1D;
 class Font;
 #endif
 
-
 #define USE_GRID
 
 class Player;
 
-struct Options
-{
+struct Options {
 	void registerInConsole();
-	
+
 	float ninja_rope_shootSpeed;
 	float ninja_rope_pullForce;
 	float ninja_rope_startDistance;
@@ -78,73 +76,58 @@ struct Options
 	int teamPlay;
 	bool showDeathMessages;
 	bool logDeathMessages;
-	
+
 	int showMapDebug;
 };
 
-struct LevelEffectEvent
-{
-	LevelEffectEvent( int index_, int x_, int y_ ) : index(index_), x(x_), y(y_)
-	{
-	}
+struct LevelEffectEvent {
+	LevelEffectEvent(int index_, int x_, int y_) : index(index_), x(x_), y(y_) {}
 	int index;
-	int x,y;
-	
+	int x, y;
 };
 
-struct ScreenMessage
-{
-	enum Type
-	{
+struct ScreenMessage {
+	enum Type {
 		Death,
 		Chat,
 	};
-	
-	ScreenMessage(Type type_, std::string const& str_, int timeOut_ = 400)
-	: type(type_), str(str_), timeOut(timeOut_)
-	{
-	}
-	
+
+	ScreenMessage(Type type_, std::string const &str_, int timeOut_ = 400)
+		: type(type_), str(str_), timeOut(timeOut_) {}
+
 	Type type;
 	std::string str;
 	int timeOut;
 };
 
-class Game
-{
-public:
+class Game {
+  public:
 #ifndef USE_GRID
-	enum ColLayer
-	{
+	enum ColLayer {
 		WORMS_COLLISION_LAYER = 0,
 		NO_COLLISION_LAYER = 1,
 		COLLISION_LAYER_COUNT = 10,
 	};
-	
-	enum RenderLayer
-	{
+
+	enum RenderLayer {
 		WORMS_RENDER_LAYER = 4,
 		RENDER_LAYER_COUNT = 10,
 	};
-	
+
 	static const int CUSTOM_COL_LAYER_START = 2;
 #endif
 
 	static const size_t MAX_LOCAL_PLAYERS = 2;
-	
-	
-		
-	static ZCom_ClassID  classID;
 
-	enum PLAYER_TYPE
-	{
+	static ZCom_ClassID classID;
+
+	enum PLAYER_TYPE {
 		OWNER = 0,
 		PROXY,
 		AI,
 	};
-	
-	enum ResetReason
-	{
+
+	enum ResetReason {
 		ServerQuit,
 		ServerChangeMap,
 		Kicked,
@@ -152,124 +135,112 @@ public:
 		IncompatibleProtocol,
 		IncompatibleData,
 	};
-	
-	enum Error
-	{
-		ErrorNone = 0,
-		ErrorMapNotFound,
-		ErrorMapLoading,
-		ErrorModNotFound,
-		ErrorModLoading
-	};
-		
+
+	enum Error { ErrorNone = 0, ErrorMapNotFound, ErrorMapLoading, ErrorModNotFound, ErrorModLoading };
+
 	Game();
 	~Game();
-	
-	void init(int argc, char** argv);
-	void parseCommandLine(int argc, char** argv);
-	
+
+	void init(int argc, char **argv);
+	void parseCommandLine(int argc, char **argv);
+
 	void think();
-	
-	bool setMod(const std::string& mod);
+
+	bool setMod(const std::string &mod);
 	void loadWeapons();
 	void reset(ResetReason reason);
 	void unload();
 	void error(Error err);
 	void loadMod(bool doLoadWeapons = true);
 	bool isLoaded();
-	void refreshResources(fs::path const& levelPath);
+	void refreshResources(fs::path const &levelPath);
 	void refreshLevels();
 	void refreshMods();
 	bool reloadModWithoutMap();
 	void createNetworkPlayers();
-	bool changeLevel(const std::string& level, bool refresh = true);
-	bool changeLevelCmd(const std::string& level);
-	bool hasLevel(std::string const& level);
-	bool hasMod(std::string const& mod);
+	bool changeLevel(const std::string &level, bool refresh = true);
+	bool changeLevelCmd(const std::string &level);
+	bool hasLevel(std::string const &level);
+	bool hasMod(std::string const &mod);
 	void runInitScripts();
-	void addBot( int team = -1 );
-	BasePlayer* findPlayerWithID( ZCom_NodeID ID );
-	BasePlayer* addPlayer( PLAYER_TYPE type, int team = -1, BaseWorm* worm = 0 );
-	BaseWorm* addWorm(bool isAuthority); // Creates a worm class depending on the network condition.
-	//static ZCom_Node* getNode();
-	static void sendLuaEvent(LuaEventDef* event, eZCom_SendMode mode, zU8 rules, ZCom_BitStream* data, ZCom_ConnID connID);
-	
-	void assignNetworkRole( bool authority );
+	void addBot(int team = -1);
+	BasePlayer *findPlayerWithID(ZCom_NodeID ID);
+	BasePlayer *addPlayer(PLAYER_TYPE type, int team = -1, BaseWorm *worm = 0);
+	BaseWorm *addWorm(bool isAuthority); // Creates a worm class depending on the network condition.
+	// static ZCom_Node* getNode();
+	static void sendLuaEvent(LuaEventDef *event, eZCom_SendMode mode, zU8 rules, ZCom_BitStream *data,
+							 ZCom_ConnID connID);
+
+	void assignNetworkRole(bool authority);
 	void removeNode();
-	
-	void applyLevelEffect( LevelEffect* effect, int x, int y );
-	
-	void sendRConMsg( std::string const & message );
-	void displayChatMsg( std::string const& owner, std::string const& message);
-	void displayKillMsg( BasePlayer* killed, BasePlayer* killer, std::string const& weaponName, std::string const& killerNameFallback );
-	void displayMessage( ScreenMessage const& msg );
-	
+
+	void applyLevelEffect(LevelEffect *effect, int x, int y);
+
+	void sendRConMsg(std::string const &message);
+	void displayChatMsg(std::string const &owner, std::string const &message);
+	void displayKillMsg(BasePlayer *killed, BasePlayer *killer, std::string const &weaponName,
+						std::string const &killerNameFallback);
+	void displayMessage(ScreenMessage const &msg);
+
 	Level level;
-	std::vector<WeaponType*> weaponList;
+	std::vector<WeaponType *> weaponList;
 	Options options;
-	std::vector<shared_ptr<PlayerOptions> > playerOptions;
+	std::vector<shared_ptr<PlayerOptions>> playerOptions;
 	std::set<std::string> modList;
-	
-	std::vector<Player*> localPlayers;
-	std::list<BasePlayer*> players;
+
+	std::vector<Player *> localPlayers;
+	std::list<BasePlayer *> players;
 #ifdef USE_GRID
 	Grid objects;
 #else
 	ObjectsList objects;
 #endif
 
-	void insertExplosion( Explosion* explosion );
-	
-	std::map< std::string, BaseAction*(*)( const std::vector< std::string > & ) > actionList;
-	//HashTable< std::string, BaseAction*(*)( const std::vector< std::string > & ) > actionList;
-	
-	PartType* NRPartType;
-	PartType* deathObject;
-	PartType* digObject;
-		
-	const std::string& getMod();
-	fs::path const& getModPath();
-	fs::path const& getDefaultPath();
+	void insertExplosion(Explosion *explosion);
+
+	std::map<std::string, BaseAction *(*)(const std::vector<std::string> &)> actionList;
+	// HashTable< std::string, BaseAction*(*)( const std::vector< std::string > & ) > actionList;
+
+	PartType *NRPartType;
+	PartType *deathObject;
+	PartType *digObject;
+
+	const std::string &getMod();
+	fs::path const &getModPath();
+	fs::path const &getDefaultPath();
 
 #ifndef DEDSERV
-	Sound1D* chatSound;
+	Sound1D *chatSound;
 	Font *infoFont;
 #endif
 	std::list<ScreenMessage> messages;
-	
+
 	unsigned int m_tick = 0;
-	unsigned int getTick() const { return m_tick; }
-	
-	unsigned long stringToIndex(std::string const& str);
-	
-	std::string const& indexToString(unsigned long idx);
-	
-	std::string const& getModName();
-	
-	static void addCRCs(ZCom_BitStream* req);
-	static bool checkCRCs(ZCom_BitStream& data);
-	
+	unsigned int getTick() const {
+		return m_tick;
+	}
+
+	unsigned long stringToIndex(std::string const &str);
+
+	std::string const &indexToString(unsigned long idx);
+
+	std::string const &getModName();
+
+	static void addCRCs(ZCom_BitStream *req);
+	static bool checkCRCs(ZCom_BitStream &data);
+
 	MessageQueue msg;
-	
-	mq_define_message(ChangeLevel, 0, (std::string level_))
-		: level(level_)
-		{
-			
-		}
-		
-		std::string level;
+
+	mq_define_message(ChangeLevel, 0, (std::string level_)) : level(level_) {}
+
+	std::string level;
 	mq_end_define_message()
-	
-	mq_define_message(ChangeLevelReal, 1, (std::string level_))
-		: level(level_)
-		{
-			
-		}
-		
-		std::string level;
+
+		mq_define_message(ChangeLevelReal, 1, (std::string level_))
+		: level(level_) {}
+
+	std::string level;
 	mq_end_define_message()
-	
-	
 };
 
 extern Game game;

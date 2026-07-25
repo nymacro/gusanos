@@ -1,15 +1,10 @@
 #include "worm.h"
 
-Worm::Worm() : BaseWorm()
-{
-}
+Worm::Worm() : BaseWorm() {}
 
-Worm::~Worm()
-{
-}
+Worm::~Worm() {}
 
-void Worm::think()
-{
+void Worm::think() {
 	BaseWorm::think();
 #ifndef DEDSERV
 	renderPos = pos;

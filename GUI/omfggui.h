@@ -4,9 +4,8 @@
 #include "detail/context.h"
 #include "detail/renderer.h"
 
-namespace OmfgGUI
-{
-	void testParseXML();
+namespace OmfgGUI {
+void testParseXML();
 }
 
-#endif //OMFGGUI_H
+#endif // OMFGGUI_H

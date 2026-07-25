@@ -6,81 +6,63 @@
 #include <string>
 #include <list>
 
-class Gfx
-{
-public:
-
-	enum Blenders
-	{
-		ALPHA,
-		ADD,
-		NONE
-	};
+class Gfx {
+  public:
+	enum Blenders { ALPHA, ADD, NONE };
 
 	Gfx();
 	~Gfx();
-	
+
 	void init();
-	
-	BITMAP* loadBitmap(const std::string &filename, RGB* palette = NULL, bool keepAlpha = false);
-	bool saveBitmap(const std::string &filename, BITMAP* image, RGB* palette = NULL);
-	
-	inline void setBlender( Blenders blender, int alpha )
-	{
+
+	BITMAP *loadBitmap(const std::string &filename, RGB *palette = NULL, bool keepAlpha = false);
+	bool saveBitmap(const std::string &filename, BITMAP *image, RGB *palette = NULL);
+
+	inline void setBlender(Blenders blender, int alpha) {
 		drawing_mode(DRAW_MODE_TRANS, NULL, 0, 0);
-		switch ( blender )
-		{
+		switch (blender) {
 			case ALPHA:
 				set_trans_blender(255, 255, 255, alpha);
-			break;
-			
+				break;
+
 			case ADD:
-				set_add_blender( 255,255,255, alpha);
-			break;
-			
+				set_add_blender(255, 255, 255, alpha);
+				break;
+
 			case NONE:
 				solid_mode();
-			break;
+				break;
 		}
 	}
-	
-private:
-	
+
+  private:
 };
 
 extern Gfx gfx;
 
-struct LocalSetColorConversion
-{
-	LocalSetColorConversion(int flags)
-	: old(get_color_conversion())
-	{
+struct LocalSetColorConversion {
+	LocalSetColorConversion(int flags) : old(get_color_conversion()) {
 		set_color_conversion(flags);
 	}
-	
-	~LocalSetColorConversion()
-	{
+
+	~LocalSetColorConversion() {
 		set_color_conversion(old);
 	}
-	
-private:
+
+  private:
 	int old;
 };
 
-struct LocalSetColorDepth
-{
-	LocalSetColorDepth(int depth)
-	: old(get_color_depth())
-	{
+struct LocalSetColorDepth {
+	LocalSetColorDepth(int depth) : old(get_color_depth()) {
 		set_color_depth(depth);
 	}
-	
-	~LocalSetColorDepth()
-	{
+
+	~LocalSetColorDepth() {
 		set_color_depth(old);
 	}
-	
-private:
+
+  private:
 	int old;
 };
 

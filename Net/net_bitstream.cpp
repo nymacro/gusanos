@@ -5,34 +5,21 @@
 #include <new>
 #include <memory>
 
-ZCom_BitStream::ZCom_BitStream(zU16 _maxfill)
-	: m_writeBit(0), m_readBit(0), m_fillPos{0, 0}, m_readPos{0, 0}
-{
+ZCom_BitStream::ZCom_BitStream(zU16 _maxfill) : m_writeBit(0), m_readBit(0), m_fillPos{0, 0}, m_readPos{0, 0} {
 	if (_maxfill)
 		m_data.reserve(_maxfill);
 }
 
-ZCom_BitStream::ZCom_BitStream(const uint8_t* data, size_t bytes)
-	: m_data(data, data + bytes), m_writeBit(bytes * 8), m_readBit(0)
-	, m_fillPos{static_cast<uint16_t>(bytes * 8), static_cast<uint16_t>(bytes)}
-	, m_readPos{0, 0}
-{
-}
+ZCom_BitStream::ZCom_BitStream(const uint8_t *data, size_t bytes)
+	: m_data(data, data + bytes), m_writeBit(bytes * 8), m_readBit(0),
+	  m_fillPos{static_cast<uint16_t>(bytes * 8), static_cast<uint16_t>(bytes)}, m_readPos{0, 0} {}
 
-ZCom_BitStream::ZCom_BitStream(const ZCom_BitStream& other)
-	: m_data(other.m_data)
-	, m_writeBit(other.m_writeBit)
-	, m_readBit(other.m_readBit)
-	, m_fillPos(other.m_fillPos)
-	, m_readPos(other.m_readPos)
-	, m_lastString(other.m_lastString)
-	, m_lastWString(other.m_lastWString)
-	, m_readError(other.m_readError)
-{
-}
+ZCom_BitStream::ZCom_BitStream(const ZCom_BitStream &other)
+	: m_data(other.m_data), m_writeBit(other.m_writeBit), m_readBit(other.m_readBit), m_fillPos(other.m_fillPos),
+	  m_readPos(other.m_readPos), m_lastString(other.m_lastString), m_lastWString(other.m_lastWString),
+	  m_readError(other.m_readError) {}
 
-ZCom_BitStream& ZCom_BitStream::operator=(const ZCom_BitStream& other)
-{
+ZCom_BitStream &ZCom_BitStream::operator=(const ZCom_BitStream &other) {
 	m_data = other.m_data;
 	m_writeBit = other.m_writeBit;
 	m_readBit = other.m_readBit;
@@ -44,30 +31,29 @@ ZCom_BitStream& ZCom_BitStream::operator=(const ZCom_BitStream& other)
 	return *this;
 }
 
-ZCom_BitStream::~ZCom_BitStream()
-{
-}
+ZCom_BitStream::~ZCom_BitStream() {}
 
-void ZCom_BitStream::ensureCapacity(size_t neededBits)
-{
+void ZCom_BitStream::ensureCapacity(size_t neededBits) {
 	size_t neededBytes = (neededBits + 7) / 8;
 	if (neededBytes > m_data.size()) {
 		m_data.resize(neededBytes + 64); // grow with some headroom
 	}
 }
 
-bool ZCom_BitStream::addInt(zU32 val, zU8 bits)
-{
-	if (bits <= 0) return true;
-		// `1u << i` below is UB for i >= 32; clamp instead of only asserting so
-		// release/dedserv (NDEBUG) builds don't hit UB on misuse.
-		if (bits > 32) bits = 32;
+bool ZCom_BitStream::addInt(zU32 val, zU8 bits) {
+	if (bits <= 0)
+		return true;
+	// `1u << i` below is UB for i >= 32; clamp instead of only asserting so
+	// release/dedserv (NDEBUG) builds don't hit UB on misuse.
+	if (bits > 32)
+		bits = 32;
 	ensureCapacity(m_writeBit + bits);
 
 	for (int i = 0; i < bits; ++i) {
 		size_t byteIdx = m_writeBit / 8;
 		size_t bitIdx = m_writeBit % 8;
-		if (bitIdx == 0 && byteIdx >= m_data.size()) m_data.push_back(0);
+		if (bitIdx == 0 && byteIdx >= m_data.size())
+			m_data.push_back(0);
 
 		if (val & (1u << i))
 			m_data[byteIdx] |= (1 << bitIdx);
@@ -79,28 +65,30 @@ bool ZCom_BitStream::addInt(zU32 val, zU8 bits)
 	return true;
 }
 
-bool ZCom_BitStream::addSignedInt(zS32 val, zU8 bits)
-{
+bool ZCom_BitStream::addSignedInt(zS32 val, zU8 bits) {
 	// Write as two's complement. `(1u << bits)` for bits >= 32 is UB; the
-		// ternary below already special-cases bits==32, but bits > 32 would still
-		// fall through to addInt's `1u << i` UB. Clamp the legal range.
-		if (bits > 32) bits = 32;
+	// ternary below already special-cases bits==32, but bits > 32 would still
+	// fall through to addInt's `1u << i` UB. Clamp the legal range.
+	if (bits > 32)
+		bits = 32;
 	zU32 mask = (bits < 32) ? ((1u << bits) - 1) : 0xFFFFFFFFu;
 	addInt(static_cast<zU32>(val) & mask, bits);
 	return true;
 }
 
-void ZCom_BitStream::addInt64(int64_t val, int bits)
-{
-	if (bits <= 0) return;
-		// `1ULL << i` is UB for i >= 64; clamp at 64.
-		if (bits > 64) bits = 64;
+void ZCom_BitStream::addInt64(int64_t val, int bits) {
+	if (bits <= 0)
+		return;
+	// `1ULL << i` is UB for i >= 64; clamp at 64.
+	if (bits > 64)
+		bits = 64;
 	ensureCapacity(m_writeBit + bits);
 
 	for (int i = 0; i < bits; ++i) {
 		size_t byteIdx = m_writeBit / 8;
 		size_t bitIdx = m_writeBit % 8;
-		if (bitIdx == 0 && byteIdx >= m_data.size()) m_data.push_back(0);
+		if (bitIdx == 0 && byteIdx >= m_data.size())
+			m_data.push_back(0);
 
 		uint64_t uval = static_cast<uint64_t>(val);
 		if (uval & (1ULL << i))
@@ -112,13 +100,14 @@ void ZCom_BitStream::addInt64(int64_t val, int bits)
 	m_fillPos.pos = static_cast<uint16_t>(m_writeBit / 8);
 }
 
-zU32 ZCom_BitStream::getInt(zU8 bits)
-{
-	if (bits <= 0) return 0;
+zU32 ZCom_BitStream::getInt(zU8 bits) {
+	if (bits <= 0)
+		return 0;
 	// `1u << i` below is UB for i >= 32; clamp at 32 (matches addInt).
-	if (bits > 32) bits = 32;
+	if (bits > 32)
+		bits = 32;
 	if (m_readBit + static_cast<size_t>(bits) > m_writeBit) {
-		m_readError = true;  // over-read: make the desync observable (T3.1)
+		m_readError = true; // over-read: make the desync observable (T3.1)
 		return 0;
 	}
 
@@ -135,8 +124,7 @@ zU32 ZCom_BitStream::getInt(zU8 bits)
 	return val;
 }
 
-zS32 ZCom_BitStream::getSignedInt(zU8 bits)
-{
+zS32 ZCom_BitStream::getSignedInt(zU8 bits) {
 	zS32 val = static_cast<zS32>(getInt(bits));
 	// Sign extend
 	if (bits > 0 && bits < 32 && (val & (1 << (bits - 1))))
@@ -144,13 +132,14 @@ zS32 ZCom_BitStream::getSignedInt(zU8 bits)
 	return val;
 }
 
-int64_t ZCom_BitStream::getInt64(int bits)
-{
-	if (bits <= 0) return 0;
+int64_t ZCom_BitStream::getInt64(int bits) {
+	if (bits <= 0)
+		return 0;
 	// `1ULL << i` is UB for i >= 64; cap at 64 (matches addInt64).
-	if (bits > 64) bits = 64;
+	if (bits > 64)
+		bits = 64;
 	if (m_readBit + static_cast<size_t>(bits) > m_writeBit) {
-		m_readError = true;  // over-read: make the desync observable (T3.1)
+		m_readError = true; // over-read: make the desync observable (T3.1)
 		return 0;
 	}
 
@@ -167,19 +156,16 @@ int64_t ZCom_BitStream::getInt64(int bits)
 	return static_cast<int64_t>(val);
 }
 
-bool ZCom_BitStream::addBool(bool val)
-{
+bool ZCom_BitStream::addBool(bool val) {
 	addInt(val ? 1 : 0, 1);
 	return true;
 }
 
-bool ZCom_BitStream::getBool()
-{
+bool ZCom_BitStream::getBool() {
 	return getInt(1) != 0;
 }
 
-bool ZCom_BitStream::addFloat(zFloat val, zU8 bits)
-{
+bool ZCom_BitStream::addFloat(zFloat val, zU8 bits) {
 	// Write float as raw bits (32-bit IEEE 754)
 	if (bits >= 32) {
 		uint32_t raw;
@@ -201,8 +187,7 @@ bool ZCom_BitStream::addFloat(zFloat val, zU8 bits)
 	return true;
 }
 
-zFloat ZCom_BitStream::getFloat(zU8 bits)
-{
+zFloat ZCom_BitStream::getFloat(zU8 bits) {
 	if (bits >= 32) {
 		uint32_t raw = static_cast<uint32_t>(getInt(32));
 		float val;
@@ -217,8 +202,7 @@ zFloat ZCom_BitStream::getFloat(zU8 bits)
 	}
 }
 
-void ZCom_BitStream::addDouble(double val, int bits)
-{
+void ZCom_BitStream::addDouble(double val, int bits) {
 	if (bits >= 64) {
 		uint64_t raw;
 		memcpy(&raw, &val, sizeof(raw));
@@ -235,8 +219,7 @@ void ZCom_BitStream::addDouble(double val, int bits)
 	}
 }
 
-double ZCom_BitStream::getDouble(int bits)
-{
+double ZCom_BitStream::getDouble(int bits) {
 	if (bits >= 64) {
 		uint64_t raw = static_cast<uint64_t>(getInt64(64));
 		double val;
@@ -251,8 +234,7 @@ double ZCom_BitStream::getDouble(int bits)
 	}
 }
 
-bool ZCom_BitStream::addString(const char* str)
-{
+bool ZCom_BitStream::addString(const char *str) {
 	if (!str) {
 		addInt(0, 16); // empty string (no terminator written for empty)
 		return true;
@@ -265,10 +247,10 @@ bool ZCom_BitStream::addString(const char* str)
 	return true;
 }
 
-const char* ZCom_BitStream::getStringStatic()
-{
+const char *ZCom_BitStream::getStringStatic() {
 	int len = getInt(16);
-	if (len <= 0) return "";
+	if (len <= 0)
+		return "";
 
 	m_lastString.clear();
 	m_lastString.reserve(len);
@@ -278,8 +260,7 @@ const char* ZCom_BitStream::getStringStatic()
 	return m_lastString.c_str();
 }
 
-std::string ZCom_BitStream::getString()
-{
+std::string ZCom_BitStream::getString() {
 	// Returns the string by value (RAII; no caller-managed buffer).
 	int len = getInt(16);
 	if (len <= 0) {
@@ -296,8 +277,7 @@ std::string ZCom_BitStream::getString()
 	return buf;
 }
 
-uint16_t ZCom_BitStream::getStringSize()
-{
+uint16_t ZCom_BitStream::getStringSize() {
 	size_t saved = m_readBit;
 	int len = getInt(16);
 	m_readBit = saved;
@@ -306,20 +286,20 @@ uint16_t ZCom_BitStream::getStringSize()
 	return static_cast<uint16_t>(len);
 }
 
-uint16_t ZCom_BitStream::getStringLength()
-{
+uint16_t ZCom_BitStream::getStringLength() {
 	return getStringSize();
 }
 
-void ZCom_BitStream::getString(char* buf, zU16 bufsize)
-{
+void ZCom_BitStream::getString(char *buf, zU16 bufsize) {
 	int len = getInt(16);
 	if (len <= 0) {
-		if (bufsize > 0 && buf) buf[0] = '\0';
+		if (bufsize > 0 && buf)
+			buf[0] = '\0';
 		return;
 	}
 	if (bufsize == 0) {
-		for (int i = 0; i < len; ++i) getInt(8);
+		for (int i = 0; i < len; ++i)
+			getInt(8);
 		return;
 	}
 	size_t avail = static_cast<size_t>(bufsize) - 1;
@@ -332,8 +312,7 @@ void ZCom_BitStream::getString(char* buf, zU16 bufsize)
 		getInt(8);
 }
 
-bool ZCom_BitStream::addStringW(const wchar_t* str)
-{
+bool ZCom_BitStream::addStringW(const wchar_t *str) {
 	if (!str) {
 		addInt(0, 16);
 		return true;
@@ -346,8 +325,7 @@ bool ZCom_BitStream::addStringW(const wchar_t* str)
 	return true;
 }
 
-uint16_t ZCom_BitStream::getStringWLength()
-{
+uint16_t ZCom_BitStream::getStringWLength() {
 	size_t saved = m_readBit;
 	int len = getInt(16);
 	m_readBit = saved;
@@ -356,15 +334,16 @@ uint16_t ZCom_BitStream::getStringWLength()
 	return static_cast<uint16_t>(len);
 }
 
-void ZCom_BitStream::getStringW(wchar_t* buf, zU16 bufsize)
-{
+void ZCom_BitStream::getStringW(wchar_t *buf, zU16 bufsize) {
 	int len = getInt(16);
 	if (len <= 0) {
-		if (bufsize > 0 && buf) buf[0] = L'\0';
+		if (bufsize > 0 && buf)
+			buf[0] = L'\0';
 		return;
 	}
 	if (bufsize == 0) {
-		for (int i = 0; i < len; ++i) getInt(16);
+		for (int i = 0; i < len; ++i)
+			getInt(16);
 		return;
 	}
 	size_t avail = static_cast<size_t>(bufsize) - 1;
@@ -376,10 +355,10 @@ void ZCom_BitStream::getStringW(wchar_t* buf, zU16 bufsize)
 		getInt(16);
 }
 
-const wchar_t* ZCom_BitStream::getStringWStatic()
-{
+const wchar_t *ZCom_BitStream::getStringWStatic() {
 	int len = getInt(16);
-	if (len <= 0) return L"";
+	if (len <= 0)
+		return L"";
 
 	m_lastWString.clear();
 	for (int i = 0; i < len; ++i)
@@ -388,16 +367,14 @@ const wchar_t* ZCom_BitStream::getStringWStatic()
 	return m_lastWString.c_str();
 }
 
-bool ZCom_BitStream::addBuffer(const char* buf, zU16 len)
-{
+bool ZCom_BitStream::addBuffer(const char *buf, zU16 len) {
 	addInt(len, 16);
 	for (zU16 i = 0; i < len; ++i)
 		addInt(static_cast<unsigned char>(buf[i]), 8);
 	return true;
 }
 
-uint16_t ZCom_BitStream::getBuffer(char* buf, uint16_t len)
-{
+uint16_t ZCom_BitStream::getBuffer(char *buf, uint16_t len) {
 	uint16_t actualLen = static_cast<uint16_t>(getInt(16));
 	uint16_t copyLen = actualLen < len ? actualLen : len;
 	for (uint16_t i = 0; i < copyLen; ++i)
@@ -408,10 +385,10 @@ uint16_t ZCom_BitStream::getBuffer(char* buf, uint16_t len)
 	return actualLen;
 }
 
-uint16_t ZCom_BitStream::getBufferMax()
-{
+uint16_t ZCom_BitStream::getBufferMax() {
 	// Peek the stored buffer length without consuming it
-	if (m_readBit + 16 > m_writeBit) return 0;
+	if (m_readBit + 16 > m_writeBit)
+		return 0;
 	size_t saved = m_readBit;
 	uint16_t len = static_cast<uint16_t>(getInt(16));
 	m_readBit = saved;
@@ -420,10 +397,10 @@ uint16_t ZCom_BitStream::getBufferMax()
 	return len;
 }
 
-bool ZCom_BitStream::addBitStream(ZCom_BitStream* other, bool _allow_align)
-{
+bool ZCom_BitStream::addBitStream(ZCom_BitStream *other, bool _allow_align) {
 	(void)_allow_align;
-	if (!other) return false;
+	if (!other)
+		return false;
 	// Inline the source stream's written bits directly (no length prefix),
 	// matching original Zoidcom semantics: addBitStream embeds bits that the
 	// receiver reads back with getBitStream(bits) or direct getInt/getBool
@@ -437,8 +414,7 @@ bool ZCom_BitStream::addBitStream(ZCom_BitStream* other, bool _allow_align)
 	return true;
 }
 
-std::unique_ptr<ZCom_BitStream> ZCom_BitStream::getBitStream(uint32_t bits, bool copyData)
-{
+std::unique_ptr<ZCom_BitStream> ZCom_BitStream::getBitStream(uint32_t bits, bool copyData) {
 	(void)copyData;
 	auto extracted = std::make_unique<ZCom_BitStream>();
 	for (uint32_t i = 0; i < bits; ++i) {
@@ -453,40 +429,36 @@ std::unique_ptr<ZCom_BitStream> ZCom_BitStream::getBitStream(uint32_t bits, bool
 
 // ---- Skip methods ----
 
-void ZCom_BitStream::skipInt(zU8 bits)
-{
-	if (bits <= 0) return;
+void ZCom_BitStream::skipInt(zU8 bits) {
+	if (bits <= 0)
+		return;
 	m_readBit += static_cast<size_t>(bits);
-	if (m_readBit > m_writeBit) m_readBit = m_writeBit;
+	if (m_readBit > m_writeBit)
+		m_readBit = m_writeBit;
 	m_readPos.bit = static_cast<uint16_t>(m_readBit % 8);
 	m_readPos.pos = static_cast<uint16_t>(m_readBit / 8);
 }
 
-void ZCom_BitStream::skipSignedInt(zU8 bits)
-{
+void ZCom_BitStream::skipSignedInt(zU8 bits) {
 	skipInt(bits);
 }
 
-void ZCom_BitStream::skipBool()
-{
+void ZCom_BitStream::skipBool() {
 	skipInt(1);
 }
 
-void ZCom_BitStream::skipFloat(zU8 bits)
-{
+void ZCom_BitStream::skipFloat(zU8 bits) {
 	skipInt(bits >= 32 ? 32 : bits);
 }
 
-void ZCom_BitStream::skipString()
-{
+void ZCom_BitStream::skipString() {
 	int len = getInt(16);
 	if (len > 0) {
-			skipBits(len * 8);
+		skipBits(len * 8);
 	}
 }
 
-void ZCom_BitStream::skipBuffer(uint16_t len)
-{
+void ZCom_BitStream::skipBuffer(uint16_t len) {
 	(void)len;
 	// In ZoidCom reference, skipBuffer skips a *stored* buffer by given byte count
 	// We need to read the length prefix and skip
@@ -494,24 +466,22 @@ void ZCom_BitStream::skipBuffer(uint16_t len)
 	skipBits(actualLen * 8);
 }
 
-void ZCom_BitStream::skipBits(uint32_t amount)
-{
+void ZCom_BitStream::skipBits(uint32_t amount) {
 	m_readBit += amount;
-	if (m_readBit > m_writeBit) m_readBit = m_writeBit;
+	if (m_readBit > m_writeBit)
+		m_readBit = m_writeBit;
 	m_readPos.bit = static_cast<uint16_t>(m_readBit % 8);
 	m_readPos.pos = static_cast<uint16_t>(m_readBit / 8);
 }
 
 // ---- State save/restore ----
 
-void ZCom_BitStream::saveWriteState(BitPos& pos) const
-{
+void ZCom_BitStream::saveWriteState(BitPos &pos) const {
 	pos.bit = static_cast<uint16_t>(m_writeBit % 8);
 	pos.pos = static_cast<uint16_t>(m_writeBit / 8);
 }
 
-void ZCom_BitStream::restoreWriteState(const BitPos& pos)
-{
+void ZCom_BitStream::restoreWriteState(const BitPos &pos) {
 	m_fillPos = pos;
 	m_writeBit = static_cast<size_t>(pos.pos) * 8 + pos.bit;
 	// Truncate data beyond the restored position
@@ -520,48 +490,42 @@ void ZCom_BitStream::restoreWriteState(const BitPos& pos)
 		m_data.resize(neededBytes);
 }
 
-void ZCom_BitStream::saveReadState(BitPos& pos) const
-{
+void ZCom_BitStream::saveReadState(BitPos &pos) const {
 	pos.bit = static_cast<uint16_t>(m_readBit % 8);
 	pos.pos = static_cast<uint16_t>(m_readBit / 8);
 }
 
-void ZCom_BitStream::restoreReadState(const BitPos& pos)
-{
+void ZCom_BitStream::restoreReadState(const BitPos &pos) {
 	m_readPos = pos;
 	m_readBit = static_cast<size_t>(pos.pos) * 8 + pos.bit;
 }
 
 // ---- Stream checks ----
 
-bool ZCom_BitStream::checkMax(uint32_t bits) const
-{
+bool ZCom_BitStream::checkMax(uint32_t bits) const {
 	size_t neededBits = m_writeBit + bits;
 	size_t maxBits = m_data.size() * 8;
 	return neededBits <= maxBits;
 }
 
-bool ZCom_BitStream::checkFull() const
-{
+bool ZCom_BitStream::checkFull() const {
 	return m_writeBit / 8 > m_data.size();
 }
 
-bool ZCom_BitStream::endOfStream() const
-{
+bool ZCom_BitStream::endOfStream() const {
 	return m_readBit >= m_writeBit;
 }
 
-uint16_t ZCom_BitStream::getSizeHint() const
-{
+uint16_t ZCom_BitStream::getSizeHint() const {
 	return static_cast<uint16_t>((m_writeBit + 7) / 8);
 }
 
 // ---- Serialization ----
 
-bool ZCom_BitStream::Serialize(char* ptr, uint16_t* size, uint16_t max_size)
-{
+bool ZCom_BitStream::Serialize(char *ptr, uint16_t *size, uint16_t max_size) {
 	uint16_t needed = getSizeHint();
-	if (needed > max_size) return false;
+	if (needed > max_size)
+		return false;
 	if (ptr && size) {
 		memcpy(ptr, m_data.data(), needed);
 		*size = needed;
@@ -569,10 +533,10 @@ bool ZCom_BitStream::Serialize(char* ptr, uint16_t* size, uint16_t max_size)
 	return true;
 }
 
-bool ZCom_BitStream::Deserialize(char* ptr, uint16_t size)
-{
-	if (!ptr || size == 0) return false;
-	m_data.assign(reinterpret_cast<uint8_t*>(ptr), reinterpret_cast<uint8_t*>(ptr) + size);
+bool ZCom_BitStream::Deserialize(char *ptr, uint16_t size) {
+	if (!ptr || size == 0)
+		return false;
+	m_data.assign(reinterpret_cast<uint8_t *>(ptr), reinterpret_cast<uint8_t *>(ptr) + size);
 	m_writeBit = size * 8;
 	m_readBit = 0;
 	m_fillPos.bit = 0;
@@ -583,20 +547,19 @@ bool ZCom_BitStream::Deserialize(char* ptr, uint16_t size)
 
 // ---- Comparison ----
 
-bool ZCom_BitStream::isEqual(const ZCom_BitStream& other) const
-{
+bool ZCom_BitStream::isEqual(const ZCom_BitStream &other) const {
 	size_t ourBytes = (m_writeBit + 7) / 8;
 	size_t otherBytes = (other.m_writeBit + 7) / 8;
-	if (ourBytes != otherBytes) return false;
+	if (ourBytes != otherBytes)
+		return false;
 	return m_data.size() >= ourBytes && other.m_data.size() >= otherBytes
-		? memcmp(m_data.data(), other.m_data.data(), ourBytes) == 0
-		: false;
+			   ? memcmp(m_data.data(), other.m_data.data(), ourBytes) == 0
+			   : false;
 }
 
 // ---- Duplicate ----
 
-std::unique_ptr<ZCom_BitStream> ZCom_BitStream::Duplicate() const
-{
+std::unique_ptr<ZCom_BitStream> ZCom_BitStream::Duplicate() const {
 	auto dup = std::make_unique<ZCom_BitStream>();
 	size_t byteStart = m_readBit / 8;
 	if (byteStart < m_data.size()) {
@@ -610,15 +573,14 @@ std::unique_ptr<ZCom_BitStream> ZCom_BitStream::Duplicate() const
 	return dup;
 }
 
-void ZCom_BitStream::assign(const uint8_t* data, size_t bytes)
-{
+void ZCom_BitStream::assign(const uint8_t *data, size_t bytes) {
 	m_data.assign(data, data + bytes);
 	m_writeBit = bytes * 8;
 	m_readBit = 0;
 	m_fillPos.bit = 0;
 	m_fillPos.pos = static_cast<uint16_t>(bytes);
 	m_readPos = {0, 0};
-	m_readError = false;  // fresh content: clear any prior over-read flag (T3.1)
+	m_readError = false; // fresh content: clear any prior over-read flag (T3.1)
 }
 
 // ---- Logging stubs (ref API, game-unused) ----
@@ -628,12 +590,10 @@ void ZCom_BitStream::logWriteState() {}
 
 // ---- Custom allocation (delegate to global; matches ref API) ----
 
-void* ZCom_BitStream::operator new(size_t _size)
-{
+void *ZCom_BitStream::operator new(size_t _size) {
 	return ::operator new(_size);
 }
 
-void ZCom_BitStream::operator delete(void* _p)
-{
+void ZCom_BitStream::operator delete(void *_p) {
 	::operator delete(_p);
 }

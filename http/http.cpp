@@ -19,211 +19,170 @@ using boost::lexical_cast;
 using std::cout;
 using std::endl;
 
-namespace HTTP
-{
+namespace HTTP {
 
-TCP::Socket::Error Request::getErrorForRequest(Request* req)
-{
-	if(!req)
+TCP::Socket::Error Request::getErrorForRequest(Request *req) {
+	if (!req)
 		return TCP::Socket::ErrorConnect;
 	return req->getError();
 }
 
-void Request::addHeader(std::string const& header)
-{
-	if(header.find("200 OK") != std::string::npos)
+void Request::addHeader(std::string const &header) {
+	if (header.find("200 OK") != std::string::npos)
 		success = true;
-	else
-	{
+	else {
 		std::string::size_type p = header.find(':');
-		if(p == std::string::npos) return;
-		std::string::size_type b = header.find_first_not_of(" ", p + 1);;
-		//static char const contentLen[] = "Content-Length";
-		if(istrCmp("Content-Length", header.begin(), header.begin() + p))
-		{
-			if(b == std::string::npos) return;
+		if (p == std::string::npos)
+			return;
+		std::string::size_type b = header.find_first_not_of(" ", p + 1);
+		;
+		// static char const contentLen[] = "Content-Length";
+		if (istrCmp("Content-Length", header.begin(), header.begin() + p)) {
+			if (b == std::string::npos)
+				return;
 			dataLength = lexical_cast<size_t>(header.substr(b));
 		}
 	}
 }
 
-char const* Request::parseHeaders(char const* b, char const* e)
-{
-	char const* oldb = b;
-	for(; b != e; ++b)
-	{
+char const *Request::parseHeaders(char const *b, char const *e) {
+	char const *oldb = b;
+	for (; b != e; ++b) {
 		char c = *b;
-		if(c == '\012')
-		{
+		if (c == '\012') {
 			oldb = b + 1;
 			continue;
 		}
-		if(c == '\015')
-		{
+		if (c == '\015') {
 			header.insert(header.end(), oldb, b);
-			
-			if(header.empty())
-			{
+
+			if (header.empty()) {
 				// Return pointer to the first byte after \r\n (body start).
 				// If past buffer end, return e (empty body).
-				char const* after = b + 2;
+				char const *after = b + 2;
 				return (after <= e) ? after : e;
 			}
-				
+
 			addHeader(header);
 			header.clear();
 			continue;
 		}
 	}
-	
+
 	header.insert(header.end(), oldb, e);
-		
+
 	return 0;
 }
 
-void Request::switchState(Request::State newState)
-{
-	switch(newState)
-	{
-		case SendingData:
-		{
+void Request::switchState(Request::State newState) {
+	switch (newState) {
+		case SendingData: {
 			state = SendingData;
-		}
-		break;
-		
-		case ReadingHeader:
-		{
+		} break;
+
+		case ReadingHeader: {
 			state = ReadingHeader;
-		}
-		break;
-		
-		case ReadingData:
-		{
+		} break;
+
+		case ReadingData: {
 			state = ReadingData;
-		}
-		break;
-		
-		case Done:
-		{
+		} break;
+
+		case Done: {
 			close();
 			state = Done;
-		}
-		break;
+		} break;
 	}
 }
 
-bool Request::think()
-{
-	if(TCP::Socket::think())
+bool Request::think() {
+	if (TCP::Socket::think())
 		return true;
-	
-	if(connected)
-	{
-		switch(state)
-		{
-			case SendingData:
-			{
-				dataSender = send(dataSender,
-					outData.data(),
-					outData.data() + outData.size());
-					
-				if(error)
-				{
+
+	if (connected) {
+		switch (state) {
+			case SendingData: {
+				dataSender = send(dataSender, outData.data(), outData.data() + outData.size());
+
+				if (error) {
 					success = false;
 					switchState(Done);
 					return true; // Error
 				}
-				
-				if(!dataSender)
+
+				if (!dataSender)
 					switchState(ReadingHeader);
-			}
-			break;
-			
-			case ReadingHeader:
-			{
-				if(readChunk())
-				{
-					if(error)
-					{
+			} break;
+
+			case ReadingHeader: {
+				if (readChunk()) {
+					if (error) {
 						success = false;
 						switchState(Done);
 						return true; // Error
-					}
-					else
+					} else
 						return true;
 				}
-				
-				if(char const* d = parseHeaders(dataBegin, dataEnd))
-				{
-					dataBegin = d; // Cut off the end of the header
-					if(dataBegin >= dataEnd) // Safe-guard if the HTTP header is malformed or no body
+
+				if (char const *d = parseHeaders(dataBegin, dataEnd)) {
+					dataBegin = d;			  // Cut off the end of the header
+					if (dataBegin >= dataEnd) // Safe-guard if the HTTP header is malformed or no body
 					{
 						success = true; // No body is still a success
 						switchState(Done);
 						return true; // Done
 					}
-					
-					if(concat)
+
+					if (concat)
 						data.insert(data.end(), dataBegin, dataEnd);
 					dataRecieved += dataEnd - dataBegin;
 					switchState(ReadingData);
 				}
-			}
-			break;
-			
-			case ReadingData:
-			{
-				if(readChunk())
-				{
-					if(error)
-					{
+			} break;
+
+			case ReadingData: {
+				if (readChunk()) {
+					if (error) {
 						success = false;
 						switchState(Done);
 						return true; // Error
-					}
-					else
+					} else
 						return true;
 				}
-				
-				if(concat)
+
+				if (concat)
 					data.insert(data.end(), dataBegin, dataEnd);
 				dataRecieved += dataEnd - dataBegin;
-			}
-			break;
-			
-			case Done:
-			{
+			} break;
+
+			case Done: {
 				return true;
-			}
-			break;
+			} break;
 		}
 	}
-	
+
 	return error != ErrorNone;
 }
 
-char Host::hexDigit(int v)
-{
-	if(v >= 0 && v <= 9)
+char Host::hexDigit(int v) {
+	if (v >= 0 && v <= 9)
 		return '0' + v;
-	else if(v >= 10 && v <= 15)
+	else if (v >= 10 && v <= 15)
 		return 'A' + (v - 10);
 	else
 		return '0';
 }
 
-std::string Host::urlencode(std::string const& v)
-{
+std::string Host::urlencode(std::string const &v) {
 	std::string ret;
-	for (char c : v)
-	{
-		if(isalnum(c))
+	for (char c : v) {
+		if (isalnum(c))
 			ret += c;
-		else if(c == ' ')
+		else if (c == ' ')
 			ret += '+';
-		else if(c == '\n')
+		else if (c == '\n')
 			ret += "%0D%0A";
-		else if(c != '\r') // Ignore \r
+		else if (c != '\r') // Ignore \r
 		{
 			int ci = static_cast<int>(c);
 			ret += '%';
@@ -231,17 +190,15 @@ std::string Host::urlencode(std::string const& v)
 			ret += hexDigit(ci % 16);
 		}
 	}
-	
+
 	return ret;
 }
 
-std::string Host::urlencode(std::list<std::pair<std::string, std::string> > const& values)
-{
+std::string Host::urlencode(std::list<std::pair<std::string, std::string>> const &values) {
 	std::string ret;
 	bool first = true;
-	for (auto const& i : values)
-	{
-		if(!first)
+	for (auto const &i : values) {
+		if (!first)
 			ret += '&';
 		else
 			first = false;
@@ -249,85 +206,76 @@ std::string Host::urlencode(std::list<std::pair<std::string, std::string> > cons
 		ret += '=';
 		ret += urlencode(i.second);
 	}
-	
+
 	return ret;
 }
 
-
-std::unique_ptr<Request> Host::query(
-	std::string const& command,
-	std::string const& url,
-	std::string const& addHeader,
-	std::string const& data
-	)
-{
+std::unique_ptr<Request> Host::query(std::string const &command, std::string const &url, std::string const &addHeader,
+									 std::string const &data) {
 	sockaddr_in server;
-	
-	if(!hp || options.changed) // Address not resolved
+
+	if (!hp || options.changed) // Address not resolved
 	{
 		options.changed = false;
-		delete hp; hp = 0;
-		if(!(hp = TCP::resolveHost( (options.hasProxy ? options.proxy : host) )))
+		delete hp;
+		hp = 0;
+		if (!(hp = TCP::resolveHost((options.hasProxy ? options.proxy : host))))
 			return 0;
 	}
-	
-    TCP::createAddr(server, hp, options.hasProxy ? options.proxyPort : port);
-    
-    int s;
-    if((s = TCP::socketNonBlock()) < 0) {
-    	return 0;
-    }
 
-    if(!TCP::connect(s, server)) {
-    	return 0;
-    }
-    
+	TCP::createAddr(server, hp, options.hasProxy ? options.proxyPort : port);
+
+	int s;
+	if ((s = TCP::socketNonBlock()) < 0) {
+		return 0;
+	}
+
+	if (!TCP::connect(s, server)) {
+		return 0;
+	}
+
 	std::stringstream ss;
-	if (options.hasProxy)
-	{
-		ss
-		<< command << " http://" << host << ':' << port << '/'
-		<< url << " HTTP/1.0\015\012"
-		"User-Agent: " << options.userAgent << "\015\012";
-		
-		if(data.size() > 0)
-			ss << "Content-Length: " << data.size() << "\015\012";
-			
-		ss
-		<< addHeader << "\015\012";
-    }
-    else
-    {
-    	ss
-    	<< command << " /" << url << " HTTP/1.0\015\012"
-    	"Host: " << host << ":" << port << "\015\012"
-    	"User-Agent: " << options.userAgent << "\015\012";
-    	
-    	if(data.size() > 0)
-			ss << "Content-Length: " << data.size() << "\015\012";
-			
-		ss
-    	<< addHeader << "\015\012";
-    }
-    
-    //cout << "Returning request" << endl;
+	if (options.hasProxy) {
+		ss << command << " http://" << host << ':' << port << '/' << url
+		   << " HTTP/1.0\015\012"
+			  "User-Agent: "
+		   << options.userAgent << "\015\012";
 
-    return std::unique_ptr<Request>(new Request(s, ss.str(), data));
+		if (data.size() > 0)
+			ss << "Content-Length: " << data.size() << "\015\012";
+
+		ss << addHeader << "\015\012";
+	} else {
+		ss << command << " /" << url
+		   << " HTTP/1.0\015\012"
+			  "Host: "
+		   << host << ":" << port
+		   << "\015\012"
+			  "User-Agent: "
+		   << options.userAgent << "\015\012";
+
+		if (data.size() > 0)
+			ss << "Content-Length: " << data.size() << "\015\012";
+
+		ss << addHeader << "\015\012";
+	}
+
+	// cout << "Returning request" << endl;
+
+	return std::unique_ptr<Request>(new Request(s, ss.str(), data));
 }
 
-std::unique_ptr<Request> Host::get(std::string const& url)
-{
+std::unique_ptr<Request> Host::get(std::string const &url) {
 	return query("GET", url, "", "");
 }
 
-std::unique_ptr<Request> Host::post(std::string const& url, std::list<std::pair<std::string, std::string> > const& values)
-{
+std::unique_ptr<Request> Host::post(std::string const &url,
+									std::list<std::pair<std::string, std::string>> const &values) {
 	return query("POST", url, "Content-Type: application/x-www-form-urlencoded\015\012", urlencode(values));
 }
 
-Host::~Host()
-{
+Host::~Host() {
 	delete hp;
 }
 
-}
+} // namespace HTTP

@@ -3,15 +3,12 @@
 
 #include <ctime>
 
-namespace TCP
-{
-	
-struct Socket
-{
+namespace TCP {
+
+struct Socket {
 	static int const bufferSize = 1024;
-	
-	enum Error
-	{
+
+	enum Error {
 		ErrorNone,
 		ErrorConnect,
 		ErrorSend,
@@ -19,73 +16,70 @@ struct Socket
 		ErrorDisconnect,
 		ErrorTimeout,
 	};
-	
+
 	virtual ~Socket();
-	
-	struct ResumeSend
-	{
-		ResumeSend(Socket* sock_, char const* b_, char const* e_)
-		: sock(sock_), b(b_), e(e_), error(ErrorNone)
-		{
-		}
-		
-		Socket* sock;
-		char const* b;
-		char const* e;
+
+	struct ResumeSend {
+		ResumeSend(Socket *sock_, char const *b_, char const *e_) : sock(sock_), b(b_), e(e_), error(ErrorNone) {}
+
+		Socket *sock;
+		char const *b;
+		char const *e;
 		Error error;
-		
+
 		bool resume();
 	};
-	
+
 	Socket(int s_, int timeOut_ = 10)
-	: s(s_), connected(false), connecting(true)
-	, dataBegin(0), dataEnd(0), error(ErrorNone)
-	, timeOut(timeOut_)
-	{
+		: s(s_), connected(false), connecting(true), dataBegin(0), dataEnd(0), error(ErrorNone), timeOut(timeOut_) {
 		resetTimer();
 	}
-	
-	void checkTimeout()
-	{
-		if(time(0) > t + timeOut)
+
+	void checkTimeout() {
+		if (time(0) > t + timeOut)
 			error = ErrorTimeout;
 	}
-	
-	void resetTimer()
-	{
+
+	void resetTimer() {
 		t = time(0);
 	}
-	
+
 	virtual bool think();
-	
+
 	virtual bool readChunk();
-	
-	ResumeSend* send(char const* b, char const* e);
-	
-	ResumeSend* send(ResumeSend* r, char const* b, char const* e);
-	
-	virtual bool trySend(char const*& b, char const* e);
-	
-	Error getError() { return error; }
-	
+
+	ResumeSend *send(char const *b, char const *e);
+
+	ResumeSend *send(ResumeSend *r, char const *b, char const *e);
+
+	virtual bool trySend(char const *&b, char const *e);
+
+	Error getError() {
+		return error;
+	}
+
 	// Getters for test access.
-	bool isConnected() const { return connected; }
-	bool isConnecting() const { return connecting; }
-	
+	bool isConnected() const {
+		return connected;
+	}
+	bool isConnecting() const {
+		return connecting;
+	}
+
 	void close();
-	
-protected:
+
+  protected:
 	int s;
 	bool connected;
 	bool connecting;
 	char staticBuffer[bufferSize];
-	char const* dataBegin;
-	char const* dataEnd;
+	char const *dataBegin;
+	char const *dataEnd;
 	Error error;
 	time_t t;
 	int timeOut;
 };
 
-}
+} // namespace TCP
 
-#endif //OMFG_TCP_H
+#endif // OMFG_TCP_H

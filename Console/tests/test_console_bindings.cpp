@@ -11,16 +11,14 @@ BOOST_AUTO_TEST_SUITE(console_bindings)
 
 // --- Basic binding ---
 
-BOOST_AUTO_TEST_CASE(bind_and_get_action)
-{
+BOOST_AUTO_TEST_CASE(bind_and_get_action) {
 	Console c;
 	c.bind('w', "+forward");
 
 	BOOST_CHECK_EQUAL(c.getActionForBinding('w'), "+forward");
 }
 
-BOOST_AUTO_TEST_CASE(bind_overwrite)
-{
+BOOST_AUTO_TEST_CASE(bind_overwrite) {
 	Console c;
 	c.bind('w', "+forward");
 	c.bind('w', "+back");
@@ -28,8 +26,7 @@ BOOST_AUTO_TEST_CASE(bind_overwrite)
 	BOOST_CHECK_EQUAL(c.getActionForBinding('w'), "+back");
 }
 
-BOOST_AUTO_TEST_CASE(get_key_for_action)
-{
+BOOST_AUTO_TEST_CASE(get_key_for_action) {
 	Console c;
 	c.bind('s', "+back");
 
@@ -43,8 +40,7 @@ BOOST_AUTO_TEST_CASE(get_key_for_action)
 
 // --- Multiple bindings for same action ---
 
-BOOST_AUTO_TEST_CASE(same_action_multiple_keys)
-{
+BOOST_AUTO_TEST_CASE(same_action_multiple_keys) {
 	Console c;
 	c.bind('w', "+forward");
 	c.bind('u', "+forward");

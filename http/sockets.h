@@ -7,11 +7,13 @@
 #include <cstdlib>
 typedef int socklen_t;
 
-inline int sockError() { return WSAGetLastError(); }
+inline int sockError() {
+	return WSAGetLastError();
+}
 const int EINPROGRESS = WSAEINPROGRESS;
 const int EWOULDBLOCK = WSAEWOULDBLOCK;
 
-#else //if !defined(OSK)
+#else // if !defined(OSK)
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -21,31 +23,31 @@ const int EWOULDBLOCK = WSAEWOULDBLOCK;
 #include <fcntl.h>
 #include <errno.h>
 
-inline int sockError() { return errno; }
+inline int sockError() {
+	return errno;
+}
 
 #endif
 
 #include <string>
 #include <cassert>
 
-namespace TCP
-{
+namespace TCP {
 
-struct Hostent : public hostent
-{
-	Hostent(hostent const* p);
-	
+struct Hostent : public hostent {
+	Hostent(hostent const *p);
+
 	~Hostent();
 };
 
-Hostent* resolveHost(std::string const& name);
+Hostent *resolveHost(std::string const &name);
 
 int socketNonBlock();
 
-bool connect(int s, sockaddr_in& addr);
+bool connect(int s, sockaddr_in &addr);
 
-bool createAddr(sockaddr_in& addr, hostent* hp, int port);
+bool createAddr(sockaddr_in &addr, hostent *hp, int port);
 
-}
+} // namespace TCP
 
-#endif //OMFG_HTTP_SOCKETS_H
+#endif // OMFG_HTTP_SOCKETS_H

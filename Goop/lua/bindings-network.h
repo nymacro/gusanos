@@ -4,11 +4,10 @@
 #include "luaapi/context.h"
 #include "luaapi/types.h"
 
-namespace LuaBindings
-{
-	extern LuaReference ZCom_BitStreamMetaTable;
+namespace LuaBindings {
+extern LuaReference ZCom_BitStreamMetaTable;
 
-	void initNetwork(LuaContext& context);
-}
+void initNetwork(LuaContext &context);
+} // namespace LuaBindings
 
-#endif //LUA_BINDINGS_NETWORK_H
+#endif // LUA_BINDINGS_NETWORK_H

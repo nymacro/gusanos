@@ -11,7 +11,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <memory>
-//#include <console.h> //For IStrCompare
+// #include <console.h> //For IStrCompare
 #include "util/text.h"
 #include <boost/filesystem/path.hpp>
 #include <boost/filesystem/operations.hpp>
@@ -20,249 +20,210 @@
 #include <boost/utility.hpp>
 namespace fs = boost::filesystem;
 
-template<class T, bool Cache = true, bool ReturnResource = true>
-struct ResourceLocator
-{
-	ResourceLocator()
-	{
-	}
-	
-	struct BaseLoader
-	{
-		// Should return true and set name to the resource name 
+template <class T, bool Cache = true, bool ReturnResource = true>
+struct ResourceLocator {
+	ResourceLocator() {}
+
+	struct BaseLoader {
+		// Should return true and set name to the resource name
 		// if the file/folder specified by path can be loaded.
 		// Otherwise, it should return false.
-		virtual bool canLoad(fs::path const& path, std::string& name) = 0;
-		
-		// Should load the resource located at path
-		virtual bool load(T*, fs::path const& path) = 0;
-		
-		virtual const char* getName() = 0;
-		
-		virtual ~BaseLoader() { }
-	};
-	
-	// Information about a resource found via refresh()
-	struct ResourceInfo
-	{
-		ResourceInfo() : loader(0) {}
-		
-		ResourceInfo(fs::path const& path_, BaseLoader* loader_)
-		: path(path_), loader(loader_)
-		{
+		virtual bool canLoad(fs::path const &path, std::string &name) = 0;
 
-		}
-		
-		~ResourceInfo()
-		{
-		}
-				
-		fs::path path; // Path to load from
-		BaseLoader* loader;   // Loader to use
+		// Should load the resource located at path
+		virtual bool load(T *, fs::path const &path) = 0;
+
+		virtual const char *getName() = 0;
+
+		virtual ~BaseLoader() {}
+	};
+
+	// Information about a resource found via refresh()
+	struct ResourceInfo {
+		ResourceInfo() : loader(0) {}
+
+		ResourceInfo(fs::path const &path_, BaseLoader *loader_) : path(path_), loader(loader_) {}
+
+		~ResourceInfo() {}
+
+		fs::path path;		// Path to load from
+		BaseLoader *loader; // Loader to use
 		std::unique_ptr<T> cached;
 	};
-	
+
 	typedef std::map<std::string, ResourceInfo, IStrCompare> NamedResourceMap;
-	
+
 	// Refreshes the internal resource list by
 	// scanning the path list after resources that can
 	// be loaded by any of the registered loaders.
 	// Folders are tried as well. If a loader is found for
 	// a folder, all the subfolders/files are ignored.
 	void refresh();
-	
+
 	// Clears all resources and paths
-	void clear()
-	{
+	void clear() {
 		m_paths.clear();
 		m_namedResources.clear();
 	}
-	
+
 	// Clears resources that can be safely removed
-	void clearUncached()
-	{
-		for(typename NamedResourceMap::iterator i = m_namedResources.begin(); i != m_namedResources.end();)
-		{
+	void clearUncached() {
+		for (typename NamedResourceMap::iterator i = m_namedResources.begin(); i != m_namedResources.end();) {
 			typename NamedResourceMap::iterator next = std::next(i);
-			
-			if(!i->second.cached)
-			{
+
+			if (!i->second.cached) {
 				m_namedResources.erase(i);
-			}
-			else
-			{
+			} else {
 				std::cout << "Resource " << i->first << " is cached, leaving it behind" << std::endl;
 			}
-			
+
 			i = next;
 		}
 	}
-	
+
 	// Adds a path to the path list
-	void addPath(fs::path const& path)
-	{
-		//m_paths.insert(path);
-		if(std::find(m_paths.begin(), m_paths.end(), path) == m_paths.end())
+	void addPath(fs::path const &path) {
+		// m_paths.insert(path);
+		if (std::find(m_paths.begin(), m_paths.end(), path) == m_paths.end())
 			m_paths.push_back(path);
 	}
-	
+
 	// Loads the named resource
-	bool load(T*, std::string const& name);
-	
+	bool load(T *, std::string const &name);
+
 	// Loads and returns the named resource or, if it was loaded already, returns a cached version
-	T* load(std::string const& name);
-	
-	fs::path const& getPathOf(std::string const& name);
-	
+	T *load(std::string const &name);
+
+	fs::path const &getPathOf(std::string const &name);
+
 	// Returns true if the named resource can be loaded
-	bool exists(std::string const& name);
+	bool exists(std::string const &name);
 
 	// Registers a new loader for this resource type
-	void registerLoader(BaseLoader* loader)
-	{
+	void registerLoader(BaseLoader *loader) {
 		m_loaders.push_back(loader);
 	}
-	
-	NamedResourceMap const& getMap()
-	{
+
+	NamedResourceMap const &getMap() {
 		return m_namedResources;
 	}
-	
-private:
-	void refresh(fs::path const& path);
-	
-	NamedResourceMap m_namedResources; //The resource list
-	
+
+  private:
+	void refresh(fs::path const &path);
+
+	NamedResourceMap m_namedResources; // The resource list
+
 	std::list<BaseLoader *> m_loaders; // Registered loaders
-	std::list<fs::path>     m_paths; // Paths to scan
+	std::list<fs::path> m_paths;	   // Paths to scan
 };
 
-template<class T, bool Cache, bool ReturnResource>
-void ResourceLocator<T, Cache, ReturnResource>::refresh(fs::path const& path)
-{
-	//std::cout << "Scanning: " << path.string() << std::endl;
-	try
-	{
+template <class T, bool Cache, bool ReturnResource>
+void ResourceLocator<T, Cache, ReturnResource>::refresh(fs::path const &path) {
+	// std::cout << "Scanning: " << path.string() << std::endl;
+	try {
 		fs::directory_iterator i(path), e;
-		
-		for(; i != e; ++i)
-		{
+
+		for (; i != e; ++i) {
 			std::string name;
-			BaseLoader* loader = 0;
-			
+			BaseLoader *loader = 0;
+
 			// Try loaders until a working one is found
-			
-			for(typename std::list<BaseLoader *>::iterator l = m_loaders.begin();
-			    l != m_loaders.end();
-			    ++l)
-			{
-				if((*l)->canLoad(i->path(), name))
-				{
+
+			for (typename std::list<BaseLoader *>::iterator l = m_loaders.begin(); l != m_loaders.end(); ++l) {
+				if ((*l)->canLoad(i->path(), name)) {
 					loader = *l;
 					break;
 				}
 			}
-						
-			if(loader)
-			{
+
+			if (loader) {
 				// We found a loader
-				std::pair<typename NamedResourceMap::iterator, bool> r = m_namedResources.emplace(std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(i->path(), loader));				/*
-				if(r.second)
-				{
-					std::cout << "Found resource: " << name << ", loader: " << loader->getName() << std::endl;
-				}
-				else
-				{
-					std::cout << "Duplicate resource: " << name << ", old path: " << r.first->second.path.string() << ", new path: " << i->string() << std::endl;
-				}
-				*/
-			}
-			else if(fs::is_directory(i->path()))
-			{
+				std::pair<typename NamedResourceMap::iterator, bool> r = m_namedResources.emplace(
+					std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(i->path(), loader)); /*
+if(r.second)
+{
+std::cout << "Found resource: " << name << ", loader: " << loader->getName() << std::endl;
+}
+else
+{
+std::cout << "Duplicate resource: " << name << ", old path: " << r.first->second.path.string() << ", new path: " <<
+i->string() << std::endl;
+}
+*/
+			} else if (fs::is_directory(i->path())) {
 				// If no loader was found and this is a directory, scan it
 				refresh(i->path());
 			}
 		}
-	}
-	catch(fs::filesystem_error& err)
-	{
+	} catch (fs::filesystem_error &err) {
 		std::cout << err.what() << std::endl;
 	}
 }
 
-template<class T, bool Cache, bool ReturnResource>
-void ResourceLocator<T, Cache, ReturnResource>::refresh()
-{
+template <class T, bool Cache, bool ReturnResource>
+void ResourceLocator<T, Cache, ReturnResource>::refresh() {
 	clearUncached();
-	
-	for(std::list<fs::path>::const_reverse_iterator p = m_paths.rbegin();
-	    p != std::list<fs::path>::const_reverse_iterator(m_paths.rend());
-	    ++p)
-	{
+
+	for (std::list<fs::path>::const_reverse_iterator p = m_paths.rbegin();
+		 p != std::list<fs::path>::const_reverse_iterator(m_paths.rend()); ++p) {
 		refresh(*p);
 	}
 }
 
-template<class T, bool Cache, bool ReturnResource>
-bool ResourceLocator<T, Cache, ReturnResource>::load(T* dest, std::string const& name)
-{
+template <class T, bool Cache, bool ReturnResource>
+bool ResourceLocator<T, Cache, ReturnResource>::load(T *dest, std::string const &name) {
 	typename NamedResourceMap::iterator i = m_namedResources.find(name);
-	if(i == m_namedResources.end())
+	if (i == m_namedResources.end())
 		return false;
 
 	return i->second.loader->load(dest, i->second.path);
 }
 
-template<class T, bool Cache, bool ReturnResource>
-T* ResourceLocator<T, Cache, ReturnResource>::load(std::string const& name)
-{
-	if(!ReturnResource)
+template <class T, bool Cache, bool ReturnResource>
+T *ResourceLocator<T, Cache, ReturnResource>::load(std::string const &name) {
+	if (!ReturnResource)
 		return 0;
-		
+
 	typename NamedResourceMap::iterator i = m_namedResources.find(name);
-	if(i == m_namedResources.end())
+	if (i == m_namedResources.end())
 		return 0;
-	
-	if(Cache && i->second.cached)
-		return i->second.cached.get(); //Return the cached version
-	
+
+	if (Cache && i->second.cached)
+		return i->second.cached.get(); // Return the cached version
+
 	std::unique_ptr<T> resource(new T());
 	bool r = i->second.loader->load(resource.get(), i->second.path);
-	if(!r)
-	{
+	if (!r) {
 		// The loader failed, delete the resource
 		return 0;
 	}
-	
-	if(Cache)
-	{
+
+	if (Cache) {
 		// Cache the loaded resource
 		i->second.cached = std::move(resource);
 		return i->second.cached.get();
 	}
-	
+
 	// Non-caching locator: transfer ownership to the caller
 	return resource.release();
 }
 
-template<class T, bool Cache, bool ReturnResource>
-fs::path const& ResourceLocator<T, Cache, ReturnResource>::getPathOf(std::string const& name)
-{
+template <class T, bool Cache, bool ReturnResource>
+fs::path const &ResourceLocator<T, Cache, ReturnResource>::getPathOf(std::string const &name) {
 	typename NamedResourceMap::iterator i = m_namedResources.find(name);
-	if(i == m_namedResources.end())
+	if (i == m_namedResources.end())
 		throw std::runtime_error("Resource does not exist");
-		
+
 	return i->second.path;
 }
 
-template<class T, bool Cache, bool ReturnResource>
-bool ResourceLocator<T, Cache, ReturnResource>::exists(std::string const& name)
-{
+template <class T, bool Cache, bool ReturnResource>
+bool ResourceLocator<T, Cache, ReturnResource>::exists(std::string const &name) {
 	typename NamedResourceMap::iterator i = m_namedResources.find(name);
-	if(i == m_namedResources.end())
+	if (i == m_namedResources.end())
 		return false;
-		
+
 	return true;
 }
 
-#endif //GUSANOS_RESOURCE_LOCATOR_H
+#endif // GUSANOS_RESOURCE_LOCATOR_H

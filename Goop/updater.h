@@ -5,21 +5,19 @@
 #include <string>
 
 // Manages file transfers to clients
-class Updater
-{
-public:
+class Updater {
+  public:
 	static ZCom_ClassID classID;
-	
+
 	Updater();
-	void assignNetworkRole( bool authority );
+	void assignNetworkRole(bool authority);
 	void think();
 	void removeNode();
-	
-	void requestLevel(std::string const& name);
-	//bool requestsFulfilled();
-	
+
+	void requestLevel(std::string const &name);
+	// bool requestsFulfilled();
 };
 
 extern Updater updater;
 
-#endif //GUSANOS_UPDATE_H
+#endif // GUSANOS_UPDATE_H

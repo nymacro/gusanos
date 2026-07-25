@@ -17,32 +17,31 @@ class SpriteSet;
 class Event;
 class TimerEvent;
 
-class WeaponType : public ResourceBase
-{
-public:
+class WeaponType : public ResourceBase {
+  public:
 	static LuaReference metaTable;
-	
+
 	WeaponType();
 	~WeaponType();
-	
+
 	bool load(const fs::path &filename);
-	
+
 	virtual void makeReference();
 	virtual void finalize();
 
 	int ammo;
 	int reloadTime;
-	
+
 	bool syncHax;
 	bool syncReload;
-	
+
 	int laserSightColour;
 	int laserSightRange;
 	float laserSightIntensity;
 	int laserSightAlpha;
 	Blenders laserSightBlender; // Change to BlitterContext::Type
 	boost::uint32_t crc;
-	
+
 #ifndef DEDSERV
 	SpriteSet *firecone;
 	SpriteSet *skin;
@@ -50,9 +49,9 @@ public:
 	std::string name;
 	fs::path fileName;
 
-	std::vector< TimerEvent* > timer;
-	std::vector< TimerEvent* > activeTimer;
-	std::vector< TimerEvent* > shootTimer;
+	std::vector<TimerEvent *> timer;
+	std::vector<TimerEvent *> activeTimer;
+	std::vector<TimerEvent *> shootTimer;
 
 	Event *primaryShoot;
 	Event *primaryPressed;
@@ -61,11 +60,9 @@ public:
 	Event *reloadEnd;
 };
 
-struct WeaponOrder
-{
-	bool operator () ( WeaponType* weap1, WeaponType* weap2)
-	{
-		if ( weap1->fileName.filename() < weap2->fileName.filename() )
+struct WeaponOrder {
+	bool operator()(WeaponType *weap1, WeaponType *weap2) {
+		if (weap1->fileName.filename() < weap2->fileName.filename())
 			return true;
 		return false;
 	}

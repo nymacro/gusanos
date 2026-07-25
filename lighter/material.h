@@ -1,11 +1,10 @@
 #ifndef MATERIAL_H
 #define MATERIAL_H
 
-struct Material
-{
+struct Material {
 	Material();
 	~Material();
-	
+
 	bool worm_pass;
 	bool particle_pass;
 	bool flows;

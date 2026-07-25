@@ -6,34 +6,24 @@ using namespace std;
 
 //============================= LIFECYCLE ================================
 
-Command::Command()
-{
-	m_func=NULL;
+Command::Command() {
+	m_func = NULL;
 }
 
-Command::~Command()
-{
-}
+Command::~Command() {}
 
-Command::Command(CallbackT const& func, CompleteCallbackT const& completeFunc)
-: m_func(func), m_completeFunc(completeFunc)
-{
-
-}
+Command::Command(CallbackT const &func, CompleteCallbackT const &completeFunc)
+	: m_func(func), m_completeFunc(completeFunc) {}
 
 //============================= INTERFACE ================================
 
-string Command::invoke(std::list<std::string> const& args)
-{
+string Command::invoke(std::list<std::string> const &args) {
 	return m_func(args);
 }
 
-std::string Command::completeArgument(int idx, std::string const& beginning)
-{
-	if(m_completeFunc)
-	{
+std::string Command::completeArgument(int idx, std::string const &beginning) {
+	if (m_completeFunc) {
 		return m_completeFunc(m_owner, idx, beginning);
-	}
-	else
+	} else
 		return beginning;
 }

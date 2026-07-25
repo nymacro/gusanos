@@ -8,20 +8,16 @@
 #include <boost/filesystem/fstream.hpp>
 namespace fs = boost::filesystem;
 
-struct GusanosLevelLoader
-{
-	virtual bool canLoad(fs::path const& path, std::string& name);
-	
-	virtual bool load(Level*, fs::path const& path);
-	
-	virtual const char* getName();
-	
+struct GusanosLevelLoader {
+	virtual bool canLoad(fs::path const &path, std::string &name);
+
+	virtual bool load(Level *, fs::path const &path);
+
+	virtual const char *getName();
+
 	static GusanosLevelLoader instance;
-	
-	virtual ~GusanosLevelLoader()
-	{
-	}
+
+	virtual ~GusanosLevelLoader() {}
 };
 
-
-#endif //GUSANOS_LOADERS_GUSANOS_H
+#endif // GUSANOS_LOADERS_GUSANOS_H

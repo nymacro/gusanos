@@ -8,22 +8,20 @@
 #include "timer_event.h"
 #include "particle.h"
 #include <vector>
-//#include <boost/variant.hpp>
+// #include <boost/variant.hpp>
 
 #ifndef DEDSERV
 class SpriteSet;
 class BaseAnimator;
 #endif
 class PartType;
-//class BaseWorm;
+// class BaseWorm;
 
-class NinjaRope : public BaseObject
-{
-public:
-
-	NinjaRope(PartType* type, BaseObject* worm);
+class NinjaRope : public BaseObject {
+  public:
+	NinjaRope(PartType *type, BaseObject *worm);
 	~NinjaRope();
-	
+
 	void shoot(Vec _pos, Vec _spd);
 	void remove();
 
@@ -34,38 +32,35 @@ public:
 
 	Angle getAngle();
 	void addAngleSpeed(AngleDiff);
-	
-	void addLength(float length_)
-	{
+
+	void addLength(float length_) {
 		m_length += length_;
-		if ( m_length < 0.f )
+		if (m_length < 0.f)
 			m_length = 0.f;
 	}
-	
+
 	int getColour();
-	Vec& getPosReference();
-	float& getLengthReference()
-	{
+	Vec &getPosReference();
+	float &getLengthReference() {
 		return m_length;
 	}
-	
+
 	bool active;
 	bool attached;
-	
-private:
-	
-	std::vector< TimerEvent::State > timer;
-	PartType* m_type;
+
+  private:
+	std::vector<TimerEvent::State> timer;
+	PartType *m_type;
 	Angle m_angle;
 	AngleDiff m_angleSpeed;
 	float m_length;
-	BaseObject* m_worm;
+	BaseObject *m_worm;
 #ifndef DEDSERV
-	SpriteSet* m_sprite;
-	BaseAnimator* m_animator;
+	SpriteSet *m_sprite;
+	BaseAnimator *m_animator;
 #endif
-	
+
 	bool justCreated;
 };
 
-#endif  // _PARTICLE_H_
+#endif // _PARTICLE_H_

@@ -24,99 +24,78 @@ using namespace std;
 
 //============================= LIFECYCLE ====================================
 
-Console::Console()
-: m_logMaxSize(256)
-{
-	
-	//m_MaxMsgLength=40;
+Console::Console() : m_logMaxSize(256) {
+
+	// m_MaxMsgLength=40;
 }
 
-Console::Console(int logMaxSize)
-: m_logMaxSize(logMaxSize)
-{
-	
-	//m_MaxMsgLength=MaxMsgLength;
+Console::Console(int logMaxSize) : m_logMaxSize(logMaxSize) {
+
+	// m_MaxMsgLength=MaxMsgLength;
 }
 
-Console::~Console()
-{
+Console::~Console() {
 	// Delete the registered variables
-/*
-	map<string, ConsoleItem*>::iterator tempvar = items.begin();
-	while (tempvar != items.end())
-	{
-		delete tempvar->second;
-		tempvar++;
-	}*/
-	
-	for (auto i = items.begin(), end = items.end(); i != end; ++i)
-	{
+	/*
+		map<string, ConsoleItem*>::iterator tempvar = items.begin();
+		while (tempvar != items.end())
+		{
+			delete tempvar->second;
+			tempvar++;
+		}*/
+
+	for (auto i = items.begin(), end = items.end(); i != end; ++i) {
 		delete i->second;
 	}
-	
-	//items.clear();
+
+	// items.clear();
 }
 
 //============================= INTERFACE ====================================
 
-void Console::registerItem(std::string const& name, ConsoleItem* item)
-{
+void Console::registerItem(std::string const &name, ConsoleItem *item) {
 	item->m_owner = this;
 	items[name] = item;
 }
 
-void Console::registerVariable(Variable* var)
-{
-	string const& name = var->getName();
-	if (!name.empty())
-	{
-		std::map<std::string, ConsoleItem*, IStrCompare>::iterator i = items.find(name);
-		if(i != items.end())
-		{
+void Console::registerVariable(Variable *var) {
+	string const &name = var->getName();
+	if (!name.empty()) {
+		std::map<std::string, ConsoleItem *, IStrCompare>::iterator i = items.find(name);
+		if (i != items.end()) {
 			// Replace old variable
 			delete i->second;
 		}
-		
+
 		registerItem(name, var);
-	}
-	else
-	{
+	} else {
 		delete var; // Empty name
 	}
 }
 
-void Console::registerCommand(std::string const& name, Command* command)
-{
-	if (!name.empty() && items.find(name) == items.end())
-	{
+void Console::registerCommand(std::string const &name, Command *command) {
+	if (!name.empty() && items.find(name) == items.end()) {
 		registerItem(name, command);
-	}
-	else
+	} else
 		delete command;
 }
 
-void Console::registerSpecialCommand(const std::string &name, int index, std::string (*func)(int,const std::list<std::string>&))
-{
-	if (!name.empty())
-	{
+void Console::registerSpecialCommand(const std::string &name, int index,
+									 std::string (*func)(int, const std::list<std::string> &)) {
+	if (!name.empty()) {
 		ItemMap::iterator tempItem = items.find(name);
-		if (tempItem == items.end())
-		{
-			//items[name] = new SpecialCommand(index,func);
+		if (tempItem == items.end()) {
+			// items[name] = new SpecialCommand(index,func);
 			registerItem(name, new SpecialCommand(index, func));
 		}
 	}
 }
 
-void Console::registerAlias(const std::string &name, const std::string &action)
-{
-	if (!name.empty())
-	{
+void Console::registerAlias(const std::string &name, const std::string &action) {
+	if (!name.empty()) {
 		ItemMap::iterator tempItem = items.find(name);
-		if (tempItem == items.end()
-		|| !tempItem->second->isLocked())
-		{
-			if(tempItem != items.end())
+		if (tempItem == items.end() || !tempItem->second->isLocked()) {
+			if (tempItem != items.end())
 				delete tempItem->second;
 			registerItem(name, new Alias(name, action));
 		}
@@ -131,15 +110,12 @@ struct IsTemporary
 	}
 };
 */
-void Console::clearTemporaries()
-{
-	//std::remove_if(items.begin(), items.end(), IsTemporary());
+void Console::clearTemporaries() {
+	// std::remove_if(items.begin(), items.end(), IsTemporary());
 
-	for (auto it = items.begin(); it != items.end(); )
-	{
+	for (auto it = items.begin(); it != items.end();) {
 		auto next = std::next(it);
-		if(it->second->temp)
-		{
+		if (it->second->temp) {
 			delete it->second;
 			items.erase(it);
 		}
@@ -147,39 +123,33 @@ void Console::clearTemporaries()
 	}
 }
 
-struct TestHandler : public ConsoleGrammarBase
-{
-	TestHandler(std::istream& str_, Console& console_, bool parseRelease_ = false)
-	: str(str_), console(console_), parseRelease(parseRelease_)
-	{
+struct TestHandler : public ConsoleGrammarBase {
+	TestHandler(std::istream &str_, Console &console_, bool parseRelease_ = false)
+		: str(str_), console(console_), parseRelease(parseRelease_) {
 		next();
 	}
-	
-	int cur()
-	{
+
+	int cur() {
 		return c;
 	}
-	
-	void next()
-	{
+
+	void next() {
 		c = str.get();
-		if(c == std::istream::traits_type::eof())
+		if (c == std::istream::traits_type::eof())
 			c = -1;
 	}
-	
-	std::string invoke(std::string const& name, std::list<std::string> const& args)
-	{
+
+	std::string invoke(std::string const &name, std::list<std::string> const &args) {
 		return console.invoke(name, args, parseRelease);
 	}
-	
+
 	int c;
-	std::istream& str;
-	Console& console;
+	std::istream &str;
+	Console &console;
 	bool parseRelease;
 };
 
-void Console::parseLine(const string &text, bool parseRelease)
-{
+void Console::parseLine(const string &text, bool parseRelease) {
 	// Strip comments: '#' starts a comment (respects quoted strings).
 	// Lines that become empty after stripping are silently ignored.
 	string line = stripComment(text);
@@ -189,27 +159,21 @@ void Console::parseLine(const string &text, bool parseRelease)
 		line = line.substr(0, end + 1);
 	else
 		line = "";
-	if(line.empty())
+	if (line.empty())
 		return;
 
 	std::istringstream ss(line);
 	ConsoleGrammar<TestHandler> handler((TestHandler(ss, *this, parseRelease)));
 
-	try
-	{
+	try {
 		addLogMsg(handler.block());
-	}
-	catch(SyntaxError const& error)
-	{
+	} catch (SyntaxError const &error) {
 		addLogMsg(text);
 		std::streamoff pos = handler.str.tellg();
-		if(pos > 0)
-		{
+		if (pos > 0) {
 			addLogMsg(std::string(pos - 1, '-') + '^');
 			addLogMsg(error.what());
-		}
-		else
-		{
+		} else {
 			addLogMsg(error.what() + string(" at end of input"));
 		}
 	}
@@ -222,59 +186,49 @@ void Console::parseLine(const string &text, bool parseRelease)
 // Leading whitespace before '#' is also stripped (full-line comments).
 // Escaped characters (preceded by '\') are skipped so that \' doesn't
 // toggle the quote state.
-string Console::stripComment(string const& text)
-{
+string Console::stripComment(string const &text) {
 	bool inQuotes = false;
 	size_t firstNonSpace = 0;
-	for(size_t i = 0; i < text.size(); ++i)
-	{
+	for (size_t i = 0; i < text.size(); ++i) {
 		char c = text[i];
-		if(!inQuotes && c == '#')
-		{
+		if (!inQuotes && c == '#') {
 			// Check if this is a full-line comment (only whitespace before #)
-			if(firstNonSpace == 0 || firstNonSpace > i)
-			{
+			if (firstNonSpace == 0 || firstNonSpace > i) {
 				// Full-line comment: strip entire line
 				return "";
 			}
 			// Inline comment: strip from # onwards
 			return text.substr(0, i);
 		}
-		if(c == '\\')
-		{
+		if (c == '\\') {
 			++i; // skip the escaped character
 			continue;
 		}
-		if(c == '"')
-		{
+		if (c == '"') {
 			inQuotes = !inQuotes;
 			continue;
 		}
-		if(c != ' ' && c != '\t' && c != '\n' && c != '\r')
-		{
-			if(firstNonSpace == 0)
+		if (c != ' ' && c != '\t' && c != '\n' && c != '\r') {
+			if (firstNonSpace == 0)
 				firstNonSpace = i;
 		}
 	}
 	return text;
 }
 
-std::string Console::invoke(string const& name, list<string> const& args, bool parseRelease)
-{
-	if(!parseRelease || name[0] == '+')
-	{
+std::string Console::invoke(string const &name, list<string> const &args, bool parseRelease) {
+	if (!parseRelease || name[0] == '+') {
 		std::string nameCopy(name);
-		if(parseRelease)
+		if (parseRelease)
 			nameCopy[0] = '-';
 
-		map<string, ConsoleItem*>::iterator tempItem = items.find(nameCopy);
-		if (tempItem != items.end())
-		{
+		map<string, ConsoleItem *>::iterator tempItem = items.find(nameCopy);
+		if (tempItem != items.end()) {
 			return tempItem->second->invoke(args);
 		} else
 			return "UNKNOWN COMMAND: " + name;
 	}
-	
+
 	return "";
 }
 
@@ -284,7 +238,7 @@ void Console::parse(list<string> &args, bool parseRelease)
 	string itemName;
 	string arguments;
 	string retString;
-	
+
 	if (!args.empty())
 	{
 		itemName = *args.begin();
@@ -306,77 +260,59 @@ void Console::parse(list<string> &args, bool parseRelease)
 }
 */
 
-void Console::addLogMsg(const string &msg)
-{
-	if (!msg.empty())
-	{
-		if(log.size() >= m_logMaxSize)
+void Console::addLogMsg(const string &msg) {
+	if (!msg.empty()) {
+		if (log.size() >= m_logMaxSize)
 			log.pop_front();
-		
+
 		log.push_back(msg);
 	}
 }
 
-void Console::analizeKeyEvent(bool state, char key)
-{
+void Console::analizeKeyEvent(bool state, char key) {
 	if (state == true)
 		parseLine(bindTable.getBindingAction(key));
 	else
 		parseLine(bindTable.getBindingAction(key), true);
 }
 
-void Console::bind(char key, const string &action)
-{
-	bindTable.bind(key , action);
+void Console::bind(char key, const string &action) {
+	bindTable.bind(key, action);
 }
 
-char Console::getKeyForBinding(std::string const& action)
-{
+char Console::getKeyForBinding(std::string const &action) {
 	return bindTable.getKeyForAction(action);
 }
 
-std::string Console::getActionForBinding(char key)
-{
+std::string Console::getActionForBinding(char key) {
 	return bindTable.getBindingAction(key);
 }
 
-int Console::executeConfig(const string &filename)
-{
+int Console::executeConfig(const string &filename) {
 	ifstream file(filename.c_str());
 
-	if (file.is_open() && file.good())
-	{
+	if (file.is_open() && file.good()) {
 		string text2Parse;
 		//...parse the file
-		while (portable_getline(file, text2Parse))
-		{
-			//getline(file,text2Parse);
-			//std::transform(text2Parse.begin(), text2Parse.end(), text2Parse.begin(), (int(*)(int)) toupper);
+		while (portable_getline(file, text2Parse)) {
+			// getline(file,text2Parse);
+			// std::transform(text2Parse.begin(), text2Parse.end(), text2Parse.begin(), (int(*)(int)) toupper);
 			parseLine(text2Parse);
 		}
 
 		return 1;
 	}
-	
-	
+
 	return 0;
 };
 
-struct CompletionHandler : public ConsoleGrammarBase
-{
-	struct State
-	{
-		State()
-		{
-		}
-		
+struct CompletionHandler : public ConsoleGrammarBase {
+	struct State {
+		State() {}
+
 		State(string::const_iterator b_)
-		: commandComplete(false), argumentComplete(false)
-		, beginArgument(b_), beginCommand(b_)
-		, argumentIdx(0)
-		{
-		}
-		
+			: commandComplete(false), argumentComplete(false), beginArgument(b_), beginCommand(b_), argumentIdx(0) {}
+
 		bool commandComplete;
 		bool argumentComplete;
 		std::string command;
@@ -385,55 +321,41 @@ struct CompletionHandler : public ConsoleGrammarBase
 		string::const_iterator beginCommand;
 		int argumentIdx;
 	};
-		
-	CompletionHandler(
-		string::const_iterator b_,
-		string::const_iterator e_,
-		Console& console_
-	)
-	: beginPrefix(b_), b(b_), e(e_), endPrefix(b_)
-	, current(b_), console(console_)
-	{
+
+	CompletionHandler(string::const_iterator b_, string::const_iterator e_, Console &console_)
+		: beginPrefix(b_), b(b_), e(e_), endPrefix(b_), current(b_), console(console_) {
 		c = (unsigned char)*b;
 	}
-	
-	int cur()
-	{
+
+	int cur() {
 		return c;
 	}
-	
-	void next()
-	{
+
+	void next() {
 		++b;
-		if(b == e)
-		{
-			if(!current.commandComplete)
-			{
+		if (b == e) {
+			if (!current.commandComplete) {
 				current.command = std::string(current.beginCommand, b);
-			}
-			else if(!current.argumentComplete)
-			{
-				if(current.beginArgument != e)
+			} else if (!current.argumentComplete) {
+				if (current.beginArgument != e)
 					current.argument = std::string(current.beginArgument, b);
 				else
 					endPrefix = b;
 			}
-			
+
 			throw current;
 		}
 		c = (unsigned char)*b;
 	}
-	
-	void inCommand()
-	{
+
+	void inCommand() {
 		states.push(current);
 		current.commandComplete = false;
 		current.beginCommand = b;
 		endPrefix = b;
 	}
-	
-	void inArguments(std::string const& command)
-	{
+
+	void inArguments(std::string const &command) {
 		current.commandComplete = true;
 		current.argumentIdx = 0;
 		current.argumentComplete = false;
@@ -441,35 +363,30 @@ struct CompletionHandler : public ConsoleGrammarBase
 		current.beginArgument = e;
 		current.command = command;
 	}
-	
-	void inArgument(int idx)
-	{
+
+	void inArgument(int idx) {
 		current.commandComplete = true;
 		current.argumentComplete = false;
 		current.argumentIdx = idx;
 		current.beginArgument = b;
 		endPrefix = b;
 	}
-	
-	void outArgument(int idx, std::string const& argument)
-	{
+
+	void outArgument(int idx, std::string const &argument) {
 		current.argumentComplete = false;
 		current.argumentIdx = idx + 1;
 		current.argument = "";
 		current.beginArgument = e;
 	}
-	
-	void outCommand()
-	{
-		if(!states.empty())
-		{
+
+	void outCommand() {
+		if (!states.empty()) {
 			current = states.top();
 			states.pop();
 		}
 	}
-	
-	std::string prefix()
-	{
+
+	std::string prefix() {
 		return std::string(beginPrefix, endPrefix);
 	}
 
@@ -478,95 +395,75 @@ struct CompletionHandler : public ConsoleGrammarBase
 	string::const_iterator b;
 	string::const_iterator e;
 	string::const_iterator endPrefix;
-	
+
 	State current;
 	std::stack<State> states;
-	Console& console;
+	Console &console;
 };
 
-struct ItemGetText
-{
-	template<class IteratorT>
-	std::string const& operator()(IteratorT i) const
-	{
+struct ItemGetText {
+	template <class IteratorT>
+	std::string const &operator()(IteratorT i) const {
 		return i->first;
 	}
 };
 
-std::string Console::completeCommand(std::string const& b)
-{
-	return shellComplete(items, b.begin(), b.end()
-		, ItemGetText(), ConsoleAddLines(*this));
+std::string Console::completeCommand(std::string const &b) {
+	return shellComplete(items, b.begin(), b.end(), ItemGetText(), ConsoleAddLines(*this));
 }
 
-string Console::autoComplete(string const& text)
-{
+string Console::autoComplete(string const &text) {
 	string returnText = text;
-	
-	if ( !text.empty() )
-	{
+
+	if (!text.empty()) {
 		ConsoleGrammar<CompletionHandler> handler((CompletionHandler(text.begin(), text.end(), *this)));
-		
-		try
-		{
+
+		try {
 			handler.block();
-		}
-		catch(CompletionHandler::State result)
-		{
-			if(result.commandComplete)
-			{
+		} catch (CompletionHandler::State result) {
+			if (result.commandComplete) {
 				ItemMap::const_iterator item = items.find(result.command);
-				
-				if(item != items.end())
-				{
+
+				if (item != items.end()) {
 					return handler.prefix() + item->second->completeArgument(result.argumentIdx, result.argument);
 				}
-				
+
 				return text;
-			}
-			else
-			{
+			} else {
 				return handler.prefix() + completeCommand(result.command);
 			}
-		}
-		catch(SyntaxError const& error)
-		{
+		} catch (SyntaxError const &error) {
 			return text;
 		}
 	}
-	
+
 	return text;
 }
 
-void Console::listItems(const string &text)
-{
-	if ( !text.empty() )
-	{
+void Console::listItems(const string &text) {
+	if (!text.empty()) {
 		// Find the first item that matches that text
-		map<string, ConsoleItem*>::iterator item = items.lower_bound( text ); 
-		if( item != items.end() && text == item->first.substr(0, text.length()) ) // If found
+		map<string, ConsoleItem *>::iterator item = items.lower_bound(text);
+		if (item != items.end() && text == item->first.substr(0, text.length())) // If found
 		{
 			// Temp item to check if there is only 1 item matching the given text
-			map<string, ConsoleItem*>::iterator tempItem = item; 
+			map<string, ConsoleItem *>::iterator tempItem = item;
 			tempItem++;
-			
+
 			// If the temp item is equal to the first item found it means that there are more than 1 items that match
-			if ( tempItem != items.end() )
-			if ( tempItem->first.substr(0, text.length() ) == item->first.substr(0, text.length()) )
-			{
-				
-				addLogMsg("]");
-				
-				// Add a message with the name of all the matching items
-				while ( item != items.end() && text == item->first.substr(0, text.length() ) )
-				{
-					addLogMsg(item->first);
-					item++;
+			if (tempItem != items.end())
+				if (tempItem->first.substr(0, text.length()) == item->first.substr(0, text.length())) {
+
+					addLogMsg("]");
+
+					// Add a message with the name of all the matching items
+					while (item != items.end() && text == item->first.substr(0, text.length())) {
+						addLogMsg(item->first);
+						item++;
+					}
 				}
-			}
 		}
 	}
 }
 
 //============================= PRIVATE ======================================
-

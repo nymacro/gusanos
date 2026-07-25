@@ -22,8 +22,7 @@ static SDL_Scancode gusKeyToSDL[KEY_MAX] = {SDL_SCANCODE_UNKNOWN};
 
 namespace {
 
-void buildKeyMappings()
-{
+void buildKeyMappings() {
 	// Letters
 	gusKeyToSDL[KEY_A] = SDL_SCANCODE_A;
 	gusKeyToSDL[KEY_B] = SDL_SCANCODE_B;
@@ -77,87 +76,87 @@ void buildKeyMappings()
 	gusKeyToSDL[KEY_9_PAD] = SDL_SCANCODE_KP_9;
 
 	// Function keys
-	gusKeyToSDL[KEY_F1]  = SDL_SCANCODE_F1;
-	gusKeyToSDL[KEY_F2]  = SDL_SCANCODE_F2;
-	gusKeyToSDL[KEY_F3]  = SDL_SCANCODE_F3;
-	gusKeyToSDL[KEY_F4]  = SDL_SCANCODE_F4;
-	gusKeyToSDL[KEY_F5]  = SDL_SCANCODE_F5;
-	gusKeyToSDL[KEY_F6]  = SDL_SCANCODE_F6;
-	gusKeyToSDL[KEY_F7]  = SDL_SCANCODE_F7;
-	gusKeyToSDL[KEY_F8]  = SDL_SCANCODE_F8;
-	gusKeyToSDL[KEY_F9]  = SDL_SCANCODE_F9;
+	gusKeyToSDL[KEY_F1] = SDL_SCANCODE_F1;
+	gusKeyToSDL[KEY_F2] = SDL_SCANCODE_F2;
+	gusKeyToSDL[KEY_F3] = SDL_SCANCODE_F3;
+	gusKeyToSDL[KEY_F4] = SDL_SCANCODE_F4;
+	gusKeyToSDL[KEY_F5] = SDL_SCANCODE_F5;
+	gusKeyToSDL[KEY_F6] = SDL_SCANCODE_F6;
+	gusKeyToSDL[KEY_F7] = SDL_SCANCODE_F7;
+	gusKeyToSDL[KEY_F8] = SDL_SCANCODE_F8;
+	gusKeyToSDL[KEY_F9] = SDL_SCANCODE_F9;
 	gusKeyToSDL[KEY_F10] = SDL_SCANCODE_F10;
 	gusKeyToSDL[KEY_F11] = SDL_SCANCODE_F11;
 	gusKeyToSDL[KEY_F12] = SDL_SCANCODE_F12;
 
 	// Cursor and navigation
-	gusKeyToSDL[KEY_ESC]       = SDL_SCANCODE_ESCAPE;
-	gusKeyToSDL[KEY_TILDE]     = SDL_SCANCODE_GRAVE;
-	gusKeyToSDL[KEY_MINUS]     = SDL_SCANCODE_MINUS;
-	gusKeyToSDL[KEY_EQUALS]    = SDL_SCANCODE_EQUALS;
+	gusKeyToSDL[KEY_ESC] = SDL_SCANCODE_ESCAPE;
+	gusKeyToSDL[KEY_TILDE] = SDL_SCANCODE_GRAVE;
+	gusKeyToSDL[KEY_MINUS] = SDL_SCANCODE_MINUS;
+	gusKeyToSDL[KEY_EQUALS] = SDL_SCANCODE_EQUALS;
 	gusKeyToSDL[KEY_BACKSPACE] = SDL_SCANCODE_BACKSPACE;
-	gusKeyToSDL[KEY_TAB]       = SDL_SCANCODE_TAB;
+	gusKeyToSDL[KEY_TAB] = SDL_SCANCODE_TAB;
 	gusKeyToSDL[KEY_OPENBRACE] = SDL_SCANCODE_LEFTBRACKET;
-	gusKeyToSDL[KEY_CLOSEBRACE]= SDL_SCANCODE_RIGHTBRACKET;
-	gusKeyToSDL[KEY_ENTER]     = SDL_SCANCODE_RETURN;
-	gusKeyToSDL[KEY_COLON]     = SDL_SCANCODE_SEMICOLON;
-	gusKeyToSDL[KEY_QUOTE]     = SDL_SCANCODE_APOSTROPHE;
+	gusKeyToSDL[KEY_CLOSEBRACE] = SDL_SCANCODE_RIGHTBRACKET;
+	gusKeyToSDL[KEY_ENTER] = SDL_SCANCODE_RETURN;
+	gusKeyToSDL[KEY_COLON] = SDL_SCANCODE_SEMICOLON;
+	gusKeyToSDL[KEY_QUOTE] = SDL_SCANCODE_APOSTROPHE;
 	gusKeyToSDL[KEY_BACKSLASH] = SDL_SCANCODE_BACKSLASH;
-	gusKeyToSDL[KEY_BACKSLASH2]= SDL_SCANCODE_NONUSHASH;
-	gusKeyToSDL[KEY_COMMA]     = SDL_SCANCODE_COMMA;
-	gusKeyToSDL[KEY_STOP]      = SDL_SCANCODE_PERIOD;
-	gusKeyToSDL[KEY_SLASH]     = SDL_SCANCODE_SLASH;
-	gusKeyToSDL[KEY_SPACE]     = SDL_SCANCODE_SPACE;
-	gusKeyToSDL[KEY_INSERT]    = SDL_SCANCODE_INSERT;
-	gusKeyToSDL[KEY_DEL]       = SDL_SCANCODE_DELETE;
-	gusKeyToSDL[KEY_HOME]      = SDL_SCANCODE_HOME;
-	gusKeyToSDL[KEY_END]       = SDL_SCANCODE_END;
-	gusKeyToSDL[KEY_PGUP]      = SDL_SCANCODE_PAGEUP;
-	gusKeyToSDL[KEY_PGDN]      = SDL_SCANCODE_PAGEDOWN;
-	gusKeyToSDL[KEY_LEFT]      = SDL_SCANCODE_LEFT;
-	gusKeyToSDL[KEY_RIGHT]     = SDL_SCANCODE_RIGHT;
-	gusKeyToSDL[KEY_UP]        = SDL_SCANCODE_UP;
-	gusKeyToSDL[KEY_DOWN]      = SDL_SCANCODE_DOWN;
+	gusKeyToSDL[KEY_BACKSLASH2] = SDL_SCANCODE_NONUSHASH;
+	gusKeyToSDL[KEY_COMMA] = SDL_SCANCODE_COMMA;
+	gusKeyToSDL[KEY_STOP] = SDL_SCANCODE_PERIOD;
+	gusKeyToSDL[KEY_SLASH] = SDL_SCANCODE_SLASH;
+	gusKeyToSDL[KEY_SPACE] = SDL_SCANCODE_SPACE;
+	gusKeyToSDL[KEY_INSERT] = SDL_SCANCODE_INSERT;
+	gusKeyToSDL[KEY_DEL] = SDL_SCANCODE_DELETE;
+	gusKeyToSDL[KEY_HOME] = SDL_SCANCODE_HOME;
+	gusKeyToSDL[KEY_END] = SDL_SCANCODE_END;
+	gusKeyToSDL[KEY_PGUP] = SDL_SCANCODE_PAGEUP;
+	gusKeyToSDL[KEY_PGDN] = SDL_SCANCODE_PAGEDOWN;
+	gusKeyToSDL[KEY_LEFT] = SDL_SCANCODE_LEFT;
+	gusKeyToSDL[KEY_RIGHT] = SDL_SCANCODE_RIGHT;
+	gusKeyToSDL[KEY_UP] = SDL_SCANCODE_UP;
+	gusKeyToSDL[KEY_DOWN] = SDL_SCANCODE_DOWN;
 
 	// Keypad symbols
-	gusKeyToSDL[KEY_SLASH_PAD]   = SDL_SCANCODE_KP_DIVIDE;
-	gusKeyToSDL[KEY_ASTERISK]    = SDL_SCANCODE_KP_MULTIPLY;
-	gusKeyToSDL[KEY_MINUS_PAD]   = SDL_SCANCODE_KP_MINUS;
-	gusKeyToSDL[KEY_PLUS_PAD]    = SDL_SCANCODE_KP_PLUS;
-	gusKeyToSDL[KEY_DEL_PAD]     = SDL_SCANCODE_KP_PERIOD;
-	gusKeyToSDL[KEY_ENTER_PAD]   = SDL_SCANCODE_KP_ENTER;
-	gusKeyToSDL[KEY_EQUALS_PAD]  = SDL_SCANCODE_KP_EQUALS;
+	gusKeyToSDL[KEY_SLASH_PAD] = SDL_SCANCODE_KP_DIVIDE;
+	gusKeyToSDL[KEY_ASTERISK] = SDL_SCANCODE_KP_MULTIPLY;
+	gusKeyToSDL[KEY_MINUS_PAD] = SDL_SCANCODE_KP_MINUS;
+	gusKeyToSDL[KEY_PLUS_PAD] = SDL_SCANCODE_KP_PLUS;
+	gusKeyToSDL[KEY_DEL_PAD] = SDL_SCANCODE_KP_PERIOD;
+	gusKeyToSDL[KEY_ENTER_PAD] = SDL_SCANCODE_KP_ENTER;
+	gusKeyToSDL[KEY_EQUALS_PAD] = SDL_SCANCODE_KP_EQUALS;
 
 	// Misc keys
-	gusKeyToSDL[KEY_PRTSCR]  = SDL_SCANCODE_PRINTSCREEN;
-	gusKeyToSDL[KEY_PAUSE]   = SDL_SCANCODE_PAUSE;
+	gusKeyToSDL[KEY_PRTSCR] = SDL_SCANCODE_PRINTSCREEN;
+	gusKeyToSDL[KEY_PAUSE] = SDL_SCANCODE_PAUSE;
 	gusKeyToSDL[KEY_ABNT_C1] = SDL_SCANCODE_INTERNATIONAL1;
-	gusKeyToSDL[KEY_YEN]     = SDL_SCANCODE_NONUSBACKSLASH;
-	gusKeyToSDL[KEY_KANA]    = SDL_SCANCODE_INTERNATIONAL2;
+	gusKeyToSDL[KEY_YEN] = SDL_SCANCODE_NONUSBACKSLASH;
+	gusKeyToSDL[KEY_KANA] = SDL_SCANCODE_INTERNATIONAL2;
 	gusKeyToSDL[KEY_CONVERT] = SDL_SCANCODE_INTERNATIONAL4;
-	gusKeyToSDL[KEY_NOCONVERT]= SDL_SCANCODE_INTERNATIONAL5;
-	gusKeyToSDL[KEY_AT]      = SDL_SCANCODE_INTERNATIONAL3;
+	gusKeyToSDL[KEY_NOCONVERT] = SDL_SCANCODE_INTERNATIONAL5;
+	gusKeyToSDL[KEY_AT] = SDL_SCANCODE_INTERNATIONAL3;
 	gusKeyToSDL[KEY_CIRCUMFLEX] = SDL_SCANCODE_NONUSBACKSLASH;
-	gusKeyToSDL[KEY_COLON2]  = SDL_SCANCODE_SEMICOLON; // Near-dup of colon on some layouts
-	gusKeyToSDL[KEY_KANJI]   = SDL_SCANCODE_INTERNATIONAL6;
+	gusKeyToSDL[KEY_COLON2] = SDL_SCANCODE_SEMICOLON; // Near-dup of colon on some layouts
+	gusKeyToSDL[KEY_KANJI] = SDL_SCANCODE_INTERNATIONAL6;
 	gusKeyToSDL[KEY_BACKQUOTE] = SDL_SCANCODE_GRAVE;
 	gusKeyToSDL[KEY_SEMICOLON] = SDL_SCANCODE_SEMICOLON;
-	gusKeyToSDL[KEY_COMMAND]   = SDL_SCANCODE_LGUI;
+	gusKeyToSDL[KEY_COMMAND] = SDL_SCANCODE_LGUI;
 
 	// Modifiers
-	gusKeyToSDL[KEY_LSHIFT]   = SDL_SCANCODE_LSHIFT;
-	gusKeyToSDL[KEY_RSHIFT]   = SDL_SCANCODE_RSHIFT;
+	gusKeyToSDL[KEY_LSHIFT] = SDL_SCANCODE_LSHIFT;
+	gusKeyToSDL[KEY_RSHIFT] = SDL_SCANCODE_RSHIFT;
 	gusKeyToSDL[KEY_LCONTROL] = SDL_SCANCODE_LCTRL;
 	gusKeyToSDL[KEY_RCONTROL] = SDL_SCANCODE_RCTRL;
-	gusKeyToSDL[KEY_ALT]      = SDL_SCANCODE_LALT;
-	gusKeyToSDL[KEY_ALTGR]    = SDL_SCANCODE_RALT;
-	gusKeyToSDL[KEY_LWIN]     = SDL_SCANCODE_LGUI;
-	gusKeyToSDL[KEY_RWIN]     = SDL_SCANCODE_RGUI;
-	gusKeyToSDL[KEY_MENU]     = SDL_SCANCODE_MENU;
+	gusKeyToSDL[KEY_ALT] = SDL_SCANCODE_LALT;
+	gusKeyToSDL[KEY_ALTGR] = SDL_SCANCODE_RALT;
+	gusKeyToSDL[KEY_LWIN] = SDL_SCANCODE_LGUI;
+	gusKeyToSDL[KEY_RWIN] = SDL_SCANCODE_RGUI;
+	gusKeyToSDL[KEY_MENU] = SDL_SCANCODE_MENU;
 
 	// Lock keys
-	gusKeyToSDL[KEY_SCRLOCK]  = SDL_SCANCODE_SCROLLLOCK;
-	gusKeyToSDL[KEY_NUMLOCK]  = SDL_SCANCODE_NUMLOCKCLEAR;
+	gusKeyToSDL[KEY_SCRLOCK] = SDL_SCANCODE_SCROLLLOCK;
+	gusKeyToSDL[KEY_NUMLOCK] = SDL_SCANCODE_NUMLOCKCLEAR;
 	gusKeyToSDL[KEY_CAPSLOCK] = SDL_SCANCODE_CAPSLOCK;
 
 	// Build reverse mapping (SDL -> Gusanos)
@@ -175,22 +174,17 @@ KeyHandler keyHandler;
 
 //=========================LIFECYCLE==========================//
 
-KeyHandler::KeyHandler()
-{
-	for(int i = 0; i < KEY_MAX; ++i)
-	{
+KeyHandler::KeyHandler() {
+	for (int i = 0; i < KEY_MAX; ++i) {
 		oldKeys[i] = false;
 	}
 }
 
-KeyHandler::~KeyHandler()
-{
-}
+KeyHandler::~KeyHandler() {}
 
 //=========================INTERFACE==========================//
 
-void KeyHandler::init()
-{
+void KeyHandler::init() {
 	buildKeyMappings();
 	SDL_StartTextInput(gfx.window);
 
@@ -203,23 +197,19 @@ void KeyHandler::init()
 	SDL_SetEventEnabled(SDL_EVENT_GAMEPAD_AXIS_MOTION, false);
 }
 
-void KeyHandler::shutDown()
-{
+void KeyHandler::shutDown() {
 	SDL_StopTextInput(gfx.window);
 }
 
-void KeyHandler::pollKeyboard()
-{
+void KeyHandler::pollKeyboard() {
 	// Pump SDL events to get current keyboard state
 	SDL_PumpEvents();
 
 	// Process text input events and quit
 	SDL_Event event;
-	while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_EVENT_TEXT_INPUT, SDL_EVENT_TEXT_INPUT) > 0)
-	{
+	while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_EVENT_TEXT_INPUT, SDL_EVENT_TEXT_INPUT) > 0) {
 		// Fire printableChar for each character in the text
-		for (const char* p = event.text.text; *p; ++p)
-		{
+		for (const char *p = event.text.text; *p; ++p) {
 			unsigned char c = static_cast<unsigned char>(*p);
 			// Determine the scancode from modifier state
 			// We use 0 as scancode placeholder since SDL3 text input doesn't
@@ -235,8 +225,7 @@ void KeyHandler::pollKeyboard()
 	}
 
 	// Also process quit events
-	while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_EVENT_QUIT, SDL_EVENT_QUIT) > 0)
-	{
+	while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_EVENT_QUIT, SDL_EVENT_QUIT) > 0) {
 		// Signal quit
 		quit = true;
 	}
@@ -248,21 +237,18 @@ void KeyHandler::pollKeyboard()
 	// so the rest of the engine keeps working exactly as before.
 	{
 		SDL_Event discard;
-		while (SDL_PollEvent(&discard) > 0)
-		{
+		while (SDL_PollEvent(&discard) > 0) {
 			// intentionally empty — relevant event types are already handled
 			// by the targeted SDL_PeepEvents loops above.
 		}
 	}
 
 	// Diff keyboard state and fire signals
-	for (int i = 0; i < KEY_MAX; ++i)
-	{
+	for (int i = 0; i < KEY_MAX; ++i) {
 		bool state = getKey(i);
 
-		if (state != oldKeys[i])
-		{
-			if(state)
+		if (state != oldKeys[i]) {
+			if (state)
 				keyDown(i);
 			else
 				keyUp(i);
@@ -272,19 +258,17 @@ void KeyHandler::pollKeyboard()
 	}
 }
 
-bool KeyHandler::getKey(int k)
-{
+bool KeyHandler::getKey(int k) {
 	if (k < 0 || k >= KEY_MAX)
 		return false;
 	SDL_Scancode sc = gusKeyToSDL[k];
 	if (sc == SDL_SCANCODE_UNKNOWN)
 		return false;
-	const bool* keyState = SDL_GetKeyboardState(NULL);
+	const bool *keyState = SDL_GetKeyboardState(NULL);
 	return keyState[sc] != 0;
 }
 
-int KeyHandler::mapKey(int k)
-{
+int KeyHandler::mapKey(int k) {
 	return k;
 }
 

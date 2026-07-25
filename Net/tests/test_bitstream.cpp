@@ -6,57 +6,49 @@
 
 BOOST_AUTO_TEST_SUITE(bitstream)
 
-BOOST_AUTO_TEST_CASE(add_get_int)
-{
+BOOST_AUTO_TEST_CASE(add_get_int) {
 	ZCom_BitStream bs;
 	bs.addInt(42, 8);
 	BOOST_CHECK_EQUAL(bs.getInt(8), 42);
 }
 
-BOOST_AUTO_TEST_CASE(add_get_24bit_int)
-{
+BOOST_AUTO_TEST_CASE(add_get_24bit_int) {
 	ZCom_BitStream bs;
 	bs.addInt(1234567, 24);
 	BOOST_CHECK_EQUAL(bs.getInt(24), 1234567);
 }
 
-BOOST_AUTO_TEST_CASE(add_get_signed_positive)
-{
+BOOST_AUTO_TEST_CASE(add_get_signed_positive) {
 	ZCom_BitStream bs;
 	bs.addSignedInt(127, 8);
 	BOOST_CHECK_EQUAL(bs.getSignedInt(8), 127);
 }
 
-BOOST_AUTO_TEST_CASE(add_get_signed_negative)
-{
+BOOST_AUTO_TEST_CASE(add_get_signed_negative) {
 	ZCom_BitStream bs;
 	bs.addSignedInt(-128, 8);
 	BOOST_CHECK_EQUAL(bs.getSignedInt(8), -128);
 }
 
-BOOST_AUTO_TEST_CASE(add_get_signed_negative_16bit)
-{
+BOOST_AUTO_TEST_CASE(add_get_signed_negative_16bit) {
 	ZCom_BitStream bs;
 	bs.addSignedInt(-30000, 16);
 	BOOST_CHECK_EQUAL(bs.getSignedInt(16), -30000);
 }
 
-BOOST_AUTO_TEST_CASE(add_get_bool_true)
-{
+BOOST_AUTO_TEST_CASE(add_get_bool_true) {
 	ZCom_BitStream bs;
 	bs.addBool(true);
 	BOOST_CHECK(bs.getBool());
 }
 
-BOOST_AUTO_TEST_CASE(add_get_bool_false)
-{
+BOOST_AUTO_TEST_CASE(add_get_bool_false) {
 	ZCom_BitStream bs;
 	bs.addBool(false);
 	BOOST_CHECK(!bs.getBool());
 }
 
-BOOST_AUTO_TEST_CASE(add_get_float_32bit)
-{
+BOOST_AUTO_TEST_CASE(add_get_float_32bit) {
 	ZCom_BitStream bs;
 	float val = 3.14159f;
 	bs.addFloat(val, 32);
@@ -64,8 +56,7 @@ BOOST_AUTO_TEST_CASE(add_get_float_32bit)
 	BOOST_CHECK_CLOSE(result, val, 0.001f);
 }
 
-BOOST_AUTO_TEST_CASE(add_get_float_quantized)
-{
+BOOST_AUTO_TEST_CASE(add_get_float_quantized) {
 	ZCom_BitStream bs;
 	float val = 0.5f;
 	bs.addFloat(val, 16);
@@ -73,35 +64,31 @@ BOOST_AUTO_TEST_CASE(add_get_float_quantized)
 	BOOST_CHECK_CLOSE(result, val, 1.0f);
 }
 
-BOOST_AUTO_TEST_CASE(add_get_string)
-{
+BOOST_AUTO_TEST_CASE(add_get_string) {
 	ZCom_BitStream bs;
 	bs.addString("Hello Zoidcom!");
-	const char* result = bs.getStringStatic();
+	const char *result = bs.getStringStatic();
 	BOOST_REQUIRE(result != nullptr);
 	BOOST_CHECK_EQUAL(std::string(result), "Hello Zoidcom!");
 }
 
-BOOST_AUTO_TEST_CASE(add_get_empty_string)
-{
+BOOST_AUTO_TEST_CASE(add_get_empty_string) {
 	ZCom_BitStream bs;
 	bs.addString("");
-	const char* result = bs.getStringStatic();
+	const char *result = bs.getStringStatic();
 	BOOST_REQUIRE(result != nullptr);
 	BOOST_CHECK_EQUAL(std::string(result), "");
 }
 
-BOOST_AUTO_TEST_CASE(add_get_null_string)
-{
+BOOST_AUTO_TEST_CASE(add_get_null_string) {
 	ZCom_BitStream bs;
 	bs.addString(nullptr);
-	const char* result = bs.getStringStatic();
+	const char *result = bs.getStringStatic();
 	BOOST_REQUIRE(result != nullptr);
 	BOOST_CHECK_EQUAL(std::string(result), "");
 }
 
-BOOST_AUTO_TEST_CASE(add_get_string_allocating)
-{
+BOOST_AUTO_TEST_CASE(add_get_string_allocating) {
 	ZCom_BitStream bs;
 	bs.addString("Allocated String");
 	std::string result = bs.getString();
@@ -109,8 +96,7 @@ BOOST_AUTO_TEST_CASE(add_get_string_allocating)
 	BOOST_CHECK_EQUAL(result, "Allocated String");
 }
 
-BOOST_AUTO_TEST_CASE(nested_bitstream)
-{
+BOOST_AUTO_TEST_CASE(nested_bitstream) {
 	ZCom_BitStream inner;
 	inner.addInt(99, 8);
 	inner.addString("nested");
@@ -128,8 +114,7 @@ BOOST_AUTO_TEST_CASE(nested_bitstream)
 	BOOST_CHECK_EQUAL(std::string(outer.getStringStatic()), "nested");
 }
 
-BOOST_AUTO_TEST_CASE(duplicate)
-{
+BOOST_AUTO_TEST_CASE(duplicate) {
 	ZCom_BitStream bs;
 	bs.addInt(1, 8);
 	bs.addInt(2, 8);
@@ -142,8 +127,7 @@ BOOST_AUTO_TEST_CASE(duplicate)
 	BOOST_CHECK_EQUAL(dup->getInt(8), 3);
 }
 
-BOOST_AUTO_TEST_CASE(reset_and_reuse)
-{
+BOOST_AUTO_TEST_CASE(reset_and_reuse) {
 	ZCom_BitStream bs;
 	bs.addInt(100, 16);
 	bs.addInt(200, 16);
@@ -155,8 +139,7 @@ BOOST_AUTO_TEST_CASE(reset_and_reuse)
 	BOOST_CHECK_EQUAL(bs.getInt(8), 42);
 }
 
-BOOST_AUTO_TEST_CASE(mixed_types)
-{
+BOOST_AUTO_TEST_CASE(mixed_types) {
 	ZCom_BitStream bs;
 	bs.addInt(255, 8);
 	bs.addSignedInt(-1, 8);
@@ -171,8 +154,7 @@ BOOST_AUTO_TEST_CASE(mixed_types)
 	BOOST_CHECK_EQUAL(std::string(bs.getStringStatic()), "mixed");
 }
 
-BOOST_AUTO_TEST_CASE(getData_raw_roundtrip)
-{
+BOOST_AUTO_TEST_CASE(getData_raw_roundtrip) {
 	ZCom_BitStream bs;
 	bs.addInt(0xDE, 8);
 	bs.addInt(0xAD, 8);
@@ -182,15 +164,13 @@ BOOST_AUTO_TEST_CASE(getData_raw_roundtrip)
 	BOOST_CHECK_EQUAL(bs2.getInt(8), 0xAD);
 }
 
-BOOST_AUTO_TEST_CASE(large_int_values)
-{
+BOOST_AUTO_TEST_CASE(large_int_values) {
 	ZCom_BitStream bs;
 	bs.addInt(0xFFFFFFFF, 32);
 	BOOST_CHECK_EQUAL(bs.getInt(32), 0xFFFFFFFF);
 }
 
-BOOST_AUTO_TEST_CASE(add_get_16bit_ints)
-{
+BOOST_AUTO_TEST_CASE(add_get_16bit_ints) {
 	ZCom_BitStream bs;
 	bs.addInt(12345, 16);
 	bs.addInt(0xFFFF, 16);
@@ -198,8 +178,7 @@ BOOST_AUTO_TEST_CASE(add_get_16bit_ints)
 	BOOST_CHECK_EQUAL(bs.getInt(16), 0xFFFF);
 }
 
-BOOST_AUTO_TEST_CASE(stream_roundtrip_with_node_event_pattern)
-{
+BOOST_AUTO_TEST_CASE(stream_roundtrip_with_node_event_pattern) {
 	ZCom_BitStream payload;
 	payload.addString("event data");
 

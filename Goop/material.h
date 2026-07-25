@@ -1,11 +1,10 @@
 #ifndef MATERIAL_H
 #define MATERIAL_H
 
-struct Material
-{
+struct Material {
 	Material();
 	~Material();
-	
+
 	bool worm_pass;
 	bool particle_pass;
 	bool flows;
@@ -17,7 +16,7 @@ struct Material
 	bool creates_water;
 	bool is_stagnated_water;
 	int damage;
-	
+
 	// Use as read only
 	unsigned char index;
 };

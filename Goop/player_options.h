@@ -7,24 +7,18 @@
 #include "allegro_compat.h"
 
 // TODO: Move these to blitters/<somewhere>
-inline int universalColor(int r, int g, int b)
-{
+inline int universalColor(int r, int g, int b) {
 	return ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF);
 }
 
-inline int universalToLocalColor(int c)
-{
-	return makecol(
-		(c >> 16) & 0xFF,
-		(c >> 8) & 0xFF,
-		(c) & 0xFF);
+inline int universalToLocalColor(int c) {
+	return makecol((c >> 16) & 0xFF, (c >> 8) & 0xFF, (c) & 0xFF);
 }
 
-struct PlayerOptions
-{
-	PlayerOptions(std::string const& name_ = "GusPlayer");
+struct PlayerOptions {
+	PlayerOptions(std::string const &name_ = "GusPlayer");
 	void registerInConsole(int index);
-	
+
 	AngleDiff aimAcceleration;
 	float aimFriction;
 	AngleDiff aimMaxSpeed;
@@ -34,19 +28,19 @@ struct PlayerOptions
 	std::string name;
 	unsigned int uniqueID;
 	unsigned int team;
-	
-	std::string setColour(std::list<std::string> const& args);
-	std::string setTeam(std::list<std::string> const& args);
-	
+
+	std::string setColour(std::list<std::string> const &args);
+	std::string setTeam(std::list<std::string> const &args);
+
 	void clearChangeFlags();
-	
+
 	bool nameChanged(); // Returns true when the name option has been changed
 	bool colorChanged();
 	bool teamChanged();
-	
-	void changeName(std::string const& name_);
-	
-private:
+
+	void changeName(std::string const &name_);
+
+  private:
 	void nameChange(); // for internal use only
 
 	bool m_nameChanged;
@@ -54,4 +48,4 @@ private:
 	bool m_teamChanged;
 };
 
-#endif  // _PLAYER_OPTIONS_H_
+#endif // _PLAYER_OPTIONS_H_

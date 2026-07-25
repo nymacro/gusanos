@@ -3,16 +3,15 @@
 
 #include <string>
 #include <vector>
-//#include "luaapi/context.h"
+// #include "luaapi/context.h"
 #include "luaapi/types.h"
 
-#define EACH_CALLBACK(i_, type_) for(std::vector<LuaReference>::iterator i_ = luaCallbacks.callbacks[LuaCallbacks::type_].begin(); \
-			i_ != luaCallbacks.callbacks[LuaCallbacks::type_].end(); ++i_)
+#define EACH_CALLBACK(i_, type_)                                                                                       \
+	for (std::vector<LuaReference>::iterator i_ = luaCallbacks.callbacks[LuaCallbacks::type_].begin();                 \
+		 i_ != luaCallbacks.callbacks[LuaCallbacks::type_].end(); ++i_)
 
-struct LuaCallbacks
-{
-	enum
-	{
+struct LuaCallbacks {
+	enum {
 		atGameStart = 0,
 		afterRender = 1,
 		afterUpdate = 2,
@@ -29,10 +28,10 @@ struct LuaCallbacks
 		localplayerEventAny = 13,
 		localplayerInit = 14,
 		localplayerEvent = 15,
-		transferUpdate = localplayerEvent+7,
-		transferFinished = transferUpdate+1,
-		networkStateChange = transferFinished+1,
-		gameError = networkStateChange+1,
+		transferUpdate = localplayerEvent + 7,
+		transferFinished = transferUpdate + 1,
+		networkStateChange = transferFinished + 1,
+		gameError = networkStateChange + 1,
 		max
 	};
 	void bind(std::string callback, LuaReference ref);
@@ -51,7 +50,7 @@ struct LuaCallbacks
 	std::vector<LuaReference> gameNetworkInit;
 	std::vector<LuaReference> gameEnded;
 	//TODO: std::vector<LuaReference> connectionRequest;
-	
+
 	std::vector<LuaReference> localplayerEvent[7];
 	std::vector<LuaReference> localplayerEventAny;
 	std::vector<LuaReference> localplayerInit;
@@ -59,7 +58,7 @@ struct LuaCallbacks
 	std::vector<LuaReference> callbacks[max];
 };
 
-//extern LuaContext lua;
+// extern LuaContext lua;
 
 extern LuaCallbacks luaCallbacks;
 /*
@@ -79,12 +78,8 @@ extern LuaCallbacks luaCallbacks;
 	lua.destroyReference(p->luaReference); \
 }*/
 
-struct LuaObject 
-{
-	LuaObject()
-	: deleted(false)
-	{
-	}
+struct LuaObject {
+	LuaObject() : deleted(false) {}
 
 	void pushLuaReference();
 
@@ -92,25 +87,20 @@ struct LuaObject
 
 	virtual void makeReference();
 
-	virtual void finalize()
-	{
-	}
+	virtual void finalize() {}
 
 	void deleteThis();
 
-	virtual ~LuaObject()
-	{
-	}
+	virtual ~LuaObject() {}
 
 	LuaReference luaReference;
 	bool deleted;
 };
 
-template<class T>
-inline void luaDelete(T* p)
-{
-	if(p)
+template <class T>
+inline void luaDelete(T *p) {
+	if (p)
 		p->deleteThis();
 }
 
-#endif //GUSANOS_GLUA_H
+#endif // GUSANOS_GLUA_H

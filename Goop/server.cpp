@@ -11,29 +11,24 @@
 #include "util/log.h"
 #include "encoding.h"
 
-
 #include "network_compat.h"
 #include "allegro_compat.h"
 #include <list>
 
-
-Server::Server( int _udpport )
-: m_preShutdown(false), port(_udpport), socketsInited(false)
-{
-	if(network.simLag > 0)
+Server::Server(int _udpport) : m_preShutdown(false), port(_udpport), socketsInited(false) {
+	if (network.simLag > 0)
 		ZCom_simulateLag(0, network.simLag);
-	if(network.simLoss > 0.f)
+	if (network.simLoss > 0.f)
 		ZCom_simulateLoss(0, network.simLoss);
 
 	// TODO: Asynchronize this loop
 	int tries = 10;
 	bool result = false;
-	while ( !result && tries-- > 0 )
-	{
+	while (!result && tries-- > 0) {
 		rest(100);
-		result = ZCom_initSockets( true, _udpport, 1, 0 );
+		result = ZCom_initSockets(true, _udpport, 1, 0);
 	}
-	if(!result)
+	if (!result)
 		console.addLogMsg("* ERROR: FAILED TO INITIALIZE SOCKETS");
 
 	ZCom_setControlID(0);
@@ -42,20 +37,16 @@ Server::Server( int _udpport )
 	console.addLogMsg("SERVER UP");
 }
 
-Server::~Server()
-{
-}
+Server::~Server() {}
 
-BasePlayer::Stats* Server::findSavedStats(unsigned int uniqueID)
-{
+BasePlayer::Stats *Server::findSavedStats(unsigned int uniqueID) {
 	auto i = savedScores.find(uniqueID);
 	if (i != savedScores.end())
 		return i->second.get();
 	return 0;
 }
 
-std::string Server::findSavedName(unsigned int uniqueID)
-{
+std::string Server::findSavedName(unsigned int uniqueID) {
 	auto i = savedNames.find(uniqueID);
 	if (i != savedNames.end())
 		return i->second;
@@ -68,133 +59,105 @@ bool Server::initSockets()
 	if(socketsInited)
 		return true;
 	socketsInited = ZCom_initSockets( true, port, 1, 0 );
-	return socketsInited; 
+	return socketsInited;
 }*/
 
-void Server::ZCom_cbDataReceived( ZCom_ConnID  _id, ZCom_BitStream &_data) 
-{
-	Network::NetEvents event = (Network::NetEvents) _data.getInt(8);
-	switch( event )
-	{
-		case Network::PLAYER_REQUEST:
-		{
+void Server::ZCom_cbDataReceived(ZCom_ConnID _id, ZCom_BitStream &_data) {
+	Network::NetEvents event = (Network::NetEvents)_data.getInt(8);
+	switch (event) {
+		case Network::PLAYER_REQUEST: {
 			std::string name = _data.getStringStatic();
 			int colour = _data.getInt(24);
 			int team = _data.getSignedInt(8);
 			unsigned int uniqueID = static_cast<unsigned int>(_data.getInt(32));
 
-			BaseWorm* worm = game.addWorm(true);
-			NetWorm* netWorm = dynamic_cast<NetWorm*>(worm);
-			if ( netWorm )
-			{
+			BaseWorm *worm = game.addWorm(true);
+			NetWorm *netWorm = dynamic_cast<NetWorm *>(worm);
+			if (netWorm) {
 				netWorm->setOwnerId(_id);
 			}
-			BasePlayer* player = game.addPlayer ( Game::PROXY );
-			
+			BasePlayer *player = game.addPlayer(Game::PROXY);
+
 			auto i = savedScores.find(uniqueID);
-			if(i != savedScores.end())
-			{
+			if (i != savedScores.end()) {
 				player->stats = i->second;
 				player->getOptions()->uniqueID = uniqueID;
-			}
-			else
-			{
-				do
-				{
+			} else {
+				do {
 					uniqueID = rndgen();
-				} while(!uniqueID);
-				
+				} while (!uniqueID);
+
 				player->getOptions()->uniqueID = uniqueID;
 				savedScores[uniqueID] = player->stats;
 			}
-			
+
 			player->colour = colour;
 			player->team = team;
-			player->localChangeName( name );
+			player->localChangeName(name);
 			savedNames[uniqueID] = player->m_name;
-			console.addLogMsg( "* " + player->m_name + " HAS JOINED THE GAME");
+			console.addLogMsg("* " + player->m_name + " HAS JOINED THE GAME");
 			player->assignNetworkRole(true);
 			player->setOwnerId(_id);
 			player->assignWorm(worm);
 
 			// Auto-announce nodes handled by registerNode/setOwner in Net/ layer
-		}
-		break;
-		case Network::RConMsg:
-		{
-			char const* passwordSent = _data.getStringStatic();
-			if ( !game.options.rConPassword.empty() && game.options.rConPassword == passwordSent )
-			{
-				//console.addQueueCommand(_data.getStringStatic());
+		} break;
+		case Network::RConMsg: {
+			char const *passwordSent = _data.getStringStatic();
+			if (!game.options.rConPassword.empty() && game.options.rConPassword == passwordSent) {
+				// console.addQueueCommand(_data.getStringStatic());
 				console.parseLine(_data.getStringStatic());
 			}
-		}
-		break;
-		
-		case Network::ConsistencyInfo:
-		{
+		} break;
+
+		case Network::ConsistencyInfo: {
 			int clientProtocol = _data.getInt(32);
-			if(clientProtocol != Network::protocolVersion)
-			{
+			if (clientProtocol != Network::protocolVersion) {
 				network.disconnect(_id, Network::IncompatibleProtocol);
 			}
-			
-			if(!game.checkCRCs(_data) && network.checkCRC) // We call checkCRC anyway so that the stream is advanced
+
+			if (!game.checkCRCs(_data) && network.checkCRC) // We call checkCRC anyway so that the stream is advanced
 				network.disconnect(_id, Network::IncompatibleData);
-			
-		}
-		break;
+		} break;
 	}
 }
 
-bool Server::ZCom_cbConnectionRequest( ZCom_ConnID id, ZCom_BitStream &_request, ZCom_BitStream &reply )
-{
-	if(network.isBanned(id))
-	{
+bool Server::ZCom_cbConnectionRequest(ZCom_ConnID id, ZCom_BitStream &_request, ZCom_BitStream &reply) {
+	if (network.isBanned(id)) {
 		reply.addInt(Network::ConnectionReply::Banned, 8);
 		return false;
-	}
-	else if(network.clientRetry)
-	{
+	} else if (network.clientRetry) {
 		reply.addInt(Network::ConnectionReply::Retry, 8);
 		return false;
-	}
-	else if ( !m_preShutdown )
-	{
+	} else if (!m_preShutdown) {
 		console.addLogMsg("* CONNECTION REQUESTED");
 		//_reply.addInt(Network::ConnectionReply::Ok, 8);
-		reply.addString( game.getMod().c_str() );
-		reply.addString( game.level.getName().c_str() );
+		reply.addString(game.getMod().c_str());
+		reply.addString(game.level.getName().c_str());
 
 		DLOG("Server sending mod='" << game.getMod() << "' map='" << game.level.getName() << "' in connection reply");
 		return true;
-	}
-	else
-	{
+	} else {
 		reply.addInt(Network::ConnectionReply::Refused, 8);
 		return false;
 	}
 }
 
-void Server::ZCom_cbConnectionSpawned( ZCom_ConnID _id )
-{
+void Server::ZCom_cbConnectionSpawned(ZCom_ConnID _id) {
 	console.addLogMsg("* CONNECTION SPAWNED");
 	ZCom_requestDownstreamLimit(_id, network.downPPS, network.downBPP);
 	network.incConnCount();
 
 	std::unique_ptr<ZCom_BitStream> data(new ZCom_BitStream);
-	Encoding::encode(*data, Network::ClientEvents::LuaEvents, Network::ClientEvents::Max); 
+	Encoding::encode(*data, Network::ClientEvents::LuaEvents, Network::ClientEvents::Max);
 	network.encodeLuaEvents(data.get());
-	ZCom_sendData ( _id, data.get(), eZCom_ReliableOrdered);
+	ZCom_sendData(_id, data.get(), eZCom_ReliableOrdered);
 }
 
-void Server::ZCom_cbConnectionClosed(ZCom_ConnID _id, eZCom_CloseReason _reason, ZCom_BitStream &_reasondata)
-{
+void Server::ZCom_cbConnectionClosed(ZCom_ConnID _id, eZCom_CloseReason _reason, ZCom_BitStream &_reasondata) {
 	console.addLogMsg("* A CONNECTION WAS CLOSED");
-	for ( std::list<BasePlayer*>::iterator iter = game.players.begin(); iter != game.players.end(); iter++)
-	{
-		if ( (*iter)->getConnectionID() == _id )
-		{
+	for (std::list<BasePlayer *>::iterator iter = game.players.begin(); iter != game.players.end(); iter++) {
+		if ((*iter)->getConnectionID() == _id) {
 			(*iter)->deleteMe = true;
 		}
 	}
@@ -202,25 +165,19 @@ void Server::ZCom_cbConnectionClosed(ZCom_ConnID _id, eZCom_CloseReason _reason,
 	DLOG("A connection was closed");
 }
 
-bool Server::ZCom_cbZoidRequest( ZCom_ConnID _id, zU8 requested_level, ZCom_BitStream &_reason)
-{
-	switch(requested_level)
-	{
-		case 1: case 2:
-		{
+bool Server::ZCom_cbZoidRequest(ZCom_ConnID _id, zU8 requested_level, ZCom_BitStream &_reason) {
+	switch (requested_level) {
+		case 1:
+		case 2: {
 			console.addLogMsg("* ZOIDMODE REQUEST ACCEPTED");
 			return true;
-		}
-		break;
-		
+		} break;
+
 		default:
 			return false;
 	}
 }
 
-void Server::ZCom_cbZoidResult(ZCom_ConnID _id, eZCom_ZoidResult _result, zU8 _new_level, ZCom_BitStream &_reason)
-{
+void Server::ZCom_cbZoidResult(ZCom_ConnID _id, eZCom_ZoidResult _result, zU8 _new_level, ZCom_BitStream &_reason) {
 	console.addLogMsg("* NEW CONNECTION JOINED ZOIDMODE");
 }
-
-

@@ -9,8 +9,7 @@
 
 BOOST_AUTO_TEST_SUITE(ref_bitstream)
 
-BOOST_AUTO_TEST_CASE(basic_int_ops)
-{
+BOOST_AUTO_TEST_CASE(basic_int_ops) {
 	ZCom_BitStream bs;
 
 	bs.addInt(42, 8);
@@ -28,8 +27,7 @@ BOOST_AUTO_TEST_CASE(basic_int_ops)
 	BOOST_CHECK_EQUAL(bs.getInt(32), 0x12345678);
 }
 
-BOOST_AUTO_TEST_CASE(signed_int_ops)
-{
+BOOST_AUTO_TEST_CASE(signed_int_ops) {
 	ZCom_BitStream bs;
 
 	bs.addSignedInt(-1, 8);
@@ -52,8 +50,7 @@ BOOST_AUTO_TEST_CASE(signed_int_ops)
 	BOOST_CHECK_EQUAL(bs.getSignedInt(16), -30000);
 }
 
-BOOST_AUTO_TEST_CASE(bool_ops)
-{
+BOOST_AUTO_TEST_CASE(bool_ops) {
 	ZCom_BitStream bs;
 
 	bs.addBool(true);
@@ -66,8 +63,7 @@ BOOST_AUTO_TEST_CASE(bool_ops)
 	BOOST_CHECK(bs.getBool() == true);
 }
 
-BOOST_AUTO_TEST_CASE(float_ops)
-{
+BOOST_AUTO_TEST_CASE(float_ops) {
 	ZCom_BitStream bs;
 
 	// Use values in [-1.0, 1.0] range for quantized encoding
@@ -87,11 +83,10 @@ BOOST_AUTO_TEST_CASE(float_ops)
 	BOOST_CHECK(diff < 0.001f);
 }
 
-BOOST_AUTO_TEST_CASE(string_ops)
-{
+BOOST_AUTO_TEST_CASE(string_ops) {
 	ZCom_BitStream bs;
 
-	const char* test_str = "Hello Zoidcom!";
+	const char *test_str = "Hello Zoidcom!";
 	bs.addString(test_str);
 	bs.resetReadState();
 
@@ -103,20 +98,18 @@ BOOST_AUTO_TEST_CASE(string_ops)
 	BOOST_CHECK_EQUAL(std::string(buf), std::string(test_str));
 }
 
-BOOST_AUTO_TEST_CASE(string_static)
-{
+BOOST_AUTO_TEST_CASE(string_static) {
 	ZCom_BitStream bs;
 	bs.addString("Static buffer test");
 	bs.resetReadState();
-	const char* static_str = bs.getStringStatic();
+	const char *static_str = bs.getStringStatic();
 	BOOST_REQUIRE(static_str);
 	BOOST_CHECK_EQUAL(std::string(static_str), "Static buffer test");
 }
 
-BOOST_AUTO_TEST_CASE(widestring_ops)
-{
+BOOST_AUTO_TEST_CASE(widestring_ops) {
 	ZCom_BitStream bs;
-	const wchar_t* wtest = L"Wide Zoidcom!";
+	const wchar_t *wtest = L"Wide Zoidcom!";
 
 	bs.addStringW(wtest);
 	bs.resetReadState();
@@ -129,13 +122,12 @@ BOOST_AUTO_TEST_CASE(widestring_ops)
 	BOOST_CHECK(wcscmp(wbuf, wtest) == 0);
 }
 
-BOOST_AUTO_TEST_CASE(buffer_ops)
-{
+BOOST_AUTO_TEST_CASE(buffer_ops) {
 	ZCom_BitStream bs;
-	unsigned char sbuf[] = { 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99 };
+	unsigned char sbuf[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99};
 	uint16_t slen = 10;
 
-	bs.addBuffer((char*)sbuf, slen);
+	bs.addBuffer((char *)sbuf, slen);
 	bs.resetReadState();
 
 	char rbuf[16];
@@ -146,8 +138,7 @@ BOOST_AUTO_TEST_CASE(buffer_ops)
 	BOOST_CHECK(memcmp(sbuf, rbuf, slen) == 0);
 }
 
-BOOST_AUTO_TEST_CASE(nested_bitstream)
-{
+BOOST_AUTO_TEST_CASE(nested_bitstream) {
 	ZCom_BitStream inner;
 	inner.addInt(0xDE, 8);
 	inner.addString("inner");
@@ -172,8 +163,7 @@ BOOST_AUTO_TEST_CASE(nested_bitstream)
 
 // ---- Copy constructor ----
 
-BOOST_AUTO_TEST_CASE(copy_constructor)
-{
+BOOST_AUTO_TEST_CASE(copy_constructor) {
 	ZCom_BitStream bs;
 	bs.addInt(42, 8);
 	bs.addString("hello");
@@ -187,8 +177,7 @@ BOOST_AUTO_TEST_CASE(copy_constructor)
 
 // ---- Assignment operator ----
 
-BOOST_AUTO_TEST_CASE(assignment_operator)
-{
+BOOST_AUTO_TEST_CASE(assignment_operator) {
 	ZCom_BitStream bs;
 	bs.addInt(100, 16);
 	bs.addBool(true);
@@ -201,23 +190,20 @@ BOOST_AUTO_TEST_CASE(assignment_operator)
 
 // ---- addInt64 / getInt64 ----
 
-BOOST_AUTO_TEST_CASE(add_get_int64_32bit)
-{
+BOOST_AUTO_TEST_CASE(add_get_int64_32bit) {
 	ZCom_BitStream bs;
 	bs.addInt64(0x12345678, 32);
 	BOOST_CHECK_EQUAL(bs.getInt64(32), 0x12345678);
 }
 
-BOOST_AUTO_TEST_CASE(add_get_int64_64bit)
-{
+BOOST_AUTO_TEST_CASE(add_get_int64_64bit) {
 	ZCom_BitStream bs;
 	int64_t val = 0x123456789ABCDEF0LL;
 	bs.addInt64(val, 64);
 	BOOST_CHECK_EQUAL(bs.getInt64(64), val);
 }
 
-BOOST_AUTO_TEST_CASE(add_get_int64_negative)
-{
+BOOST_AUTO_TEST_CASE(add_get_int64_negative) {
 	ZCom_BitStream bs;
 	int64_t val = -1234567890123LL;
 	bs.addInt64(val, 64);
@@ -226,8 +212,7 @@ BOOST_AUTO_TEST_CASE(add_get_int64_negative)
 
 // ---- addDouble / getDouble ----
 
-BOOST_AUTO_TEST_CASE(add_get_double_64bit)
-{
+BOOST_AUTO_TEST_CASE(add_get_double_64bit) {
 	ZCom_BitStream bs;
 	double val = 3.14159265358979;
 	bs.addDouble(val, 64);
@@ -235,8 +220,7 @@ BOOST_AUTO_TEST_CASE(add_get_double_64bit)
 	BOOST_CHECK_CLOSE(result, val, 0.0001);
 }
 
-BOOST_AUTO_TEST_CASE(add_get_double_32bit)
-{
+BOOST_AUTO_TEST_CASE(add_get_double_32bit) {
 	ZCom_BitStream bs;
 	double val = 2.71828;
 	bs.addDouble(val, 32);
@@ -244,8 +228,7 @@ BOOST_AUTO_TEST_CASE(add_get_double_32bit)
 	BOOST_CHECK_CLOSE(result, val, 0.001);
 }
 
-BOOST_AUTO_TEST_CASE(add_get_double_quantized)
-{
+BOOST_AUTO_TEST_CASE(add_get_double_quantized) {
 	ZCom_BitStream bs;
 	double val = 0.5;
 	bs.addDouble(val, 16);
@@ -253,8 +236,7 @@ BOOST_AUTO_TEST_CASE(add_get_double_quantized)
 	BOOST_CHECK_CLOSE(result, val, 0.01);
 }
 
-BOOST_AUTO_TEST_CASE(add_get_double_negative)
-{
+BOOST_AUTO_TEST_CASE(add_get_double_negative) {
 	ZCom_BitStream bs;
 	double val = -2.71828;
 	bs.addDouble(val, 64);
@@ -264,8 +246,7 @@ BOOST_AUTO_TEST_CASE(add_get_double_negative)
 
 // ---- Skip methods ----
 
-BOOST_AUTO_TEST_CASE(skip_int)
-{
+BOOST_AUTO_TEST_CASE(skip_int) {
 	ZCom_BitStream bs;
 	bs.addInt(10, 8);
 	bs.addInt(20, 8);
@@ -276,8 +257,7 @@ BOOST_AUTO_TEST_CASE(skip_int)
 	BOOST_CHECK_EQUAL(bs.getInt(8), 30);
 }
 
-BOOST_AUTO_TEST_CASE(skip_bool)
-{
+BOOST_AUTO_TEST_CASE(skip_bool) {
 	ZCom_BitStream bs;
 	bs.addBool(true);
 	bs.addBool(false);
@@ -288,8 +268,7 @@ BOOST_AUTO_TEST_CASE(skip_bool)
 	BOOST_CHECK(bs.getBool());
 }
 
-BOOST_AUTO_TEST_CASE(skip_float)
-{
+BOOST_AUTO_TEST_CASE(skip_float) {
 	ZCom_BitStream bs;
 	bs.addFloat(1.0f, 32);
 	bs.addFloat(2.0f, 32);
@@ -301,8 +280,7 @@ BOOST_AUTO_TEST_CASE(skip_float)
 	BOOST_CHECK(bs.endOfStream());
 }
 
-BOOST_AUTO_TEST_CASE(skip_string)
-{
+BOOST_AUTO_TEST_CASE(skip_string) {
 	ZCom_BitStream bs;
 	bs.addString("skip_me");
 	bs.addInt(99, 8);
@@ -311,8 +289,7 @@ BOOST_AUTO_TEST_CASE(skip_string)
 	BOOST_CHECK_EQUAL(bs.getInt(8), 99);
 }
 
-BOOST_AUTO_TEST_CASE(skip_buffer)
-{
+BOOST_AUTO_TEST_CASE(skip_buffer) {
 	ZCom_BitStream bs;
 	char buf[] = "bufferdata";
 	bs.addBuffer(buf, 10);
@@ -322,8 +299,7 @@ BOOST_AUTO_TEST_CASE(skip_buffer)
 	BOOST_CHECK_EQUAL(bs.getInt(8), 77);
 }
 
-BOOST_AUTO_TEST_CASE(skip_bits)
-{
+BOOST_AUTO_TEST_CASE(skip_bits) {
 	ZCom_BitStream bs;
 	bs.addInt(0xFF, 8);
 	bs.addInt(0xAA, 8);
@@ -333,8 +309,7 @@ BOOST_AUTO_TEST_CASE(skip_bits)
 	BOOST_CHECK_EQUAL(bs.getInt(8), 0xAA);
 }
 
-BOOST_AUTO_TEST_CASE(skip_signed_int)
-{
+BOOST_AUTO_TEST_CASE(skip_signed_int) {
 	ZCom_BitStream bs;
 	bs.addSignedInt(-100, 16);
 	bs.addSignedInt(200, 16);
@@ -347,8 +322,7 @@ BOOST_AUTO_TEST_CASE(skip_signed_int)
 
 // ---- Save/Restore state ----
 
-BOOST_AUTO_TEST_CASE(save_restore_read_state)
-{
+BOOST_AUTO_TEST_CASE(save_restore_read_state) {
 	ZCom_BitStream bs;
 	bs.addInt(1, 8);
 	bs.addInt(2, 8);
@@ -364,8 +338,7 @@ BOOST_AUTO_TEST_CASE(save_restore_read_state)
 	BOOST_CHECK_EQUAL(bs.getInt(8), 2); // should read 2 again
 }
 
-BOOST_AUTO_TEST_CASE(save_restore_write_state)
-{
+BOOST_AUTO_TEST_CASE(save_restore_write_state) {
 	ZCom_BitStream bs;
 	bs.addInt(10, 8);
 
@@ -384,8 +357,7 @@ BOOST_AUTO_TEST_CASE(save_restore_write_state)
 
 // ---- Stream checks ----
 
-BOOST_AUTO_TEST_CASE(end_of_stream)
-{
+BOOST_AUTO_TEST_CASE(end_of_stream) {
 	ZCom_BitStream bs;
 	BOOST_CHECK(bs.endOfStream());
 
@@ -396,8 +368,7 @@ BOOST_AUTO_TEST_CASE(end_of_stream)
 	BOOST_CHECK(bs.endOfStream());
 }
 
-BOOST_AUTO_TEST_CASE(check_max)
-{
+BOOST_AUTO_TEST_CASE(check_max) {
 	ZCom_BitStream bs;
 	bs.addInt(1, 8);
 	// After adding 8 bits, checkMax for 1000 may fail (small default vector)
@@ -405,8 +376,7 @@ BOOST_AUTO_TEST_CASE(check_max)
 	bs.checkMax(8); // should succeed
 }
 
-BOOST_AUTO_TEST_CASE(get_size_hint)
-{
+BOOST_AUTO_TEST_CASE(get_size_hint) {
 	ZCom_BitStream bs;
 	BOOST_CHECK_EQUAL(bs.getSizeHint(), 0);
 
@@ -419,8 +389,7 @@ BOOST_AUTO_TEST_CASE(get_size_hint)
 
 // ---- getStringLength ----
 
-BOOST_AUTO_TEST_CASE(get_string_length)
-{
+BOOST_AUTO_TEST_CASE(get_string_length) {
 	ZCom_BitStream bs;
 	bs.addString("test123");
 
@@ -428,8 +397,7 @@ BOOST_AUTO_TEST_CASE(get_string_length)
 	BOOST_CHECK_EQUAL(std::string(bs.getStringStatic()), "test123");
 }
 
-BOOST_AUTO_TEST_CASE(get_string_length_empty)
-{
+BOOST_AUTO_TEST_CASE(get_string_length_empty) {
 	ZCom_BitStream bs;
 	bs.addString("");
 
@@ -438,8 +406,7 @@ BOOST_AUTO_TEST_CASE(get_string_length_empty)
 
 // ---- isEqual ----
 
-BOOST_AUTO_TEST_CASE(is_equal_same)
-{
+BOOST_AUTO_TEST_CASE(is_equal_same) {
 	ZCom_BitStream a;
 	a.addInt(1, 8);
 	a.addInt(2, 8);
@@ -451,8 +418,7 @@ BOOST_AUTO_TEST_CASE(is_equal_same)
 	BOOST_CHECK(a.isEqual(b));
 }
 
-BOOST_AUTO_TEST_CASE(is_equal_different)
-{
+BOOST_AUTO_TEST_CASE(is_equal_different) {
 	ZCom_BitStream a;
 	a.addInt(1, 8);
 
@@ -462,8 +428,7 @@ BOOST_AUTO_TEST_CASE(is_equal_different)
 	BOOST_CHECK(!a.isEqual(b));
 }
 
-BOOST_AUTO_TEST_CASE(is_equal_different_length)
-{
+BOOST_AUTO_TEST_CASE(is_equal_different_length) {
 	ZCom_BitStream a;
 	a.addInt(1, 8);
 	a.addInt(2, 8);
@@ -476,8 +441,7 @@ BOOST_AUTO_TEST_CASE(is_equal_different_length)
 
 // ---- Serialize / Deserialize ----
 
-BOOST_AUTO_TEST_CASE(serialize_deserialize)
-{
+BOOST_AUTO_TEST_CASE(serialize_deserialize) {
 	ZCom_BitStream bs;
 	bs.addInt(42, 8);
 	bs.addString("serialize_test");
@@ -496,8 +460,7 @@ BOOST_AUTO_TEST_CASE(serialize_deserialize)
 	BOOST_CHECK_CLOSE(restored.getFloat(32), 3.14f, 0.001f);
 }
 
-BOOST_AUTO_TEST_CASE(serialize_buffer_too_small)
-{
+BOOST_AUTO_TEST_CASE(serialize_buffer_too_small) {
 	ZCom_BitStream bs;
 	bs.addInt(42, 8);
 
@@ -506,16 +469,14 @@ BOOST_AUTO_TEST_CASE(serialize_buffer_too_small)
 	BOOST_CHECK(!bs.Serialize(buf, &size, 0)); // max_size=0
 }
 
-BOOST_AUTO_TEST_CASE(deserialize_null)
-{
+BOOST_AUTO_TEST_CASE(deserialize_null) {
 	ZCom_BitStream bs;
 	BOOST_CHECK(!bs.Deserialize(nullptr, 0));
 }
 
 // ---- getBufferMax ----
 
-BOOST_AUTO_TEST_CASE(get_buffer_max)
-{
+BOOST_AUTO_TEST_CASE(get_buffer_max) {
 	ZCom_BitStream bs;
 	char buf[] = "1234567890";
 	bs.addBuffer(buf, 10);
@@ -529,8 +490,7 @@ BOOST_AUTO_TEST_CASE(get_buffer_max)
 
 // ---- addStringW / getStringW (already existed but additional tests) ----
 
-BOOST_AUTO_TEST_CASE(add_get_wide_string)
-{
+BOOST_AUTO_TEST_CASE(add_get_wide_string) {
 	ZCom_BitStream bs;
 	bs.addStringW(L"wide_test");
 
@@ -538,8 +498,7 @@ BOOST_AUTO_TEST_CASE(add_get_wide_string)
 	BOOST_CHECK(std::wcscmp(bs.getStringWStatic(), L"wide_test") == 0);
 }
 
-BOOST_AUTO_TEST_CASE(add_get_empty_wide_string)
-{
+BOOST_AUTO_TEST_CASE(add_get_empty_wide_string) {
 	ZCom_BitStream bs;
 	bs.addStringW(L"");
 
@@ -548,8 +507,7 @@ BOOST_AUTO_TEST_CASE(add_get_empty_wide_string)
 
 // ---- AddBitStream / GetBitStream ----
 
-BOOST_AUTO_TEST_CASE(add_get_bitstream_roundtrip)
-{
+BOOST_AUTO_TEST_CASE(add_get_bitstream_roundtrip) {
 	ZCom_BitStream inner;
 	inner.addInt(1, 8);
 	inner.addInt(2, 8);
@@ -565,8 +523,7 @@ BOOST_AUTO_TEST_CASE(add_get_bitstream_roundtrip)
 	BOOST_CHECK_EQUAL(extracted->getInt(8), 2);
 }
 
-BOOST_AUTO_TEST_CASE(add_bitstream_bits)
-{
+BOOST_AUTO_TEST_CASE(add_bitstream_bits) {
 	// addBitStream inlines the inner bits directly (no length prefix)
 	ZCom_BitStream inner;
 	inner.addInt(99, 8); // 8 bits
@@ -579,8 +536,7 @@ BOOST_AUTO_TEST_CASE(add_bitstream_bits)
 
 // ---- Misc: clear and reset ----
 
-BOOST_AUTO_TEST_CASE(clear_preserves_state)
-{
+BOOST_AUTO_TEST_CASE(clear_preserves_state) {
 	ZCom_BitStream bs;
 	bs.addInt(1, 8);
 	bs.addInt(2, 8);
@@ -593,8 +549,7 @@ BOOST_AUTO_TEST_CASE(clear_preserves_state)
 	BOOST_CHECK_EQUAL(bs.getInt(8), 3);
 }
 
-BOOST_AUTO_TEST_CASE(multiple_reset_and_reuse)
-{
+BOOST_AUTO_TEST_CASE(multiple_reset_and_reuse) {
 	ZCom_BitStream bs;
 	for (int round = 0; round < 3; ++round) {
 		bs.reset();
@@ -603,15 +558,13 @@ BOOST_AUTO_TEST_CASE(multiple_reset_and_reuse)
 	}
 }
 
-BOOST_AUTO_TEST_CASE(is_equal_empty)
-{
+BOOST_AUTO_TEST_CASE(is_equal_empty) {
 	ZCom_BitStream a;
 	ZCom_BitStream b;
 	BOOST_CHECK(a.isEqual(b));
 }
 
-BOOST_AUTO_TEST_CASE(duplicate_from_mid_stream)
-{
+BOOST_AUTO_TEST_CASE(duplicate_from_mid_stream) {
 	ZCom_BitStream bs;
 	bs.addInt(1, 8);
 	bs.addInt(2, 8);
@@ -628,30 +581,27 @@ BOOST_AUTO_TEST_CASE(duplicate_from_mid_stream)
 
 // ---- ZCom_TypeHelper tests ----
 
-BOOST_AUTO_TEST_CASE(type_helper_value_type)
-{
+BOOST_AUTO_TEST_CASE(type_helper_value_type) {
 	ZCom_TypeHelper<int>::value_type v = 42;
 	ZCom_TypeHelper<int>::pointer p = &v;
 	BOOST_CHECK_EQUAL(*p, 42);
 }
 
-BOOST_AUTO_TEST_CASE(type_helper_pointer_type)
-{
+BOOST_AUTO_TEST_CASE(type_helper_pointer_type) {
 	int val = 99;
-	ZCom_TypeHelper<int*>::value_type v = val;
-	ZCom_TypeHelper<int*>::pointer p = &v;
+	ZCom_TypeHelper<int *>::value_type v = val;
+	ZCom_TypeHelper<int *>::pointer p = &v;
 	BOOST_CHECK_EQUAL(*p, 99);
 }
 
 // ---- ZCom_ReplicatorValue tests ----
 
-BOOST_AUTO_TEST_CASE(replicator_value_value_type)
-{
+BOOST_AUTO_TEST_CASE(replicator_value_value_type) {
 	ZCom_ReplicatorValue<int, 3> rv;
-	int* data = rv.getData();
+	int *data = rv.getData();
 	BOOST_REQUIRE(data != nullptr);
 
-	BOOST_CHECK(rv.hasChanged()); // starts changed
+	BOOST_CHECK(rv.hasChanged());  // starts changed
 	BOOST_CHECK(!rv.hasChanged()); // now cleared
 
 	data[0] = 10;
@@ -661,18 +611,16 @@ BOOST_AUTO_TEST_CASE(replicator_value_value_type)
 	BOOST_CHECK(rv.hasChanged());
 }
 
-BOOST_AUTO_TEST_CASE(replicator_value_set_data_idx)
-{
+BOOST_AUTO_TEST_CASE(replicator_value_set_data_idx) {
 	ZCom_ReplicatorValue<int, 4> rv;
 	rv.setData(42, 2);
 	BOOST_CHECK(rv.hasChanged());
 	BOOST_CHECK_EQUAL(rv.getData()[2], 42);
 }
 
-BOOST_AUTO_TEST_CASE(replicator_value_pointer_type)
-{
+BOOST_AUTO_TEST_CASE(replicator_value_pointer_type) {
 	int vals[3] = {1, 2, 3};
-	ZCom_ReplicatorValue<int*, 3> rv(vals);
+	ZCom_ReplicatorValue<int *, 3> rv(vals);
 
 	// First check - comparator initialized to 0, so 1 != 0 means changed
 	BOOST_CHECK(rv.hasChanged());
@@ -689,11 +637,10 @@ BOOST_AUTO_TEST_CASE(replicator_value_pointer_type)
 	BOOST_CHECK(rv.hasChanged());
 }
 
-BOOST_AUTO_TEST_CASE(replicator_value_pointer_update)
-{
+BOOST_AUTO_TEST_CASE(replicator_value_pointer_update) {
 	int vals[2] = {5, 10};
 	int new_vals[2] = {15, 20};
-	ZCom_ReplicatorValue<int*, 2> rv(vals);
+	ZCom_ReplicatorValue<int *, 2> rv(vals);
 
 	rv.updateData(new_vals);
 	BOOST_CHECK_EQUAL(vals[0], 15);
@@ -703,16 +650,16 @@ BOOST_AUTO_TEST_CASE(replicator_value_pointer_update)
 // ---- ZCom_NodeEventInterceptor derived test ----
 
 class TestEventInterceptor : public ZCom_NodeEventInterceptor {
-public:
+  public:
 	bool userEventCalled = false;
-	bool recUserEvent(ZCom_Node* node, uint32_t from, eZCom_NodeRole remoterole, ZCom_BitStream& data, uint32_t estimated_time_sent) override {
+	bool recUserEvent(ZCom_Node *node, uint32_t from, eZCom_NodeRole remoterole, ZCom_BitStream &data,
+					  uint32_t estimated_time_sent) override {
 		userEventCalled = true;
 		return true;
 	}
 };
 
-BOOST_AUTO_TEST_CASE(event_interceptor_derived)
-{
+BOOST_AUTO_TEST_CASE(event_interceptor_derived) {
 	TestEventInterceptor interceptor;
 	ZCom_BitStream bs;
 	BOOST_CHECK(interceptor.recUserEvent(nullptr, 0, eZCom_RoleUndefined, bs, 0));
@@ -722,16 +669,15 @@ BOOST_AUTO_TEST_CASE(event_interceptor_derived)
 // ---- ZCom_NodeReplicationInterceptor derived test ----
 
 class TestRepInterceptor : public ZCom_NodeReplicationInterceptor {
-public:
+  public:
 	bool preUpdateCalled = false;
-	bool outPreUpdate(ZCom_Node* node, uint32_t to, eZCom_NodeRole remote_role) override {
+	bool outPreUpdate(ZCom_Node *node, uint32_t to, eZCom_NodeRole remote_role) override {
 		preUpdateCalled = true;
 		return true;
 	}
 };
 
-BOOST_AUTO_TEST_CASE(rep_interceptor_derived)
-{
+BOOST_AUTO_TEST_CASE(rep_interceptor_derived) {
 	TestRepInterceptor interceptor;
 	BOOST_CHECK(interceptor.outPreUpdate(nullptr, 0, eZCom_RoleUndefined));
 	BOOST_CHECK(interceptor.preUpdateCalled);

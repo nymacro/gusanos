@@ -21,26 +21,24 @@ class Event;
 class DetectEvent;
 class Sprite;
 
-class ExpType : public LuaObject
-{
-public:
-	
+class ExpType : public LuaObject {
+  public:
 	ExpType();
 	~ExpType();
 
-	bool load(fs::path const& filename);
+	bool load(fs::path const &filename);
 
 	int timeout;
 	int timeoutVariation;
 
 #ifndef DEDSERV
-	Distortion* distortion;
+	Distortion *distortion;
 	float distortMagnitude;
-	SpriteSet* sprite;
+	SpriteSet *sprite;
 	BlitterContext::Type blender;
-	Sprite* lightHax;
+	Sprite *lightHax;
 	bool rockHidden;
-#endif //DEDSERV
+#endif // DEDSERV
 	int renderLayer;
 	int colour;
 	int alpha;
@@ -50,7 +48,7 @@ public:
 	bool wupixels;
 	bool invisible;
 
-	std::vector< DetectEvent* > detectRanges;
+	std::vector<DetectEvent *> detectRanges;
 	Event *creation;
 };
 

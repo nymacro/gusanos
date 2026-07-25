@@ -6,8 +6,7 @@
 
 BOOST_AUTO_TEST_SUITE(ref_replicators)
 
-BOOST_AUTO_TEST_CASE(replicator_setup)
-{
+BOOST_AUTO_TEST_CASE(replicator_setup) {
 	ZCom_ReplicatorSetup setup(ZCOM_REPFLAG_NONE, ZCOM_REPRULE_AUTH_2_ALL, 5, 100, 500);
 
 	BOOST_CHECK_EQUAL(setup.getFlags(), ZCOM_REPFLAG_NONE);
@@ -35,8 +34,7 @@ BOOST_AUTO_TEST_CASE(replicator_setup)
 	(void)dup2;
 }
 
-BOOST_AUTO_TEST_CASE(rsetup_numeric)
-{
+BOOST_AUTO_TEST_CASE(rsetup_numeric) {
 	ZCom_RSetupNumeric rsetup(16, ZCOM_REPFLAG_NONE, ZCOM_REPRULE_AUTH_2_ALL, 3, 10, 100);
 	BOOST_CHECK_EQUAL(rsetup.getRelevantBits(), 16);
 	BOOST_CHECK_EQUAL(rsetup.getInterceptID(), 3);
@@ -48,16 +46,13 @@ BOOST_AUTO_TEST_CASE(rsetup_numeric)
 	BOOST_REQUIRE(dup);
 }
 
-BOOST_AUTO_TEST_CASE(rsetup_string)
-{
+BOOST_AUTO_TEST_CASE(rsetup_string) {
 	ZCom_RSetupString ssetup(128, ZCOM_REPFLAG_NONE, ZCOM_REPRULE_AUTH_2_ALL);
 	BOOST_CHECK_EQUAL(ssetup.maxlen, 128);
 }
 
-BOOST_AUTO_TEST_CASE(bool_replicator_value)
-{
-	ZCom_Replicate_Bool* rep = new ZCom_Replicate_Bool(
-		false, ZCOM_REPFLAG_NONE, ZCOM_REPRULE_AUTH_2_ALL);
+BOOST_AUTO_TEST_CASE(bool_replicator_value) {
+	ZCom_Replicate_Bool *rep = new ZCom_Replicate_Bool(false, ZCOM_REPFLAG_NONE, ZCOM_REPRULE_AUTH_2_ALL);
 
 	BOOST_CHECK(rep->getValue() == false);
 
@@ -72,8 +67,7 @@ BOOST_AUTO_TEST_CASE(bool_replicator_value)
 	rep->checkState();
 	rep->packData(&bs);
 
-	ZCom_Replicate_Bool* rep2 = new ZCom_Replicate_Bool(
-		false, ZCOM_REPFLAG_NONE, ZCOM_REPRULE_AUTH_2_ALL);
+	ZCom_Replicate_Bool *rep2 = new ZCom_Replicate_Bool(false, ZCOM_REPFLAG_NONE, ZCOM_REPRULE_AUTH_2_ALL);
 
 	bs.resetReadState();
 	rep2->unpackData(&bs, true, 0);
@@ -83,11 +77,9 @@ BOOST_AUTO_TEST_CASE(bool_replicator_value)
 	delete rep2;
 }
 
-BOOST_AUTO_TEST_CASE(bool_replicator_pointer)
-{
+BOOST_AUTO_TEST_CASE(bool_replicator_pointer) {
 	bool actual_bool = false;
-	ZCom_Replicate_Boolp* repp = new ZCom_Replicate_Boolp(
-		&actual_bool, ZCOM_REPFLAG_NONE, ZCOM_REPRULE_AUTH_2_ALL);
+	ZCom_Replicate_Boolp *repp = new ZCom_Replicate_Boolp(&actual_bool, ZCOM_REPFLAG_NONE, ZCOM_REPRULE_AUTH_2_ALL);
 
 	actual_bool = true;
 	bool changed = repp->checkState();
@@ -97,8 +89,7 @@ BOOST_AUTO_TEST_CASE(bool_replicator_pointer)
 	repp->packData(&bsp);
 
 	actual_bool = false;
-	ZCom_Replicate_Boolp* repp2 = new ZCom_Replicate_Boolp(
-		&actual_bool, ZCOM_REPFLAG_NONE, ZCOM_REPRULE_AUTH_2_ALL);
+	ZCom_Replicate_Boolp *repp2 = new ZCom_Replicate_Boolp(&actual_bool, ZCOM_REPFLAG_NONE, ZCOM_REPRULE_AUTH_2_ALL);
 
 	bsp.resetReadState();
 	repp2->unpackData(&bsp, true, 0);

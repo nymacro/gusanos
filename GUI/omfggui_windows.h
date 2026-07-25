@@ -9,4 +9,4 @@
 #include "detail/check.h"
 #include "detail/label.h"
 
-#endif //OMFGGUI_WINDOWS_H
+#endif // OMFGGUI_WINDOWS_H

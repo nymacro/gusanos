@@ -4,21 +4,14 @@
 #include <string>
 #include <vector>
 
-namespace Parser
-{
-	enum
-	{
-		INVALID = -1,
-		PROP_ASSIGMENT,
-		EVENT_START,
-		ACTION
-	};
-	
-	const std::vector<std::string> tokenize ( const std::string & text );
-	
-	int identifyLine( const std::vector<std::string> & tokens );
-	
-	std::vector<std::string> getActionParams( const std::vector<std::string> & tokens );
-}
+namespace Parser {
+enum { INVALID = -1, PROP_ASSIGMENT, EVENT_START, ACTION };
 
-#endif  // _GAME_ACTIONS_H_
+const std::vector<std::string> tokenize(const std::string &text);
+
+int identifyLine(const std::vector<std::string> &tokens);
+
+std::vector<std::string> getActionParams(const std::vector<std::string> &tokens);
+} // namespace Parser
+
+#endif // _GAME_ACTIONS_H_

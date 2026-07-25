@@ -8,52 +8,41 @@
 
 LuaReference BaseObject::metaTable;
 
-BaseObject::BaseObject( BasePlayer* owner, Vec pos_, Vec spd_ )
-: pos(pos_), spd(spd_)
-, luaData(0), nextS_(0), nextD_(0), prevD_(0), cellIndex_(-1)
-, m_owner(owner), deleteMe(false)
-{
-}
+BaseObject::BaseObject(BasePlayer *owner, Vec pos_, Vec spd_)
+	: pos(pos_), spd(spd_), luaData(0), nextS_(0), nextD_(0), prevD_(0), cellIndex_(-1), m_owner(owner),
+	  deleteMe(false) {}
 
-BaseObject::~BaseObject()
-{
-	if(luaData)
+BaseObject::~BaseObject() {
+	if (luaData)
 		lua.destroyReference(luaData);
 }
 
-Vec BaseObject::getRenderPos()
-{
+Vec BaseObject::getRenderPos() {
 	return pos;
 }
 
-Angle BaseObject::getAngle()
-{
+Angle BaseObject::getAngle() {
 	return Angle(0);
 }
 
-int BaseObject::getDir()
-{
+int BaseObject::getDir() {
 	return 1;
 }
 
-BasePlayer* BaseObject::getOwner()
-{
+BasePlayer *BaseObject::getOwner() {
 	return m_owner;
 }
 
-void BaseObject::remove()
-{
+void BaseObject::remove() {
 	deleteMe = true;
 }
 
-bool BaseObject::isCollidingWith( const Vec& point, float radius )
-{
-	return (pos - point).lengthSqr() < radius*radius;
+bool BaseObject::isCollidingWith(const Vec &point, float radius) {
+	return (pos - point).lengthSqr() < radius * radius;
 }
 
-void BaseObject::removeRefsToPlayer(BasePlayer* player)
-{
-	if ( m_owner == player )
+void BaseObject::removeRefsToPlayer(BasePlayer *player) {
+	if (m_owner == player)
 		m_owner = NULL;
 }
 
@@ -70,8 +59,7 @@ LuaReference BaseObject::getLuaReference()
 	}
 }*/
 
-void BaseObject::makeReference()
-{
+void BaseObject::makeReference() {
 	lua.pushFullReference(*this, metaTable);
 }
 
@@ -84,7 +72,7 @@ void BaseObject::pushLuaReference()
 void BaseObject::deleteThis()
 {
 	finalize();
-	
+
 	if(luaReference)
 	{
 		lua.destroyReference(luaReference);

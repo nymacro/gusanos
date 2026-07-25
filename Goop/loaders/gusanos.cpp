@@ -23,155 +23,133 @@ using namespace std;
 
 GusanosLevelLoader GusanosLevelLoader::instance;
 
-bool GusanosLevelLoader::canLoad(fs::path const& path, std::string& name)
-{
-	if(fs::exists(path / "config.cfg"))
-	{
+bool GusanosLevelLoader::canLoad(fs::path const &path, std::string &name) {
+	if (fs::exists(path / "config.cfg")) {
 		name = path.filename().string();
 		return true;
 	}
 	return false;
 }
 
-namespace{
+namespace {
 
-	enum type
-	{
-		GameStart,
-		GameEnd
-	};
+enum type { GameStart, GameEnd };
 
-	LevelConfig* loadConfig( fs::path const& filename )
-	{
-		fs::ifstream fileStream(filename, std::ios::binary | std::ios::in);
+LevelConfig *loadConfig(fs::path const &filename) {
+	fs::ifstream fileStream(filename, std::ios::binary | std::ios::in);
 
-		if (!fileStream )
-			return nullptr;
-		
-		OmfgScript::Parser parser(fileStream, gameActions, filename.string());
-		
-		parser.addEvent("game_start", GameStart, 0);
-		parser.addEvent("game_end", GameEnd, 0);
-		
-		if(!parser.run())
-		{
-			parser.error("Trailing garbage");
-			return nullptr;
-		}
-		
-		LevelConfig* returnConf = new LevelConfig;
-		
-		OmfgScript::TokenBase* tmpProp = parser.getProperty("spawnpoints");
-		if ( tmpProp->isList() )
-		{
-			std::list<OmfgScript::TokenBase*> const& tokens = tmpProp->toList();
-			for (auto sp = tokens.begin(); sp != tokens.end(); ++sp)
-			{
-				OmfgScript::TokenBase& v = **sp;
-				if ( v.assertList() )
-				{
-					std::list<OmfgScript::TokenBase*> const& spParams = v.toList();
-					std::list<OmfgScript::TokenBase*>::const_iterator iter = spParams.begin();
-					
-					float x = 0;
-					float y = 0;
-					int team = -1;
-					
-					if ( iter != spParams.end() )
-					{
-						x = (*iter)->toDouble();
-						++iter;
-					}
-					if ( iter != spParams.end() )
-					{
-						y = (*iter)->toDouble();
-						++iter;
-					}
-					if ( iter != spParams.end() )
-					{
-						team = (*iter)->toInt();
-						++iter;
-					}
-					
-					returnConf->spawnPoints.push_back(SpawnPoint( Vec(x,y), team ));
-				}
-			}
-		}
-		
-		returnConf->darkMode = parser.getBool("dark_mode");
-		returnConf->centerAlignedParticles = parser.getBool("center_aligned_particles");
-		
-		OmfgScript::Parser::EventIter i(parser);
-		for(; i; ++i)
-		{
-			std::vector<OmfgScript::TokenBase*> const& p = i.params();
-			switch(i.type())
-			{
-				case GameStart:
-					returnConf->gameStart = new Event(i.actions());
-				break;
-				
-				case GameEnd:
-					returnConf->gameEnd = new Event(i.actions());
-				break;
-			}
-		}
-		return returnConf;
+	if (!fileStream)
+		return nullptr;
+
+	OmfgScript::Parser parser(fileStream, gameActions, filename.string());
+
+	parser.addEvent("game_start", GameStart, 0);
+	parser.addEvent("game_end", GameEnd, 0);
+
+	if (!parser.run()) {
+		parser.error("Trailing garbage");
+		return nullptr;
 	}
 
+	LevelConfig *returnConf = new LevelConfig;
+
+	OmfgScript::TokenBase *tmpProp = parser.getProperty("spawnpoints");
+	if (tmpProp->isList()) {
+		std::list<OmfgScript::TokenBase *> const &tokens = tmpProp->toList();
+		for (auto sp = tokens.begin(); sp != tokens.end(); ++sp) {
+			OmfgScript::TokenBase &v = **sp;
+			if (v.assertList()) {
+				std::list<OmfgScript::TokenBase *> const &spParams = v.toList();
+				std::list<OmfgScript::TokenBase *>::const_iterator iter = spParams.begin();
+
+				float x = 0;
+				float y = 0;
+				int team = -1;
+
+				if (iter != spParams.end()) {
+					x = (*iter)->toDouble();
+					++iter;
+				}
+				if (iter != spParams.end()) {
+					y = (*iter)->toDouble();
+					++iter;
+				}
+				if (iter != spParams.end()) {
+					team = (*iter)->toInt();
+					++iter;
+				}
+
+				returnConf->spawnPoints.push_back(SpawnPoint(Vec(x, y), team));
+			}
+		}
+	}
+
+	returnConf->darkMode = parser.getBool("dark_mode");
+	returnConf->centerAlignedParticles = parser.getBool("center_aligned_particles");
+
+	OmfgScript::Parser::EventIter i(parser);
+	for (; i; ++i) {
+		std::vector<OmfgScript::TokenBase *> const &p = i.params();
+		switch (i.type()) {
+			case GameStart:
+				returnConf->gameStart = new Event(i.actions());
+				break;
+
+			case GameEnd:
+				returnConf->gameEnd = new Event(i.actions());
+				break;
+		}
+	}
+	return returnConf;
 }
-	
-bool GusanosLevelLoader::load(Level* level, fs::path const& path)
-{
+
+} // namespace
+
+bool GusanosLevelLoader::load(Level *level, fs::path const &path) {
 	std::string materialPath = (path / "material").string();
-	
+
 	level->path = path.string();
-	
+
 	{
 		LocalSetColorDepth cd(8);
 		level->material = gfx.loadBitmap(materialPath.c_str(), 0);
 	}
-	
-	if (level->material)
-	{
-		level->setEvents( loadConfig( path / "config.cfg" ) );
+
+	if (level->material) {
+		level->setEvents(loadConfig(path / "config.cfg"));
 #ifndef DEDSERV
 		std::string imagePath = (path / "level").string();
-		
+
 		level->image = gfx.loadBitmap(imagePath.c_str(), 0);
-		if (level->image)
-		{			
+		if (level->image) {
 			std::string backgroundPath = (path / "background").string();
-			
-			level->background = gfx.loadBitmap(backgroundPath.c_str(),0);
-			
+
+			level->background = gfx.loadBitmap(backgroundPath.c_str(), 0);
+
 			std::string paralaxPath = (path / "paralax").string();
-			level->paralax = gfx.loadBitmap(paralaxPath.c_str(),0);
-			
-			if(!level->paralax)
+			level->paralax = gfx.loadBitmap(paralaxPath.c_str(), 0);
+
+			if (!level->paralax)
 				std::cerr << "Paralax not loaded" << std::endl;
-			
+
 			std::string lightmapPath = (path / "lightmap").string();
-		
-			BITMAP* tempLightmap = gfx.loadBitmap(lightmapPath.c_str(),0);
-			if ( tempLightmap )
-			{
+
+			BITMAP *tempLightmap = gfx.loadBitmap(lightmapPath.c_str(), 0);
+			if (tempLightmap) {
 				{
 					LocalSetColorDepth cd(8);
 					level->lightmap = create_bitmap(level->material->w, level->material->h);
 				}
-				for ( int x = 0; x < level->lightmap->w ; ++x )
-				for ( int y = 0; y < level->lightmap->h ; ++y )
-				{
-					putpixel( level->lightmap, x, y, getg(getpixel(tempLightmap, x, y)) );
-				}
-				destroy_bitmap( tempLightmap );
+				for (int x = 0; x < level->lightmap->w; ++x)
+					for (int y = 0; y < level->lightmap->h; ++y) {
+						putpixel(level->lightmap, x, y, getg(getpixel(tempLightmap, x, y)));
+					}
+				destroy_bitmap(tempLightmap);
 			}
-			
+
 			level->loaderSucceeded();
 			return true;
 		}
-		
 
 #else
 		level->loaderSucceeded();
@@ -182,66 +160,60 @@ bool GusanosLevelLoader::load(Level* level, fs::path const& path)
 	return false;
 }
 
-const char* GusanosLevelLoader::getName()
-{
+const char *GusanosLevelLoader::getName() {
 	return "Gusanos 0.9 level loader";
 }
 
 #ifndef DEDSERV
 GusanosFontLoader GusanosFontLoader::instance;
 
-bool GusanosFontLoader::canLoad(fs::path const& path, std::string& name)
-{
-	if(path.extension().string() == ".bmp" || path.extension().string() == ".png")
-	{
+bool GusanosFontLoader::canLoad(fs::path const &path, std::string &name) {
+	if (path.extension().string() == ".bmp" || path.extension().string() == ".png") {
 		name = path.stem().string();
 		return true;
 	}
 	return false;
 }
-	
-bool GusanosFontLoader::load(Font* font, fs::path const& path)
-{
+
+bool GusanosFontLoader::load(Font *font, fs::path const &path) {
 	font->free();
-	
+
 	{
 		LocalSetColorDepth cd(8);
 		LocalSetColorConversion cc(COLORCONV_REDUCE_TO_256 | COLORCONV_KEEP_TRANS);
-	
+
 		font->m_bitmap = load_bitmap(path.string().c_str(), 0);
-		if(!font->m_bitmap)
+		if (!font->m_bitmap)
 			return false;
-		
+
 		// Change all non-transparent pixels to full opacity
-		for(int y = 0; y < font->m_bitmap->h; ++y)
-		for(int x = 0; x < font->m_bitmap->w; ++x)
-		{
-			Pixel8* p = font->m_bitmap->line[y] + x;
-			if(*p != 0)
-				*p = 255;
-		}
+		for (int y = 0; y < font->m_bitmap->h; ++y)
+			for (int x = 0; x < font->m_bitmap->w; ++x) {
+				Pixel8 *p = font->m_bitmap->line[y] + x;
+				if (*p != 0)
+					*p = 255;
+			}
 	}
-		
+
 	font->m_supportColoring = true;
-		
+
 	int monoWidth = font->m_bitmap->w / 256;
 	int monoHeight = font->m_bitmap->h;
-	
-	if(monoWidth <= 0 || monoHeight <= 0)
+
+	if (monoWidth <= 0 || monoHeight <= 0)
 		return false;
 
 	int x = 0;
-	for (int i = 0; i < 256; ++i)
-	{
+	for (int i = 0; i < 256; ++i) {
 		/*BITMAP* character = create_bitmap(width,tempBitmap->h);
 		blit(tempBitmap,character,i * width,0,0,0,width,character->h);*/
 		font->m_chars.push_back(Font::CharInfo(Rect(x, 0, x + monoWidth, monoHeight), 0));
-		
+
 		x += monoWidth;
 	}
-	
+
 	font->buildSubBitmaps();
-	
+
 	return true;
 	/*
 	BITMAP *tempBitmap = load_bmp(path.string().c_str(),0);
@@ -261,112 +233,97 @@ bool GusanosFontLoader::load(Font* font, fs::path const& path)
 	return false;*/
 }
 
-const char* GusanosFontLoader::getName()
-{
+const char *GusanosFontLoader::getName() {
 	return "Gusanos 0.9 font loader";
 }
 
 XMLLoader XMLLoader::instance;
 
-bool XMLLoader::canLoad(fs::path const& path, std::string& name)
-{
-	if(path.extension().string() == ".xml")
-	{
+bool XMLLoader::canLoad(fs::path const &path, std::string &name) {
+	if (path.extension().string() == ".xml") {
 		name = path.stem().string();
 		return true;
 	}
 	return false;
 }
-	
-bool XMLLoader::load(XMLFile* xml, fs::path const& path)
-{
+
+bool XMLLoader::load(XMLFile *xml, fs::path const &path) {
 	xml->f.open(path, std::ios::binary);
-	
-	if(!xml->f)
+
+	if (!xml->f)
 		return false;
-		
+
 	return true;
 }
 
-const char* XMLLoader::getName()
-{
+const char *XMLLoader::getName() {
 	return "XML loader";
 }
 
-
 GSSLoader GSSLoader::instance;
 
-bool GSSLoader::canLoad(fs::path const& path, std::string& name)
-{
-	if(path.extension().string() == ".gss")
-	{
+bool GSSLoader::canLoad(fs::path const &path, std::string &name) {
+	if (path.extension().string() == ".gss") {
 		name = path.stem().string();
 		return true;
 	}
 	return false;
 }
-	
-bool GSSLoader::load(GSSFile* gss, fs::path const& path)
-{
-	//gss->f.open(path, std::ios::binary);
+
+bool GSSLoader::load(GSSFile *gss, fs::path const &path) {
+	// gss->f.open(path, std::ios::binary);
 	fs::ifstream f(path, std::ios::binary);
-	
-	if(!f)
+
+	if (!f)
 		return false;
-	
+
 	OmfgGUI::menu.loadGSS(f, path.string());
-		
+
 	return true;
 }
 
-const char* GSSLoader::getName()
-{
+const char *GSSLoader::getName() {
 	return "GSS loader";
 }
 #endif
 
 LuaLoader LuaLoader::instance;
 
-bool LuaLoader::canLoad(fs::path const& path, std::string& name)
-{
-	if(path.extension().string() == ".lua")
-	{
+bool LuaLoader::canLoad(fs::path const &path, std::string &name) {
+	if (path.extension().string() == ".lua") {
 		name = path.stem().string();
 		return true;
 	}
 	return false;
 }
-	
-bool LuaLoader::load(Script* script, fs::path const& path)
-{
+
+bool LuaLoader::load(Script *script, fs::path const &path) {
 	fs::ifstream f(path, std::ios::binary | std::ios::in);
-	if(!f)
+	if (!f)
 		return false;
-		
-	// Create the table to store the functions in	
+
+	// Create the table to store the functions in
 	std::string name = path.stem().string();
 	lua_pushstring(lua, name.c_str());
 	lua_rawget(lua, LUA_GLOBALSINDEX);
-	if(lua_isnil(lua, -1))
-	{
+	if (lua_isnil(lua, -1)) {
 		// The table does not exist, create it
-		
+
 		lua_pushstring(lua, name.c_str());
 		lua_newtable(lua);
 		lua_rawset(lua, LUA_GLOBALSINDEX);
 	}
 	lua_settop(lua, -2); // Pop table or nil
-	
+
 	lua.load(path.string().c_str(), f);
-	
+
 	script->lua = &lua;
 	script->table = name;
-	
+
 	return true;
 }
 
-const char* LuaLoader::getName()
-{
+const char *LuaLoader::getName() {
 	return "Lua loader";
 }
 

@@ -6,20 +6,13 @@
 
 class SpriteSet;
 
-enum Blenders
-{
-	ALPHA,
-	ADD,
-	NONE
-};
+enum Blenders { ALPHA, ADD, NONE };
 
-class Gfx
-{
-public:
-		
+class Gfx {
+  public:
 	Gfx();
 	~Gfx();
-	
+
 	void init();
 	void shutDown();
 	void registerInConsole();
@@ -27,90 +20,78 @@ public:
 #ifndef DEDSERV
 	void fullscreenChange();
 	void doubleResChange();
-	int  getGraphicsDriver(); // Selects and returns graphics driver
-	
+	int getGraphicsDriver(); // Selects and returns graphics driver
+
 	void updateScreen();
-	
+
 	static int getScalingFactor();
 
-	inline void setBlender( Blenders blender, int alpha )
-	{
+	inline void setBlender(Blenders blender, int alpha) {
 		drawing_mode(DRAW_MODE_TRANS, NULL, 0, 0);
-		switch ( blender )
-		{
+		switch (blender) {
 			case ALPHA:
 				set_trans_blender(255, 255, 255, alpha);
-			break;
-			
+				break;
+
 			case ADD:
-				set_add_blender( 255,255,255, alpha);
-			break;
-			
+				set_add_blender(255, 255, 255, alpha);
+				break;
+
 			case NONE:
 				solid_mode();
-			break;
+				break;
 		}
 	}
-	
-	BITMAP* buffer;
+
+	BITMAP *buffer;
 
 	int m_distortionAA;
-	int m_haxWormLight; //TEMP HAX
+	int m_haxWormLight; // TEMP HAX
 
 	// SDL3 specific members
-	SDL_Window* window;
-	SDL_Renderer* renderer;
-	SDL_Texture* screenTexture;
+	SDL_Window *window;
+	SDL_Renderer *renderer;
+	SDL_Texture *screenTexture;
 
-	SpriteSet* cursorSpriteSet = nullptr;
+	SpriteSet *cursorSpriteSet = nullptr;
 	int cursorFrame = 0;
 #endif
 
-	inline bool compareRGB( int c1, int c2 )
-	{
-		return ( getr(c1) == getr(c2) && getg(c1) == getg(c2) && getb(c1) == getb(c2) );
+	inline bool compareRGB(int c1, int c2) {
+		return (getr(c1) == getr(c2) && getg(c1) == getg(c2) && getb(c1) == getb(c2));
 	}
-	
-	BITMAP* loadBitmap(const std::string &filename, RGB* palette = NULL, bool keepAlpha = false);
-	bool saveBitmap(const std::string &filename, BITMAP* image, RGB* palette = NULL);
-	
-	operator bool(); // Returns true if it's safe to use this object
 
+	BITMAP *loadBitmap(const std::string &filename, RGB *palette = NULL, bool keepAlpha = false);
+	bool saveBitmap(const std::string &filename, BITMAP *image, RGB *palette = NULL);
+
+	operator bool(); // Returns true if it's safe to use this object
 };
 
 extern Gfx gfx;
 
-struct LocalSetColorConversion
-{
-	LocalSetColorConversion(int flags)
-	: old(get_color_conversion())
-	{
+struct LocalSetColorConversion {
+	LocalSetColorConversion(int flags) : old(get_color_conversion()) {
 		set_color_conversion(flags);
 	}
-	
-	~LocalSetColorConversion()
-	{
+
+	~LocalSetColorConversion() {
 		set_color_conversion(old);
 	}
-	
-private:
+
+  private:
 	int old;
 };
 
-struct LocalSetColorDepth
-{
-	LocalSetColorDepth(int depth)
-	: old(get_color_depth())
-	{
+struct LocalSetColorDepth {
+	LocalSetColorDepth(int depth) : old(get_color_depth()) {
 		set_color_depth(depth);
 	}
-	
-	~LocalSetColorDepth()
-	{
+
+	~LocalSetColorDepth() {
 		set_color_depth(old);
 	}
-	
-private:
+
+  private:
 	int old;
 };
 

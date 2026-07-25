@@ -16,88 +16,74 @@
 #include <algorithm>
 #include <string>
 
-namespace TCP
-{
+namespace TCP {
 
 // Mock socket that simulates a TCP connection without real network I/O.
 // Use this to test HTTP parsing logic in isolation.
-class MockSocket : public Socket
-{
-public:
-	enum ConnectionState
-	{
+class MockSocket : public Socket {
+  public:
+	enum ConnectionState {
 		Connecting,
 		Connected,
 		Disconnected,
 		ErrorConnect,
 	};
 
-	MockSocket()
-		: Socket(-1)
-		, m_state(Connecting)
-		, m_dataReady(false)
-		, m_bytesConsumed(0)
-	{
+	MockSocket() : Socket(-1), m_state(Connecting), m_dataReady(false), m_bytesConsumed(0) {
 		connecting = false;
 		connected = false;
 	}
 
 	// Set the simulated connection state.
-	void setConnectionState(ConnectionState state)
-	{
+	void setConnectionState(ConnectionState state) {
 		m_state = state;
-		if(state == Connected)
-		{
+		if (state == Connected) {
 			connected = true;
 			connecting = false;
 			resetTimer();
-		}
-		else if(state == ErrorConnect)
-		{
+		} else if (state == ErrorConnect) {
 			connected = false;
 			connecting = false;
 			error = Socket::ErrorConnect;
-		}
-		else if(state == Disconnected)
-		{
+		} else if (state == Disconnected) {
 			connected = false;
 			connecting = false;
 			error = Socket::ErrorDisconnect;
-		}
-		else
-		{
+		} else {
 			connected = false;
 			connecting = false;
 		}
 	}
 
 	// Inject raw data that will be returned by subsequent reads.
-	size_t injectData(const char* data, size_t len)
-	{
-		if(!data || len == 0)
+	size_t injectData(const char *data, size_t len) {
+		if (!data || len == 0)
 			return 0;
 		m_pendingData.insert(m_pendingData.end(), data, data + len);
 		return len;
 	}
 
-	size_t injectData(const char* data)
-	{
+	size_t injectData(const char *data) {
 		return injectData(data, std::strlen(data));
 	}
 
-	size_t injectData(const std::string& data)
-	{
+	size_t injectData(const std::string &data) {
 		return injectData(data.data(), data.size());
 	}
 
 	// Get the received data buffer.
-	const char* getDataBegin() const { return dataBegin; }
-	const char* getDataEnd() const { return dataEnd; }
-	size_t getDataLength() const { return dataEnd - dataBegin; }
+	const char *getDataBegin() const {
+		return dataBegin;
+	}
+	const char *getDataEnd() const {
+		return dataEnd;
+	}
+	size_t getDataLength() const {
+		return dataEnd - dataBegin;
+	}
 
 	// Force the socket to become connected.
-	void forceConnected()
-	{
+	void forceConnected() {
 		m_state = Connected;
 		connected = true;
 		connecting = false;
@@ -105,21 +91,24 @@ public:
 	}
 
 	// Check if the mock is in a ready-to-read state.
-	bool isReady() const
-	{
+	bool isReady() const {
 		return m_state == Connected && m_dataReady;
 	}
 
 	// Getters for test access.
-	bool isConnected() const { return connected; }
-	bool isConnecting() const { return connecting; }
-	ConnectionState getConnectionState() const { return m_state; }
+	bool isConnected() const {
+		return connected;
+	}
+	bool isConnecting() const {
+		return connecting;
+	}
+	ConnectionState getConnectionState() const {
+		return m_state;
+	}
 
 	// Override think() to use mock data instead of real socket I/O.
-	bool think() override
-	{
-		if(m_state == Connecting)
-		{
+	bool think() override {
+		if (m_state == Connecting) {
 			m_state = Connected;
 			connected = true;
 			connecting = false;
@@ -127,19 +116,17 @@ public:
 			return false;
 		}
 
-		if(m_state == ErrorConnect)
-		{
+		if (m_state == ErrorConnect) {
 			error = Socket::ErrorConnect;
 			return true;
 		}
 
-		if(m_state == Disconnected)
-		{
+		if (m_state == Disconnected) {
 			error = Socket::ErrorDisconnect;
 			return true;
 		}
 
-		if(!connected)
+		if (!connected)
 			return false;
 
 		// think() only handles connection state — data reading is done by readChunk().
@@ -147,21 +134,18 @@ public:
 	}
 
 	// Override readChunk() to use mock data.
-	bool readChunk() override
-	{
+	bool readChunk() override {
 		dataBegin = dataEnd = 0;
 
-		if(!connected)
+		if (!connected)
 			return false;
 
-		if(m_state == Disconnected)
-		{
+		if (m_state == Disconnected) {
 			connected = false;
 			return true;
 		}
 
-		if(!m_pendingData.empty())
-		{
+		if (!m_pendingData.empty()) {
 			size_t remaining = m_pendingData.size();
 			size_t toCopy = std::min(remaining, static_cast<size_t>(bufferSize));
 			std::memcpy(staticBuffer, m_pendingData.data(), toCopy);
@@ -177,13 +161,13 @@ public:
 		return true;
 	}
 
-public:
+  public:
 	// Public for access from MockRequest in tests
 	bool m_dataReady;
 	size_t m_bytesConsumed;
 	std::string m_pendingData;
 
-private:
+  private:
 	ConnectionState m_state;
 };
 

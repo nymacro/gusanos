@@ -19,8 +19,7 @@
 BOOST_AUTO_TEST_SUITE(auto_replicator)
 
 // ---- Int: unsigned, round-trip ----
-BOOST_AUTO_TEST_CASE(int_unsigned_roundtrip)
-{
+BOOST_AUTO_TEST_CASE(int_unsigned_roundtrip) {
 	zS32 v = 200;
 	AutoReplicatorInt rep(&v, 8, /*sign=*/false);
 	rep.initial = false; // value already equals snapshot => not dirty
@@ -28,8 +27,8 @@ BOOST_AUTO_TEST_CASE(int_unsigned_roundtrip)
 	BOOST_CHECK(!rep.detect(/*force=*/false)); // unchanged -> no pack
 
 	v = 201;
-	BOOST_CHECK(rep.detect(/*force=*/false));   // changed -> pack
-	BOOST_CHECK(!rep.detect(/*force=*/false));  // snapshot updated -> no pack
+	BOOST_CHECK(rep.detect(/*force=*/false));  // changed -> pack
+	BOOST_CHECK(!rep.detect(/*force=*/false)); // snapshot updated -> no pack
 
 	ZCom_BitStream out;
 	rep.emit(out);
@@ -50,8 +49,7 @@ BOOST_AUTO_TEST_CASE(int_unsigned_roundtrip)
 }
 
 // ---- Int: signed, negative value ----
-BOOST_AUTO_TEST_CASE(int_signed_roundtrip)
-{
+BOOST_AUTO_TEST_CASE(int_signed_roundtrip) {
 	zS32 v = -7;
 	AutoReplicatorInt rep(&v, 8, /*sign=*/true);
 	rep.initial = false;
@@ -74,8 +72,7 @@ BOOST_AUTO_TEST_CASE(int_signed_roundtrip)
 }
 
 // ---- Int: 32-bit full width ----
-BOOST_AUTO_TEST_CASE(int_32bit_roundtrip)
-{
+BOOST_AUTO_TEST_CASE(int_32bit_roundtrip) {
 	zS32 v = 1234567;
 	AutoReplicatorInt rep(&v, 32, /*sign=*/false);
 	rep.initial = false;
@@ -99,8 +96,7 @@ BOOST_AUTO_TEST_CASE(int_32bit_roundtrip)
 // ---- Float round-trip ----
 // addFloat/getFloat quantize to [-1,1] over (2^bits - 1) steps when bits < 32,
 // so use a value inside the range and allow the quantization step as tolerance.
-BOOST_AUTO_TEST_CASE(float_roundtrip)
-{
+BOOST_AUTO_TEST_CASE(float_roundtrip) {
 	zFloat v = 0.5f;
 	AutoReplicatorFloat rep(&v, 10);
 	rep.initial = false;
@@ -124,11 +120,10 @@ BOOST_AUTO_TEST_CASE(float_roundtrip)
 // ---- Bool round-trip + adjacency regression ----
 // A bool sandwiched between sentinel bytes must NOT clobber its neighbours
 // when unpacked (the bug fixed by AutoReplicatorBool).
-BOOST_AUTO_TEST_CASE(bool_roundtrip_and_no_adjacent_clobber)
-{
+BOOST_AUTO_TEST_CASE(bool_roundtrip_and_no_adjacent_clobber) {
 	// Packed struct: [sentinel0][b][sentinel1]
 	uint8_t buf[3] = {0xAB, 0, 0xCD};
-	bool* b = reinterpret_cast<bool*>(&buf[1]);
+	bool *b = reinterpret_cast<bool *>(&buf[1]);
 
 	AutoReplicatorBool rep(b);
 	rep.initial = false;
@@ -143,7 +138,7 @@ BOOST_AUTO_TEST_CASE(bool_roundtrip_and_no_adjacent_clobber)
 
 	// Now unpack into a DIFFERENT buffer to check adjacency safety.
 	uint8_t buf2[3] = {0x11, 0, 0x22};
-	bool* b2 = reinterpret_cast<bool*>(&buf2[1]);
+	bool *b2 = reinterpret_cast<bool *>(&buf2[1]);
 	BOOST_REQUIRE_EQUAL(buf2[0], 0x11);
 	BOOST_REQUIRE_EQUAL(buf2[2], 0x22);
 
@@ -159,41 +154,38 @@ BOOST_AUTO_TEST_CASE(bool_roundtrip_and_no_adjacent_clobber)
 }
 
 // ---- initial forces first pack ----
-BOOST_AUTO_TEST_CASE(initial_forces_first_pack)
-{
+BOOST_AUTO_TEST_CASE(initial_forces_first_pack) {
 	zS32 v = 5; // equals ctor snapshot (m_old = 5)
 	AutoReplicatorInt rep(&v, 8, false);
 	// initial defaults to true
-	BOOST_CHECK(rep.detect(false));   // initial => pack once
-	BOOST_CHECK(!rep.detect(false));  // now clean
+	BOOST_CHECK(rep.detect(false));	 // initial => pack once
+	BOOST_CHECK(!rep.detect(false)); // now clean
 }
 
 // ---- force overrides no change ----
-BOOST_AUTO_TEST_CASE(force_overrides_no_change)
-{
+BOOST_AUTO_TEST_CASE(force_overrides_no_change) {
 	zS32 v = 9;
 	AutoReplicatorInt rep(&v, 8, false);
 	rep.initial = false;
-	BOOST_CHECK(!rep.detect(false));   // unchanged
-	BOOST_CHECK(rep.detect(true));     // forced
-	BOOST_CHECK(!rep.detect(false));   // snapshot updated
+	BOOST_CHECK(!rep.detect(false)); // unchanged
+	BOOST_CHECK(rep.detect(true));	 // forced
+	BOOST_CHECK(!rep.detect(false)); // snapshot updated
 }
 
 // ---- skip consumes exactly the value bits ----
-BOOST_AUTO_TEST_CASE(skip_consumes_bits)
-{
+BOOST_AUTO_TEST_CASE(skip_consumes_bits) {
 	zS32 v = 123;
 	AutoReplicatorInt rep(&v, 8, false);
 	rep.initial = false;
 	BOOST_CHECK(rep.detect(true)); // force pack
 
 	ZCom_BitStream out;
-	rep.emit(out);                 // 8 bits written
+	rep.emit(out); // 8 bits written
 
 	ZCom_BitStream in;
 	in.addBitStream(&out);
 	in.resetReadState();
-	rep.skip(in);                  // consume 8 bits
+	rep.skip(in); // consume 8 bits
 	BOOST_CHECK(in.endOfStream());
 
 	// skip on an unforced type must advance the stream without touching ptr
@@ -206,20 +198,18 @@ BOOST_AUTO_TEST_CASE(skip_consumes_bits)
 
 // ---- Interceptor accept commits the decoded value ----
 class AcceptInterceptor : public ZCom_NodeReplicationInterceptor {
-public:
+  public:
 	int items = 0;
-	bool inPreUpdateItem(ZCom_Node*, uint32_t, eZCom_NodeRole,
-	                     ZCom_Replicator* rep, uint32_t) override {
+	bool inPreUpdateItem(ZCom_Node *, uint32_t, eZCom_NodeRole, ZCom_Replicator *rep, uint32_t) override {
 		items++;
 		// Confirm the interceptor can read the decoded value via peekData().
-		int* p = static_cast<int*>(rep->peekData());
+		int *p = static_cast<int *>(rep->peekData());
 		BOOST_CHECK(p != nullptr);
 		return true; // accept
 	}
 };
 
-BOOST_AUTO_TEST_CASE(interceptor_accept_commits)
-{
+BOOST_AUTO_TEST_CASE(interceptor_accept_commits) {
 	zS32 v = 7;
 	AutoReplicatorInt rep(&v, 8, false);
 	rep.flags = ZCOM_REPFLAG_INTERCEPT;
@@ -242,11 +232,12 @@ BOOST_AUTO_TEST_CASE(interceptor_accept_commits)
 	// Simulate the unpackAllReplicators intercept branch.
 	ZCom_ReplicatorSetup tempSetup(sink.flags, sink.rule, /*interceptID=*/0);
 	ZCom_ReplicatorBasic tempRep(&tempSetup);
-	void* p = sink.decodeForPeek(in);
+	void *p = sink.decodeForPeek(in);
 	tempRep.peekDataStore(p);
 	bool accept = interceptor.inPreUpdateItem(nullptr, 0, eZCom_RoleAuthority, &tempRep, 0);
 	tempRep.peekDataStore(nullptr);
-	if (accept) sink.commitPeek();
+	if (accept)
+		sink.commitPeek();
 
 	BOOST_CHECK_EQUAL(interceptor.items, 1);
 	BOOST_CHECK_EQUAL(decoded, 7);
@@ -254,15 +245,13 @@ BOOST_AUTO_TEST_CASE(interceptor_accept_commits)
 
 // ---- Interceptor reject skips commit ----
 class RejectInterceptor : public ZCom_NodeReplicationInterceptor {
-public:
-	bool inPreUpdateItem(ZCom_Node*, uint32_t, eZCom_NodeRole,
-	                     ZCom_Replicator*, uint32_t) override {
+  public:
+	bool inPreUpdateItem(ZCom_Node *, uint32_t, eZCom_NodeRole, ZCom_Replicator *, uint32_t) override {
 		return false; // reject
 	}
 };
 
-BOOST_AUTO_TEST_CASE(interceptor_reject_skips_commit)
-{
+BOOST_AUTO_TEST_CASE(interceptor_reject_skips_commit) {
 	zS32 v = 99;
 	AutoReplicatorInt rep(&v, 8, false);
 	rep.flags = ZCOM_REPFLAG_INTERCEPT;
@@ -283,11 +272,12 @@ BOOST_AUTO_TEST_CASE(interceptor_reject_skips_commit)
 	RejectInterceptor interceptor;
 	ZCom_ReplicatorSetup tempSetup(sink.flags, sink.rule, 0);
 	ZCom_ReplicatorBasic tempRep(&tempSetup);
-	void* p = sink.decodeForPeek(in); // consumes the value bits
+	void *p = sink.decodeForPeek(in); // consumes the value bits
 	tempRep.peekDataStore(p);
 	bool accept = interceptor.inPreUpdateItem(nullptr, 0, eZCom_RoleAuthority, &tempRep, 0);
 	tempRep.peekDataStore(nullptr);
-	if (accept) sink.commitPeek();
+	if (accept)
+		sink.commitPeek();
 
 	BOOST_CHECK(!accept);
 	BOOST_CHECK_EQUAL(decoded, -1); // unchanged
@@ -296,12 +286,17 @@ BOOST_AUTO_TEST_CASE(interceptor_reject_skips_commit)
 }
 
 // ---- End-to-end via ZCom_Node public API (bool adjacency) ----
-BOOST_AUTO_TEST_CASE(node_api_bool_does_not_clobber_adjacent)
-{
+BOOST_AUTO_TEST_CASE(node_api_bool_does_not_clobber_adjacent) {
 	// Sender struct with a bool between two sentinels.
-	struct S { uint8_t a; bool b; uint8_t c; };
+	struct S {
+		uint8_t a;
+		bool b;
+		uint8_t c;
+	};
 	S s;
-	s.a = 0x55; s.b = false; s.c = 0xAA;
+	s.a = 0x55;
+	s.b = false;
+	s.c = 0xAA;
 
 	ZCom_Node node;
 	node.addReplicationBool(&s.b, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
@@ -319,7 +314,9 @@ BOOST_AUTO_TEST_CASE(node_api_bool_does_not_clobber_adjacent)
 
 	// Receiver struct with its own sentinels; a separate node binds to it.
 	S r;
-	r.a = 0x55; r.b = false; r.c = 0xAA;
+	r.a = 0x55;
+	r.b = false;
+	r.c = 0xAA;
 
 	ZCom_Node nodeRcv;
 	nodeRcv.addReplicationBool(&r.b, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
@@ -335,8 +332,7 @@ BOOST_AUTO_TEST_CASE(node_api_bool_does_not_clobber_adjacent)
 }
 
 // ---- End-to-end via ZCom_Node public API (int) ----
-BOOST_AUTO_TEST_CASE(node_api_int_roundtrip)
-{
+BOOST_AUTO_TEST_CASE(node_api_int_roundtrip) {
 	ZCom_Node node;
 	zS32 iv = 0;
 	node.addReplicationInt(&iv, 16, true, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
@@ -367,19 +363,17 @@ BOOST_AUTO_TEST_CASE(node_api_int_roundtrip)
 // ===========================================================================
 
 class AcceptInterceptor2 : public ZCom_NodeReplicationInterceptor {
-public:
+  public:
 	int items = 0;
-	bool inPreUpdateItem(ZCom_Node*, uint32_t, eZCom_NodeRole,
-	                     ZCom_Replicator* rep, uint32_t) override {
+	bool inPreUpdateItem(ZCom_Node *, uint32_t, eZCom_NodeRole, ZCom_Replicator *rep, uint32_t) override {
 		items++;
 		return true; // accept
 	}
 };
 
 class RejectInterceptor2 : public ZCom_NodeReplicationInterceptor {
-public:
-	bool inPreUpdateItem(ZCom_Node*, uint32_t, eZCom_NodeRole,
-	                     ZCom_Replicator*, uint32_t) override {
+  public:
+	bool inPreUpdateItem(ZCom_Node *, uint32_t, eZCom_NodeRole, ZCom_Replicator *, uint32_t) override {
 		return false; // reject
 	}
 };
@@ -387,29 +381,27 @@ public:
 // Generic helper: simulate the unpackAllReplicators intercept branch for one
 // AutoReplicator of type RepT, packed from `value` into `out`. `peekAs`
 // dereferences the interceptor's peekData() pointer with the correct type.
-template<typename RepT, typename T>
-void simulateInterceptDecode(RepT& sink, ZCom_BitStream& out,
-                             bool accept, T& decoded)
-{
+template <typename RepT, typename T>
+void simulateInterceptDecode(RepT &sink, ZCom_BitStream &out, bool accept, T &decoded) {
 	ZCom_BitStream in;
 	in.addBitStream(&out);
 	in.resetReadState();
 
 	ZCom_ReplicatorSetup tempSetup(sink.flags, sink.rule, /*interceptID=*/0);
 	ZCom_ReplicatorBasic tempRep(&tempSetup);
-	void* p = sink.decodeForPeek(in);
+	void *p = sink.decodeForPeek(in);
 	tempRep.peekDataStore(p);
 	AcceptInterceptor2 a;
 	RejectInterceptor2 r;
 	bool ok = accept ? a.inPreUpdateItem(nullptr, 0, eZCom_RoleAuthority, &tempRep, 0)
-	                 : r.inPreUpdateItem(nullptr, 0, eZCom_RoleAuthority, &tempRep, 0);
+					 : r.inPreUpdateItem(nullptr, 0, eZCom_RoleAuthority, &tempRep, 0);
 	tempRep.peekDataStore(nullptr);
-	if (ok) sink.commitPeek();
+	if (ok)
+		sink.commitPeek();
 }
 
-BOOST_AUTO_TEST_CASE(float_interceptor_accept_and_reject)
-{
-	float v = 0.5f;   // must be within addFloat's [-1,1] quantization range
+BOOST_AUTO_TEST_CASE(float_interceptor_accept_and_reject) {
+	float v = 0.5f; // must be within addFloat's [-1,1] quantization range
 	AutoReplicatorFloat rep(&v, 10);
 	rep.flags = ZCOM_REPFLAG_INTERCEPT;
 	rep.initial = false;
@@ -433,8 +425,7 @@ BOOST_AUTO_TEST_CASE(float_interceptor_accept_and_reject)
 	BOOST_CHECK_EQUAL(decR, -1.0f);
 }
 
-BOOST_AUTO_TEST_CASE(bool_interceptor_accept_and_reject)
-{
+BOOST_AUTO_TEST_CASE(bool_interceptor_accept_and_reject) {
 	bool v = true;
 	AutoReplicatorBool rep(&v);
 	rep.flags = ZCOM_REPFLAG_INTERCEPT;
@@ -466,20 +457,30 @@ BOOST_AUTO_TEST_CASE(bool_interceptor_accept_and_reject)
 // sites pass true) but a contract pin is cheaper than deleting the path.
 // ===========================================================================
 
-BOOST_AUTO_TEST_CASE(node_api_store_false_skips_and_preserves_value)
-{
+BOOST_AUTO_TEST_CASE(node_api_store_false_skips_and_preserves_value) {
 	// Sender struct: bool b between two sentinels (matches the bool-adjacency
 	// layout) plus an int that follows, so we can detect stream desync.
-	struct S { uint8_t a; bool b; uint8_t c; int32_t n; };
+	struct S {
+		uint8_t a;
+		bool b;
+		uint8_t c;
+		int32_t n;
+	};
 	S s;
-	s.a = 0x55; s.b = true; s.c = 0xAA; s.n = 12345;
+	s.a = 0x55;
+	s.b = true;
+	s.c = 0xAA;
+	s.n = 12345;
 	S r;
-	r.a = 0x55; r.b = false; r.c = 0xAA; r.n = 0;
+	r.a = 0x55;
+	r.b = false;
+	r.c = 0xAA;
+	r.n = 0;
 
 	// Sender bound to s.
 	ZCom_Node node;
 	node.addReplicationBool(&s.b, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
-	node.addReplicationInt((zS32*)&s.n, 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
+	node.addReplicationInt((zS32 *)&s.n, 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
 
 	// Pack everything (b changes from initial; n changes from initial).
 	ZCom_BitStream packed;
@@ -488,7 +489,7 @@ BOOST_AUTO_TEST_CASE(node_api_store_false_skips_and_preserves_value)
 	// Receiver bound to r.
 	ZCom_Node nodeRcv;
 	nodeRcv.addReplicationBool(&r.b, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
-	nodeRcv.addReplicationInt((zS32*)&r.n, 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
+	nodeRcv.addReplicationInt((zS32 *)&r.n, 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
 
 	ZCom_BitStream in;
 	in.addBitStream(&packed);
@@ -498,9 +499,9 @@ BOOST_AUTO_TEST_CASE(node_api_store_false_skips_and_preserves_value)
 	nodeRcv.unpackAllReplicators(&in, /*store=*/false, /*estimatedTimeSent=*/0);
 	BOOST_CHECK(in.endOfStream());
 	BOOST_CHECK_EQUAL(r.a, 0x55);
-	BOOST_CHECK_EQUAL(r.b, false);  // unchanged
+	BOOST_CHECK_EQUAL(r.b, false); // unchanged
 	BOOST_CHECK_EQUAL(r.c, 0xAA);
-	BOOST_CHECK_EQUAL(r.n, 0);      // unchanged
+	BOOST_CHECK_EQUAL(r.n, 0); // unchanged
 
 	// A second pass (store=true) should now apply, proving the first pass only
 	// skipped and did not corrupt state.
@@ -508,7 +509,7 @@ BOOST_AUTO_TEST_CASE(node_api_store_false_skips_and_preserves_value)
 	nodeRcv.unpackAllReplicators(&in, /*store=*/true, /*estimatedTimeSent=*/0);
 	BOOST_CHECK_EQUAL(r.b, true);
 	BOOST_CHECK_EQUAL(r.n, 12345);
-	BOOST_CHECK_EQUAL(r.a, 0x55);   // still untouched
+	BOOST_CHECK_EQUAL(r.a, 0x55); // still untouched
 	BOOST_CHECK_EQUAL(r.c, 0xAA);
 }
 
@@ -519,20 +520,20 @@ BOOST_AUTO_TEST_CASE(node_api_store_false_skips_and_preserves_value)
 // dereferencing nullptr.
 // ===========================================================================
 
-BOOST_AUTO_TEST_CASE(null_bound_replicator_is_noop)
-{
+BOOST_AUTO_TEST_CASE(null_bound_replicator_is_noop) {
 	// Int with null ptr.
 	AutoReplicatorInt repI(nullptr, 8, false);
-	BOOST_CHECK(!repI.detect(false));   // null -> never dirty
-	BOOST_CHECK(!repI.detect(true));    // force still no-op (ptr null)
+	BOOST_CHECK(!repI.detect(false)); // null -> never dirty
+	BOOST_CHECK(!repI.detect(true));  // force still no-op (ptr null)
 	{
 		ZCom_BitStream out;
-		repI.emit(out);                  // guarded, writes nothing
+		repI.emit(out); // guarded, writes nothing
 		BOOST_CHECK_EQUAL(out.getBitCount(), 0u);
 		ZCom_BitStream in;
-		in.addBitStream(&out); in.resetReadState();
-		repI.unpackStore(in);            // guarded, no write
-		repI.skip(in);                   // guarded, no read
+		in.addBitStream(&out);
+		in.resetReadState();
+		repI.unpackStore(in); // guarded, no write
+		repI.skip(in);		  // guarded, no read
 	}
 
 	// Float with null ptr.
@@ -543,7 +544,8 @@ BOOST_AUTO_TEST_CASE(null_bound_replicator_is_noop)
 		repF.emit(out);
 		BOOST_CHECK_EQUAL(out.getBitCount(), 0u);
 		ZCom_BitStream in;
-		in.addBitStream(&out); in.resetReadState();
+		in.addBitStream(&out);
+		in.resetReadState();
 		repF.unpackStore(in);
 		repF.skip(in);
 	}
@@ -556,7 +558,8 @@ BOOST_AUTO_TEST_CASE(null_bound_replicator_is_noop)
 		repB.emit(out);
 		BOOST_CHECK_EQUAL(out.getBitCount(), 0u);
 		ZCom_BitStream in;
-		in.addBitStream(&out); in.resetReadState();
+		in.addBitStream(&out);
+		in.resetReadState();
 		repB.unpackStore(in);
 		repB.skip(in);
 	}
@@ -573,28 +576,27 @@ BOOST_AUTO_TEST_CASE(null_bound_replicator_is_noop)
 // ===========================================================================
 
 class RejectOutPreUpdate : public ZCom_NodeReplicationInterceptor {
-public:
-	ZCom_Node* seen = nullptr;
-	bool outPreUpdate(ZCom_Node* node, uint32_t, eZCom_NodeRole) override {
+  public:
+	ZCom_Node *seen = nullptr;
+	bool outPreUpdate(ZCom_Node *node, uint32_t, eZCom_NodeRole) override {
 		seen = node;
 		return false; // reject the whole node
 	}
 };
 
 class RejectOutPreUpdateItem : public ZCom_NodeReplicationInterceptor {
-public:
+  public:
 	int itemCalls = 0;
-	bool outPreUpdateItem(ZCom_Node* node, uint32_t, eZCom_NodeRole,
-	                      ZCom_Replicator* rep) override {
+	bool outPreUpdateItem(ZCom_Node *node, uint32_t, eZCom_NodeRole, ZCom_Replicator *rep) override {
 		// Reject every explicit replicator.
-		(void)node; (void)rep;
+		(void)node;
+		(void)rep;
 		itemCalls++;
 		return false;
 	}
 };
 
-BOOST_AUTO_TEST_CASE(sender_outPreUpdate_false_emits_no_updates)
-{
+BOOST_AUTO_TEST_CASE(sender_outPreUpdate_false_emits_no_updates) {
 	ZCom_Node node;
 	zS32 v = 123;
 	node.addReplicationInt(&v, 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
@@ -606,12 +608,11 @@ BOOST_AUTO_TEST_CASE(sender_outPreUpdate_false_emits_no_updates)
 	node.packReplicatorsForRouting(out);
 
 	BOOST_REQUIRE_EQUAL(out.size(), 1u);
-	BOOST_CHECK_EQUAL(out[0].hasUpdate, false);  // whole node rejected
+	BOOST_CHECK_EQUAL(out[0].hasUpdate, false); // whole node rejected
 	BOOST_CHECK_EQUAL(interceptor.seen, &node);
 }
 
-BOOST_AUTO_TEST_CASE(sender_outPreUpdateItem_false_skips_explicit_rep)
-{
+BOOST_AUTO_TEST_CASE(sender_outPreUpdateItem_false_skips_explicit_rep) {
 	ZCom_Node node;
 	// Explicit replicator, INTERCEPT-flagged so the sender consults
 	// outPreUpdateItem for it (net_node.cpp:353).
@@ -632,7 +633,7 @@ BOOST_AUTO_TEST_CASE(sender_outPreUpdateItem_false_skips_explicit_rep)
 	// Order matches m_replicators then m_autoReplications.
 	BOOST_REQUIRE_EQUAL(out.size(), 2u);
 	BOOST_CHECK_EQUAL(out[0].hasUpdate, false); // explicit rep: item rejected
-	BOOST_CHECK_EQUAL(out[1].hasUpdate, true);  // auto-rep: not consulted
+	BOOST_CHECK_EQUAL(out[1].hasUpdate, true);	// auto-rep: not consulted
 	BOOST_CHECK_EQUAL(interceptor.itemCalls, 1);
 	// Auto-rep slot must still contain the packed value (8 bits).
 	BOOST_CHECK_EQUAL(out[1].data.getBitCount(), 8u);

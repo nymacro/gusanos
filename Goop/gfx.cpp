@@ -3,7 +3,7 @@
 
 #ifndef DEDSERV
 #include "2xsai.h"
-//#include "blitters/blitters.h"
+// #include "blitters/blitters.h"
 #include "blitters/colors.h"
 #include "blitters/macros.h"
 #include "game.h"
@@ -24,66 +24,59 @@ using namespace std;
 
 Gfx gfx;
 
-namespace
-{
-	bool m_initialized = false;
+namespace {
+bool m_initialized = false;
 
 #ifndef DEDSERV
-	enum Filters
-	{
-		NEAREST = 0, // Nearest
-		LINEAR = 1,  // Smooth
-		PIXELART = 2 // Nearest with better scaling
-	};
+enum Filters {
+	NEAREST = 0, // Nearest
+	LINEAR = 1,	 // Smooth
+	PIXELART = 2 // Nearest with better scaling
+};
 #ifndef SDL_SCALEMODE_PIXELART
-#  define SDL_SCALEMODE_PIXELART SDL_SCALEMODE_NEAREST
+#define SDL_SCALEMODE_PIXELART SDL_SCALEMODE_NEAREST
 #endif
 
-	int m_fullscreen = 0;
-	int m_doubleRes = 1;
-	int m_vwidth = 640;
-	int m_vheight = 480;
-	int m_vsync = 1;
-	int m_clearBuffer = 0;
-	int m_filter = PIXELART;
-	int m_driver = 0;
-	int m_bitdepth = 32;
+int m_fullscreen = 0;
+int m_doubleRes = 1;
+int m_vwidth = 640;
+int m_vheight = 480;
+int m_vsync = 1;
+int m_clearBuffer = 0;
+int m_filter = PIXELART;
+int m_driver = 0;
+int m_bitdepth = 32;
 
-	BITMAP* m_doubleResBuffer = 0;
+BITMAP *m_doubleResBuffer = 0;
 
-	string screenShot(const list<string> &args)
-	{
-		// TODO: Implement SDL3 screenshot
-		return "SCREENSHOT NOT YET IMPLEMENTED IN SDL3";
+string screenShot(const list<string> &args) {
+	// TODO: Implement SDL3 screenshot
+	return "SCREENSHOT NOT YET IMPLEMENTED IN SDL3";
+}
+
+void fullscreen_callback(int oldValue) {
+	if (m_fullscreen == oldValue)
+		return;
+
+	if (gfx) {
+		gfx.fullscreenChange();
 	}
+}
 
-	void fullscreen_callback( int oldValue )
-	{
-		if(m_fullscreen == oldValue)
-			return;
+void doubleRes_callback(int oldValue) {
+	if (m_doubleRes == oldValue)
+		return;
 
-		if(gfx)
-		{
-			gfx.fullscreenChange();
-		}
+	if (gfx) {
+		gfx.doubleResChange();
 	}
+}
 
-	void doubleRes_callback( int oldValue )
-	{
-		if(m_doubleRes == oldValue)
-			return;
+void filter_callback(const int newValue) {
+	if (!gfx || !gfx.screenTexture)
+		return;
 
-		if(gfx)
-		{
-			gfx.doubleResChange();
-		}
-	}
-
-	void filter_callback( const int newValue )
-	{
-		if (!gfx || !gfx.screenTexture) return;
-
-		switch (newValue) {
+	switch (newValue) {
 		case NEAREST:
 			SDL_SetTextureScaleMode(gfx.screenTexture, SDL_SCALEMODE_NEAREST);
 			break;
@@ -93,24 +86,21 @@ namespace
 		case PIXELART:
 			SDL_SetTextureScaleMode(gfx.screenTexture, SDL_SCALEMODE_PIXELART);
 			break;
-		}
 	}
-#endif
 }
+#endif
+} // namespace
 
 Gfx::Gfx()
 #ifndef DEDSERV
-: buffer(NULL), window(NULL), renderer(NULL), screenTexture(NULL)
+	: buffer(NULL), window(NULL), renderer(NULL), screenTexture(NULL)
 #endif
 {
 }
 
-Gfx::~Gfx()
-{
-}
+Gfx::~Gfx() {}
 
-void Gfx::init()
-{
+void Gfx::init() {
 #ifndef DEDSERV
 	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
 		throw std::runtime_error("Couldn't initialize SDL3");
@@ -123,61 +113,67 @@ void Gfx::init()
 
 	// Detect CPU capabilities for SIMD blitter dispatch (MMX/SSE paths)
 	cpu_capabilities = 0;
-	if (SDL_HasMMX()) cpu_capabilities |= CPU_MMX;
-	if (SDL_HasSSE()) cpu_capabilities |= CPU_SSE;
+	if (SDL_HasMMX())
+		cpu_capabilities |= CPU_MMX;
+	if (SDL_HasSSE())
+		cpu_capabilities |= CPU_SSE;
 #endif
 
 	m_initialized = true;
 }
 
-void Gfx::shutDown()
-{
+void Gfx::shutDown() {
 #ifndef DEDSERV
-	if (buffer) { destroy_bitmap(buffer); buffer = 0; }
-	if (screenTexture) { SDL_DestroyTexture(screenTexture); screenTexture = 0; }
-	if (renderer) { SDL_DestroyRenderer(renderer); renderer = 0; }
-	if (cursorSpriteSet) { delete cursorSpriteSet; cursorSpriteSet = 0; }
-	if (window) { SDL_DestroyWindow(window); window = 0; }
+	if (buffer) {
+		destroy_bitmap(buffer);
+		buffer = 0;
+	}
+	if (screenTexture) {
+		SDL_DestroyTexture(screenTexture);
+		screenTexture = 0;
+	}
+	if (renderer) {
+		SDL_DestroyRenderer(renderer);
+		renderer = 0;
+	}
+	if (cursorSpriteSet) {
+		delete cursorSpriteSet;
+		cursorSpriteSet = 0;
+	}
+	if (window) {
+		SDL_DestroyWindow(window);
+		window = 0;
+	}
 	SDL_Quit();
 #endif
 }
 
-void Gfx::registerInConsole()
-{
+void Gfx::registerInConsole() {
 #ifndef DEDSERV
-	console.registerCommands()
-		("SCREENSHOT", screenShot)
-		;
+	console.registerCommands()("SCREENSHOT", screenShot);
 
-	console.registerVariables()
-		("VID_FULLSCREEN", &m_fullscreen, 0, fullscreen_callback)
-		("VID_DOUBLERES", &m_doubleRes, 0, doubleRes_callback)
-		("VID_VSYNC", &m_vsync, 1)
-		("VID_CLEAR_BUFFER", &m_clearBuffer, 0)
-		("VID_BITDEPTH", &m_bitdepth, 32)
-		("VID_DISTORTION_AA", &m_distortionAA, 1)
-		("VID_HAX_WORMLIGHT", &m_haxWormLight, 1)
-		;
+	console.registerVariables()("VID_FULLSCREEN", &m_fullscreen, 0, fullscreen_callback)("VID_DOUBLERES", &m_doubleRes,
+																						 0, doubleRes_callback)(
+		"VID_VSYNC", &m_vsync, 1)("VID_CLEAR_BUFFER", &m_clearBuffer, 0)("VID_BITDEPTH", &m_bitdepth, 32)(
+		"VID_DISTORTION_AA", &m_distortionAA, 1)("VID_HAX_WORMLIGHT", &m_haxWormLight, 1);
 
 	{
 		EnumVariable::MapType videoFilters;
 
-		insert(videoFilters) 
-			("NEAREST", NEAREST)
-			("LINEAR", LINEAR)
-			("PIXELART", PIXELART)
-			;
+		insert(videoFilters)("NEAREST", NEAREST)("LINEAR", LINEAR)("PIXELART", PIXELART);
 
 		console.registerVariable(new EnumVariable("VID_FILTER", &m_filter, PIXELART, videoFilters, filter_callback));
 	}
 #endif
 }
 
-void Gfx::loadResources()
-{
+void Gfx::loadResources() {
 #ifndef DEDSERV
 	// Clean up a previously loaded cursor (e.g. when reloading a mod)
-	if (cursorSpriteSet) { delete cursorSpriteSet; cursorSpriteSet = 0; }
+	if (cursorSpriteSet) {
+		delete cursorSpriteSet;
+		cursorSpriteSet = 0;
+	}
 	cursorFrame = 0;
 
 	// Build a list of candidate paths for the cursor sprite set. The active mod
@@ -192,8 +188,7 @@ void Gfx::loadResources()
 	cursorCandidates.push_back(fs::path("cursor.bmp"));
 
 	for (std::vector<fs::path>::const_iterator it = cursorCandidates.begin();
-	     it != cursorCandidates.end() && !cursorSpriteSet; ++it)
-	{
+		 it != cursorCandidates.end() && !cursorSpriteSet; ++it) {
 		cursorSpriteSet = new SpriteSet();
 		if (!cursorSpriteSet->load(*it)) {
 			delete cursorSpriteSet;
@@ -205,8 +200,7 @@ void Gfx::loadResources()
 
 #ifndef DEDSERV
 
-void Gfx::updateScreen()
-{
+void Gfx::updateScreen() {
 	// Upload buffer to texture
 	if (buffer && screenTexture) {
 		SDL_UpdateTexture(screenTexture, NULL, buffer->pixels, buffer->sdl_surface->pitch);
@@ -221,24 +215,22 @@ void Gfx::updateScreen()
 
 	SDL_RenderPresent(renderer);
 
-	if ( m_clearBuffer ) clear_bitmap(buffer);
+	if (m_clearBuffer)
+		clear_bitmap(buffer);
 }
 
-int Gfx::getGraphicsDriver()
-{
+int Gfx::getGraphicsDriver() {
 	return 0;
 }
 
-void Gfx::fullscreenChange()
-{
-    if (!window) return;
-    SDL_SetWindowFullscreen(window, m_fullscreen ? SDL_WINDOW_FULLSCREEN : 0);
+void Gfx::fullscreenChange() {
+	if (!window)
+		return;
+	SDL_SetWindowFullscreen(window, m_fullscreen ? SDL_WINDOW_FULLSCREEN : 0);
 }
 
-void Gfx::doubleResChange()
-{
-	if ( m_doubleRes )
-	{
+void Gfx::doubleResChange() {
+	if (m_doubleRes) {
 		m_vwidth = 640;
 		m_vheight = 480;
 	} else {
@@ -252,10 +244,12 @@ void Gfx::doubleResChange()
 
 	if (!window) {
 		window = SDL_CreateWindow("Gusanos", m_vwidth, m_vheight, SDL_WINDOW_RESIZABLE);
-		if (!window) throw std::runtime_error("Couldn't create SDL3 window");
-		
+		if (!window)
+			throw std::runtime_error("Couldn't create SDL3 window");
+
 		renderer = SDL_CreateRenderer(window, NULL);
-		if (!renderer) throw std::runtime_error("Couldn't create SDL3 renderer");
+		if (!renderer)
+			throw std::runtime_error("Couldn't create SDL3 renderer");
 
 		SDL_SetRenderLogicalPresentation(renderer, 320, 240, SDL_LOGICAL_PRESENTATION_LETTERBOX);
 		SDL_SetRenderVSync(renderer, m_vsync);
@@ -263,7 +257,8 @@ void Gfx::doubleResChange()
 		SDL_SetWindowSize(window, m_vwidth, m_vheight);
 	}
 
-	if (screenTexture) SDL_DestroyTexture(screenTexture);
+	if (screenTexture)
+		SDL_DestroyTexture(screenTexture);
 	screenTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 320, 240);
 
 	// Apply filter setting to newly created texture
@@ -273,17 +268,15 @@ void Gfx::doubleResChange()
 	}
 }
 
-int Gfx::getScalingFactor()
-{
+int Gfx::getScalingFactor() {
 	return m_doubleRes ? 2 : 1;
 }
 
 #endif
 
-BITMAP* Gfx::loadBitmap( const string& filename, RGB* palette, bool keepAlpha )
-{
+BITMAP *Gfx::loadBitmap(const string &filename, RGB *palette, bool keepAlpha) {
 	// Try original filename first, then with extensions
-	BITMAP* bmp = load_bitmap(filename.c_str(), palette);
+	BITMAP *bmp = load_bitmap(filename.c_str(), palette);
 	if (!bmp) {
 		bmp = load_bitmap((filename + ".png").c_str(), palette);
 	}
@@ -293,12 +286,10 @@ BITMAP* Gfx::loadBitmap( const string& filename, RGB* palette, bool keepAlpha )
 	return bmp;
 }
 
-bool Gfx::saveBitmap( const string &filename, BITMAP* image, RGB* palette )
-{
+bool Gfx::saveBitmap(const string &filename, BITMAP *image, RGB *palette) {
 	return save_bitmap(filename.c_str(), image, palette) == 0;
 }
 
-Gfx::operator bool()
-{
+Gfx::operator bool() {
 	return m_initialized;
 }

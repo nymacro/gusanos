@@ -7,56 +7,42 @@
 
 #include "allegro_compat.h"
 
-AnimPingPong::AnimPingPong( SpriteSet* sprite, int duration )
-: BaseAnimator(0), m_totalFrames(sprite->getFramesWidth())
-, m_animPos(duration), m_duration(duration)
-{
-	if(m_totalFrames == 1)
-	{
-		 // This will prevent single-frame sprite sets from breaking
+AnimPingPong::AnimPingPong(SpriteSet *sprite, int duration)
+	: BaseAnimator(0), m_totalFrames(sprite->getFramesWidth()), m_animPos(duration), m_duration(duration) {
+	if (m_totalFrames == 1) {
+		// This will prevent single-frame sprite sets from breaking
 		m_totalFrames = 0;
 		m_animPos = 1;
 	}
 }
 
-void AnimPingPong::tick()
-{
-	if ( freezeTicks <= 0 )
-	{
+void AnimPingPong::tick() {
+	if (freezeTicks <= 0) {
 		m_animPos -= m_totalFrames;
 
-		while(m_animPos <= 0)
-		{
+		while (m_animPos <= 0) {
 			m_animPos += m_duration;
 
-			if (m_currentDir == 1)
-			{
+			if (m_currentDir == 1) {
 				++m_frame;
-				if(m_frame >= m_totalFrames)
-				{
+				if (m_frame >= m_totalFrames) {
 					m_frame -= 2;
 					m_currentDir = -1;
-				}				
-			}
-			else
-			{
+				}
+			} else {
 				--m_frame;
-				if(m_frame < 0)
-				{
+				if (m_frame < 0) {
 					m_frame = 1;
 					m_currentDir = 1;
 				}
 			}
 		}
-	}
-	else
-	{
+	} else {
 		--freezeTicks;
 	}
 }
 
-void AnimPingPong::reset()
-{
+void AnimPingPong::reset() {
 	m_animPos = 0;
 	m_frame = 0;
 	m_currentDir = 1;
@@ -66,34 +52,24 @@ void AnimPingPong::reset()
 ////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////
 
-AnimLoopRight::AnimLoopRight( SpriteSet* sprite, int duration )
-: BaseAnimator(0), m_totalFrames(sprite->getFramesWidth())
-, m_animPos(duration), m_duration(duration)
-{
-	
-}
+AnimLoopRight::AnimLoopRight(SpriteSet *sprite, int duration)
+	: BaseAnimator(0), m_totalFrames(sprite->getFramesWidth()), m_animPos(duration), m_duration(duration) {}
 
-void AnimLoopRight::tick()
-{
-	if ( freezeTicks <= 0)
-	{
+void AnimLoopRight::tick() {
+	if (freezeTicks <= 0) {
 		m_animPos -= m_totalFrames;
-		while(m_animPos <= 0)
-		{
+		while (m_animPos <= 0) {
 			m_animPos += m_duration;
 			++m_frame;
-			if(m_frame >= m_totalFrames)
+			if (m_frame >= m_totalFrames)
 				m_frame = 0;
 		}
-	}
-	else
-	{
+	} else {
 		--freezeTicks;
 	}
 }
 
-void AnimLoopRight::reset()
-{
+void AnimLoopRight::reset() {
 	m_animPos = 0;
 	m_frame = 0;
 }
@@ -102,33 +78,23 @@ void AnimLoopRight::reset()
 ////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////
 
-AnimRightOnce::AnimRightOnce( SpriteSet* sprite, int duration )
-: BaseAnimator(0), m_totalFrames(sprite->getFramesWidth())
-, m_animPos(duration), m_duration(duration)
-{
+AnimRightOnce::AnimRightOnce(SpriteSet *sprite, int duration)
+	: BaseAnimator(0), m_totalFrames(sprite->getFramesWidth()), m_animPos(duration), m_duration(duration) {}
 
-}
-
-void AnimRightOnce::tick()
-{
-	if ( freezeTicks <= 0)
-	{
+void AnimRightOnce::tick() {
+	if (freezeTicks <= 0) {
 		m_animPos -= m_totalFrames;
-		while(m_animPos <= 0)
-		{
+		while (m_animPos <= 0) {
 			m_animPos += m_duration;
-			if(m_frame < m_totalFrames - 1)
+			if (m_frame < m_totalFrames - 1)
 				++m_frame;
 		}
-	}
-	else
-	{
+	} else {
 		--freezeTicks;
 	}
 }
 
-void AnimRightOnce::reset()
-{
+void AnimRightOnce::reset() {
 	m_animPos = 0;
 	m_frame = 0;
 }
