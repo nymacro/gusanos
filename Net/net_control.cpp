@@ -239,6 +239,20 @@ void ZCom_Control::ZCom_processReplicators(uint32_t simulation_time_passed) {
 	// T1.3 — drive per-replicator Process() callbacks (dead-reckoning /
 	// interpolation hooks). Throttling (min/max delay) is applied at pack time
 	// in ZCom_Node::packReplicatorsForRouting, which owns the dirty/send decision.
+	//
+	// Flush deferred node removals first: a node unregisterNode()'d during the
+	// previous tick's input handling (e.g. server disconnect -> Game::reset ->
+	// delete m_node) is freed but still listed in m_nodes until processOutput
+	// runs. processReplicators runs before processOutput, so it must clear those
+	// dangling pointers itself.
+	if (!m_pendingRemove.empty()) {
+		auto pending = std::move(m_pendingRemove);
+		m_pendingRemove.clear();
+		m_nodes.erase(
+			std::remove_if(m_nodes.begin(), m_nodes.end(), [&](ZCom_Node *n) { return pending.count(n) != 0; }),
+			m_nodes.end());
+	}
+
 	for (auto *node : m_nodes) {
 		node->processReplicators(simulation_time_passed);
 	}
