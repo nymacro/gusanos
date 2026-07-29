@@ -445,11 +445,11 @@ FSOUND_CHANNEL → int
 
 ## Scripting System
 
-### Lua 5.1 (`lua51/`)
+### LuaJIT (`luaapi/`)
 
-Bundled Lua 5.1.2 interpreter. Full standard library includes.
+LuaJIT 2.x linked via pkg-config. The C API is compatible with Lua 5.1.
 
-### Lua API Wrapper (`Goop/luaapi/`)
+### Lua API Wrapper (`luaapi/luaapi/`)
 
 | File | Purpose |
 |---|---|

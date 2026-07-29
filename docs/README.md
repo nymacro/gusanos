@@ -3,7 +3,7 @@
 A Liero/Worms-inspired real-time 2D shooting game with destructible terrain,
 originally based on the Gusanos (Gusanos) engine. This fork ports the legacy
 Allegro 4 + ZoidCom + FMOD codebase to SDL3 + ENet + SDL3_mixer, targeting
-C++17 with bundled Lua 5.1 scripting.
+C++17 with LuaJIT scripting via pkg-config.
 
 ## Quick Reference
 
@@ -28,7 +28,7 @@ C++17 with bundled Lua 5.1 scripting.
    │ (core      │ │ (renderer, │  │ (ENet wrap,    │ │ (SDL3_mixer) │
    │  logic)    │ │  viewport) │  │  ZoidCompat)   │ │              │
    ├────────────┤ ├────────────┤  ├────────────────┤ ├──────────────┤
-   │ Level      │ │ Console    │  │ Server/Client  │ │ Lua 5.1      │
+   │ Level      │ │ Console    │  │ Server/Client  │ │ LuaJIT (system) │
    │ (terrain)  │ │ (dev UI)   │  │ BitStream      │ │ (embedded)   │
    │            │ │            │  │ Replicators    │ │              │
    ├────────────┤ ├────────────┤  ├────────────────┤ ├──────────────┤
