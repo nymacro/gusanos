@@ -10,7 +10,7 @@ targeting C++17. Boost libraries are kept as-is (latest versions).
 ### Existing (kept)
 - **Boost** 1.70+ (filesystem, signals, random, crc, pool, lexical_cast, assign, preprocessor,
   cstdint, utility, array, progress, bind)
-- **Lua 5.1** (bundled source)
+- **LuaJIT** (system library, pkg-config) — replaces bundled Lua 5.1 source
 - **libpng** + **zlib**
 - **re2c** (parser generation)
 
@@ -161,51 +161,43 @@ ZoidCom's high-level replication must be replaced by a manual snapshot-based sys
 
 ## Lua: bundled 5.1 → LuaJIT system dep
 
-**Status: Not started.**
+**Status: Complete.**
 
-Replace the bundled Lua 5.1 source tree (`lua51/`) with an external LuaJIT
-shared library via `pkg-config`. The C++ wrapper layer in `lua51/luaapi/`
-is kept as-is; only the C interpreter files are removed.
+The bundled Lua 5.1 source tree (`lua51/`) was removed and replaced with
+LuaJIT 2.x linked via `pkg-config` (`luajit-5.1`). The C API is
+compatible with Lua 5.1.
 
-### What to delete
+### What was deleted
 
-Remove `lua51/` entirely (50+ `.c`/`.h` files: `lapi.c`, `lcode.c`, `ldo.c`,
-`lgc.c`, `llex.c`, `lmem.c`, `lobject.c`, `lparser.c`, `lstate.c`,
-`lstring.c`, `ltable.c`, `lvm.c`, `lzio.c`, ... plus `lua.h`, `lauxlib.h`,
-`lualib.h`, `luaconf.h`).
+- `lua51/` — the full Lua 5.1 C interpreter source tree (50+ `.c`/`.h`
+  files: `lapi.c`, `lcode.c`, `ldo.c`, `lgc.c`, `llex.c`, `lmem.c`,
+  `lobject.c`, `lparser.c`, `lstate.c`, `lstring.c`, `ltable.c`, `lvm.c`,
+  `lzio.c`, plus `lua.h`, `lauxlib.h`, `lualib.h`, `luaconf.h`).
+- `lua/` (Lua 5.0.2 — dead code, was not in SConstruct's build list).
 
-Also delete `lua/` (Lua 5.0.2 — dead code, not in SConstruct's build list).
+### What was kept
 
-### What to keep
+The C++ wrapper layer was preserved and moved to `luaapi/luaapi/`:
 
 | File | Purpose |
 |------|---------|
-| `lua51/luaapi/context.h/cpp` | `LuaContext` — the singleton `lua` global, call proxies, stack helpers, reference tracking |
-| `lua51/luaapi/types.h` | `LuaReference` struct, `lua_new_*` macros for userdata allocation |
-| `lua51/luaapi/macros.h` | `METHOD()`, `CLASS()`, `ENUM()` macros for binding C++ objects to Lua metatables |
-| `lua51/luaapi/classes.h` | `LuaID<T>` + `getObject<T>()` — type-safe userdata extraction via metatable tags |
+| `luaapi/luaapi/context.h/cpp` | `LuaContext` — the singleton `lua` global, call proxies, stack helpers, reference tracking |
+| `luaapi/luaapi/types.h` | `LuaReference` struct, `lua_new_*` macros for userdata allocation |
+| `luaapi/luaapi/macros.h` | `METHODC()`, `CLASS()`, `ENUM()` macros for binding C++ objects to Lua metatables |
+| `luaapi/luaapi/classes.h` | `LuaID<T>` + `getObject<T>()` — type-safe userdata extraction via metatable tags |
 
-These must be extracted to a new location (e.g., `Goop/luaapi/`) and their
-relative `#include "../lua.h"` replaced with `#include <lua.hpp>`.
+The includes were updated from `#include "../lua.h"` to `#include <lua.hpp>`.
 
-### Build system changes
+### Build system changes (already applied)
 
 | File | Change |
 |------|--------|
-| `SConstruct` | Remove `'lua51'` from `sconscript` list; remove `#lua51` from `CPPPATH`; add `luajit` to `pkg-config` libs |
-| `lua51/SConscript` | Replace compilation of C sources with link to `libluajit-5.1` via `ParseConfig` |
+| `SConstruct` | Removed `'lua51'` from `sconscript` list; removed `#lua51` from `CPPPATH`; added `luajit` to `pkg-config` libs |
+| `luaapi/SConscript` | Wraps `luaapi/` source files; links `libluajit-5.1` via `ParseConfig` |
 
 ### API compatibility
 
 All C API features used by this codebase are identical between Lua 5.1 and
 LuaJIT 2.x (`LUA_GLOBALSINDEX`, `LUA_REGISTRYINDEX`, `lua_newstate`,
 `lua_newuserdata`, `luaL_ref`, `lua_pcall`, `luaopen_*`). No game code in
-`Goop/` needs changes.
-
-### Risk areas
-
-- `lua51/lua.h` declares `"Lua 5.1 (beta)"` (2005 beta, not final 5.1) — edge
-  cases between beta and final API are the main risk.
-- Runtime JIT may expose differences in `.lua` scripts under `default/`.
-- `luaconf.h` differences only affect defaults overridden by the game's own
-  `lua_newstate` setup.
+`Goop/` needed changes.

@@ -6,11 +6,10 @@
 
 BOOST_AUTO_TEST_SUITE(ref_conngroup)
 
-BOOST_AUTO_TEST_CASE(group_creation)
-{
+BOOST_AUTO_TEST_CASE(group_creation) {
 	// MiniCtrl that provides ZCom_getGroupManager
 	ZCom_Control ctrl;
-	ZCom_ConnGroupManager& mgr = ctrl.ZCom_getGroupManager();
+	ZCom_ConnGroupManager &mgr = ctrl.ZCom_getGroupManager();
 
 	uint32_t gid1 = mgr.createGroup(10);
 	BOOST_CHECK(gid1 > 0);
@@ -25,10 +24,9 @@ BOOST_AUTO_TEST_CASE(group_creation)
 	BOOST_CHECK(mgr.checkGroupExists(gid1) == false);
 }
 
-BOOST_AUTO_TEST_CASE(group_add_remove)
-{
+BOOST_AUTO_TEST_CASE(group_add_remove) {
 	ZCom_Control ctrl;
-	ZCom_ConnGroupManager& mgr = ctrl.ZCom_getGroupManager();
+	ZCom_ConnGroupManager &mgr = ctrl.ZCom_getGroupManager();
 
 	uint32_t gid = mgr.createGroup(10);
 
@@ -46,9 +44,12 @@ BOOST_AUTO_TEST_CASE(group_add_remove)
 	bool ids[3] = {false, false, false};
 	uint32_t cur = mgr.getFirstConnection(gid, iterator);
 	while (cur != ZCom_Invalid_ID) {
-		if (cur == 100) ids[0] = true;
-		else if (cur == 200) ids[1] = true;
-		else if (cur == 300) ids[2] = true;
+		if (cur == 100)
+			ids[0] = true;
+		else if (cur == 200)
+			ids[1] = true;
+		else if (cur == 300)
+			ids[2] = true;
 		count++;
 		cur = mgr.getNextConnection(gid, iterator);
 	}
@@ -61,10 +62,9 @@ BOOST_AUTO_TEST_CASE(group_add_remove)
 	mgr.destroyGroup(gid);
 }
 
-BOOST_AUTO_TEST_CASE(all_connections_group)
-{
+BOOST_AUTO_TEST_CASE(all_connections_group) {
 	ZCom_Control ctrl;
-	ZCom_ConnGroupManager& mgr = ctrl.ZCom_getGroupManager();
+	ZCom_ConnGroupManager &mgr = ctrl.ZCom_getGroupManager();
 
 	BOOST_CHECK(mgr.checkGroupExists(ZCOM_CONNGROUP_ALL) == true);
 }

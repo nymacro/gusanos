@@ -9,10 +9,8 @@
 #include "net_control.h"
 #include "net_node.h"
 
-static void processBoth(ZCom_Control* srv, ZCom_Control* cli, int n = 200)
-{
-	for (int i = 0; i < n; i++)
-	{
+static void processBoth(ZCom_Control *srv, ZCom_Control *cli, int n = 200) {
+	for (int i = 0; i < n; i++) {
 		g_currentControl = srv;
 		srv->ZCom_processInput(eZCom_NoBlock);
 		srv->ZCom_processOutput();
@@ -23,65 +21,54 @@ static void processBoth(ZCom_Control* srv, ZCom_Control* cli, int n = 200)
 	g_currentControl = nullptr;
 }
 
-class EventServer : public ZCom_Control
-{
-public:
+class EventServer : public ZCom_Control {
+  public:
 	int m_spawnedCount;
 	uint32_t m_eventClass;
-	ZCom_Node* m_node;
+	ZCom_Node *m_node;
 
-	~EventServer() { delete m_node; m_node = nullptr; }
-	EventServer(int udpPort)
-		: ZCom_Control()
-		, m_spawnedCount(0)
-		, m_eventClass(0)
-		, m_node(nullptr)
-	{
+	~EventServer() {
+		delete m_node;
+		m_node = nullptr;
+	}
+	EventServer(int udpPort) : ZCom_Control(), m_spawnedCount(0), m_eventClass(0), m_node(nullptr) {
 		m_eventClass = ZCom_registerClass("EventNode", 0);
 		g_currentControl = this;
 		ZCom_initSockets(true, udpPort, 0, 0);
 	}
 
-	void SendTestEvent(const char* data)
-	{
-		if (!m_node) return;
+	void SendTestEvent(const char *data) {
+		if (!m_node)
+			return;
 		ZCom_BitStream eventData;
 		eventData.addString(data);
 		m_node->sendEvent(eZCom_ReliableOrdered, 0, &eventData);
 	}
 
-protected:
-	bool ZCom_cbConnectionRequest(ZCom_ConnID id, ZCom_BitStream& request, ZCom_BitStream& reply) override
-	{
+  protected:
+	bool ZCom_cbConnectionRequest(ZCom_ConnID id, ZCom_BitStream &request, ZCom_BitStream &reply) override {
 		return true;
 	}
 
-	void ZCom_cbConnectionSpawned(ZCom_ConnID id) override
-	{
+	void ZCom_cbConnectionSpawned(ZCom_ConnID id) override {
 		m_spawnedCount++;
 		m_node = new ZCom_Node();
 		m_node->registerNodeDynamic(m_eventClass, this);
 	}
 };
 
-class EventClient : public ZCom_Control
-{
-public:
+class EventClient : public ZCom_Control {
+  public:
 	bool m_connected;
 	uint32_t m_eventClass;
 
-	EventClient(int udpPort)
-		: ZCom_Control()
-		, m_connected(false)
-		, m_eventClass(0)
-	{
+	EventClient(int udpPort) : ZCom_Control(), m_connected(false), m_eventClass(0) {
 		m_eventClass = ZCom_registerClass("EventNode", 0);
 		g_currentControl = this;
 		ZCom_initSockets(false, 0, 0, 0);
 	}
 
-	uint32_t ConnectTo(const char* host, int port)
-	{
+	uint32_t ConnectTo(const char *host, int port) {
 		ZCom_Address addr;
 		char hostport[64];
 		snprintf(hostport, sizeof(hostport), "%s:%d", host, port);
@@ -89,118 +76,111 @@ public:
 		return ZCom_Connect(addr, nullptr);
 	}
 
-protected:
-	void ZCom_cbConnectResult(ZCom_ConnID id, eZCom_ConnectResult result, ZCom_BitStream& reply) override
-	{
+  protected:
+	void ZCom_cbConnectResult(ZCom_ConnID id, eZCom_ConnectResult result, ZCom_BitStream &reply) override {
 		m_connected = (result == eZCom_ConnAccepted);
 	}
 };
 
 BOOST_AUTO_TEST_SUITE(events)
 
-BOOST_AUTO_TEST_CASE(node_send_event)
-{
+BOOST_AUTO_TEST_CASE(node_send_event) {
 	static int portOffset = 0;
 	g_currentControl = nullptr;
 	int port = 19070 + (portOffset++);
 
 	{
-	EventServer srv(port);
-	EventClient cli(port);
+		EventServer srv(port);
+		EventClient cli(port);
 
-	uint32_t cid = cli.ConnectTo("127.0.0.1", port);
-	BOOST_REQUIRE(cid != ZCom_Invalid_ID);
+		uint32_t cid = cli.ConnectTo("127.0.0.1", port);
+		BOOST_REQUIRE(cid != ZCom_Invalid_ID);
 
-	processBoth(&srv, &cli, 30);
-	BOOST_REQUIRE(cli.m_connected);
-	BOOST_REQUIRE(srv.m_node != nullptr);
+		processBoth(&srv, &cli, 30);
+		BOOST_REQUIRE(cli.m_connected);
+		BOOST_REQUIRE(srv.m_node != nullptr);
 
-	g_currentControl = &srv;
-	srv.SendTestEvent("Player Joined");
-	g_currentControl = nullptr;
+		g_currentControl = &srv;
+		srv.SendTestEvent("Player Joined");
+		g_currentControl = nullptr;
 
-	processBoth(&srv, &cli, 10);
+		processBoth(&srv, &cli, 10);
 
-	srv.Shutdown();
-	cli.Shutdown();
+		srv.Shutdown();
+		cli.Shutdown();
 	}
 
 	BOOST_CHECK(true);
 }
 
-BOOST_AUTO_TEST_CASE(node_send_multiple_events)
-{
+BOOST_AUTO_TEST_CASE(node_send_multiple_events) {
 	static int portOffset = 0;
 	g_currentControl = nullptr;
 	int port = 19080 + (portOffset++);
 
 	{
-	EventServer srv(port);
-	EventClient cli(port);
+		EventServer srv(port);
+		EventClient cli(port);
 
-	uint32_t cid = cli.ConnectTo("127.0.0.1", port);
-	BOOST_REQUIRE(cid != ZCom_Invalid_ID);
+		uint32_t cid = cli.ConnectTo("127.0.0.1", port);
+		BOOST_REQUIRE(cid != ZCom_Invalid_ID);
 
-	processBoth(&srv, &cli, 30);
-	BOOST_REQUIRE(cli.m_connected);
-	BOOST_REQUIRE(srv.m_node != nullptr);
+		processBoth(&srv, &cli, 30);
+		BOOST_REQUIRE(cli.m_connected);
+		BOOST_REQUIRE(srv.m_node != nullptr);
 
-	g_currentControl = &srv;
-	for (int i = 0; i < 5; i++)
-	{
-		char buf[32];
-		snprintf(buf, sizeof(buf), "event%d", i);
-		srv.SendTestEvent(buf);
-	}
-	g_currentControl = nullptr;
+		g_currentControl = &srv;
+		for (int i = 0; i < 5; i++) {
+			char buf[32];
+			snprintf(buf, sizeof(buf), "event%d", i);
+			srv.SendTestEvent(buf);
+		}
+		g_currentControl = nullptr;
 
-	processBoth(&srv, &cli, 10);
+		processBoth(&srv, &cli, 10);
 
-	srv.Shutdown();
-	cli.Shutdown();
+		srv.Shutdown();
+		cli.Shutdown();
 	}
 
 	BOOST_CHECK(true);
 }
 
-BOOST_AUTO_TEST_CASE(event_binary_payload)
-{
+BOOST_AUTO_TEST_CASE(event_binary_payload) {
 	static int portOffset = 0;
 	g_currentControl = nullptr;
 	int port = 19090 + (portOffset++);
 
 	{
-	EventServer srv(port);
-	EventClient cli(port);
+		EventServer srv(port);
+		EventClient cli(port);
 
-	uint32_t cid = cli.ConnectTo("127.0.0.1", port);
-	BOOST_REQUIRE(cid != ZCom_Invalid_ID);
+		uint32_t cid = cli.ConnectTo("127.0.0.1", port);
+		BOOST_REQUIRE(cid != ZCom_Invalid_ID);
 
-	processBoth(&srv, &cli, 30);
-	BOOST_REQUIRE(cli.m_connected);
-	BOOST_REQUIRE(srv.m_node != nullptr);
+		processBoth(&srv, &cli, 30);
+		BOOST_REQUIRE(cli.m_connected);
+		BOOST_REQUIRE(srv.m_node != nullptr);
 
-	if (srv.m_node)
-	{
-		g_currentControl = &srv;
-		ZCom_BitStream eventData;
-		eventData.addInt(0xDEAD, 16);
-		eventData.addInt(0xBEEF, 16);
-		srv.m_node->sendEvent(eZCom_ReliableOrdered, 0, &eventData);
-		g_currentControl = nullptr;
-	}
+		if (srv.m_node) {
+			g_currentControl = &srv;
+			ZCom_BitStream eventData;
+			eventData.addInt(0xDEAD, 16);
+			eventData.addInt(0xBEEF, 16);
+			srv.m_node->sendEvent(eZCom_ReliableOrdered, 0, &eventData);
+			g_currentControl = nullptr;
+		}
 
-	processBoth(&srv, &cli, 10);
+		processBoth(&srv, &cli, 10);
 
-	srv.Shutdown();
-	cli.Shutdown();
+		srv.Shutdown();
+		cli.Shutdown();
 	}
 
 	BOOST_CHECK(true);
 }
 
-BOOST_AUTO_TEST_CASE(event_interceptor_registration)
-{
+BOOST_AUTO_TEST_CASE(event_interceptor_registration) {
 	static int portOffset = 0;
 	g_currentControl = nullptr;
 	int port = 19100 + (portOffset++);
@@ -215,7 +195,7 @@ BOOST_AUTO_TEST_CASE(event_interceptor_registration)
 
 	// Create a node and set an event interceptor
 	g_currentControl = &cli;
-	ZCom_Node* node = new ZCom_Node();
+	ZCom_Node *node = new ZCom_Node();
 	node->beginReplicationSetup(0);
 	node->endReplicationSetup();
 	node->registerNodeDynamic(cli.m_eventClass, &cli);
@@ -232,8 +212,7 @@ BOOST_AUTO_TEST_CASE(event_interceptor_registration)
 	srv.Shutdown();
 }
 
-BOOST_AUTO_TEST_CASE(event_type_constants)
-{
+BOOST_AUTO_TEST_CASE(event_type_constants) {
 	BOOST_CHECK_EQUAL(eZCom_EventNoEvent, 0);
 	BOOST_CHECK_EQUAL(eZCom_EventInit, 1);
 	BOOST_CHECK_EQUAL(eZCom_EventSyncRequest, 2);
@@ -247,15 +226,13 @@ BOOST_AUTO_TEST_CASE(event_type_constants)
 	BOOST_CHECK(eZCom_EventUser > eZCom_EventReplicator);
 }
 
-BOOST_AUTO_TEST_CASE(send_mode_constants)
-{
+BOOST_AUTO_TEST_CASE(send_mode_constants) {
 	BOOST_CHECK_EQUAL(eZCom_ReliableUnordered, 0);
 	BOOST_CHECK_EQUAL(eZCom_ReliableOrdered, 1);
 	BOOST_CHECK_EQUAL(eZCom_Unreliable, 2);
 }
 
-BOOST_AUTO_TEST_CASE(replication_flag_constants)
-{
+BOOST_AUTO_TEST_CASE(replication_flag_constants) {
 	BOOST_CHECK_EQUAL(ZCOM_REPFLAG_NONE, 0);
 	BOOST_CHECK_EQUAL(ZCOM_REPFLAG_UNRELIABLE, (1L << 0));
 	BOOST_CHECK_EQUAL(ZCOM_REPFLAG_MOSTRECENT, (1L << 1));
@@ -267,8 +244,7 @@ BOOST_AUTO_TEST_CASE(replication_flag_constants)
 	BOOST_CHECK_EQUAL(ZCOM_REPFLAG_STARTCLEAN, (1L << 7));
 }
 
-BOOST_AUTO_TEST_CASE(replication_rule_constants)
-{
+BOOST_AUTO_TEST_CASE(replication_rule_constants) {
 	BOOST_CHECK_EQUAL(ZCOM_REPRULE_AUTH_2_PROXY, (1L << 0));
 	BOOST_CHECK_EQUAL(ZCOM_REPRULE_AUTH_2_OWNER, (1L << 1));
 	BOOST_CHECK_EQUAL(ZCOM_REPRULE_AUTH_2_ALL, (ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_AUTH_2_OWNER));
@@ -276,8 +252,7 @@ BOOST_AUTO_TEST_CASE(replication_rule_constants)
 	BOOST_CHECK_EQUAL(ZCOM_REPRULE_NONE, 0);
 }
 
-BOOST_AUTO_TEST_CASE(node_event_notification_toggle)
-{
+BOOST_AUTO_TEST_CASE(node_event_notification_toggle) {
 	static int portOffset = 0;
 	g_currentControl = nullptr;
 	int port = 19110 + (portOffset++);
@@ -292,7 +267,7 @@ BOOST_AUTO_TEST_CASE(node_event_notification_toggle)
 
 	// Create a node with event notification enabled
 	g_currentControl = &cli;
-	ZCom_Node* node = new ZCom_Node();
+	ZCom_Node *node = new ZCom_Node();
 	node->beginReplicationSetup(0);
 	node->endReplicationSetup();
 	node->setEventNotification(true, true);

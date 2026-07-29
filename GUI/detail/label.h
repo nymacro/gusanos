@@ -3,32 +3,25 @@
 
 #include "wnd.h"
 
-namespace OmfgGUI
-{
+namespace OmfgGUI {
 
-class Label : public Wnd
-{
-public:
+class Label : public Wnd {
+  public:
 	static LuaReference metaTable;
-	
-	Label(Wnd* parent_, std::map<std::string, std::string> const& properties)
-	: Wnd(parent_, properties, "label")
-	{
 
-	}
-	
+	Label(Wnd *parent_, std::map<std::string, std::string> const &properties) : Wnd(parent_, properties, "label") {}
+
 	virtual bool render();
-	
+
 	virtual void process();
 
 	virtual bool mouseDown(ulong newX, ulong newY, Context::MouseKey::type button);
 
 	virtual bool mouseUp(ulong newX, ulong newY, Context::MouseKey::type button);
-	
+
 	virtual bool keyDown(int key);
 };
 
-}
+} // namespace OmfgGUI
 
-#endif //OMFG_GUI_BUTTON_H
-
+#endif // OMFG_GUI_BUTTON_H

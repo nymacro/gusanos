@@ -8,267 +8,218 @@
 using std::cerr;
 using std::endl;
 
-template<class T>
+template <class T>
 class LList;
 
+template <class T>
+class LItem {
+  private:
+	T m_Data;
+	LItem<T> *m_Prev;
+	LItem<T> *m_Next;
 
-template<class T>
-class LItem
-{
-private:
-	T			 m_Data;
-	LItem<T>	*m_Prev;
-	LItem<T>	*m_Next;
-
-public:
-	LItem(T const& a_Init)
-	{
+  public:
+	LItem(T const &a_Init) {
 		m_Data = a_Init;
 	}
 
-	LItem<T>* getNext(void)
-	{
+	LItem<T> *getNext(void) {
 		return m_Next;
 	}
 
-	LItem<T>* getPrev(void)
-	{
+	LItem<T> *getPrev(void) {
 		return m_Prev;
 	}
 
-	void setNext(LItem<T>* a_Src)
-	{
+	void setNext(LItem<T> *a_Src) {
 		m_Next = a_Src;
 	}
 
-	void setPrev(LItem<T>* a_Src)
-	{
+	void setPrev(LItem<T> *a_Src) {
 		m_Prev = a_Src;
 	}
 
-	operator T()
-	{
+	operator T() {
 		return m_Data;
 	}
 
-	T* operator ->()
-	{
+	T *operator->() {
 		return &m_Data;
 	}
 
-	LItem()
-	{
-	}
+	LItem() {}
 };
 
-//Example: class Unit : LNodeImp<Unit>
-template<class T>
-class LNodeImp
-{
-public:
-	T* getNext(void)
-	{
+// Example: class Unit : LNodeImp<Unit>
+template <class T>
+class LNodeImp {
+  public:
+	T *getNext(void) {
 		return m_Next_;
 	}
 
-	T* getPrev(void)
-	{
+	T *getPrev(void) {
 		return m_Prev_;
 	}
 
-	void setNext(T* a_Src)
-	{
+	void setNext(T *a_Src) {
 		m_Next_ = a_Src;
 	}
 
-	void setPrev(T* a_Src)
-	{
+	void setPrev(T *a_Src) {
 		m_Prev_ = a_Src;
 	}
-private:
-	T	*m_Prev_;
-	T	*m_Next_;
+
+  private:
+	T *m_Prev_;
+	T *m_Next_;
 };
 
-template<class T>
-class LList
-{
-private:
+template <class T>
+class LList {
+  private:
 	T *m_First;
 	T *m_Last;
 	long m_Count;
-	
-	template<class Op>
-	static std::pair<T*, T*> sort_private(T* section, Op& op);
 
-public:
-	struct iterator
-	{
-		iterator()
-		: ptr(0)
-		{
-		}
-		
-		iterator(T* ptr_)
-		: ptr(ptr_)
-		{
+	template <class Op>
+	static std::pair<T *, T *> sort_private(T *section, Op &op);
 
-		}
-		
-		iterator& operator++()
-		{
+  public:
+	struct iterator {
+		iterator() : ptr(0) {}
+
+		iterator(T *ptr_) : ptr(ptr_) {}
+
+		iterator &operator++() {
 			ptr = static_cast<T *>(ptr->getNext());
 			return *this;
 		}
-		
-		iterator& operator--()
-		{
+
+		iterator &operator--() {
 			ptr = static_cast<T *>(ptr->getPrev());
 			return *this;
 		}
-		
-		bool operator==(iterator const& rhs) const
-		{
+
+		bool operator==(iterator const &rhs) const {
 			return ptr == rhs.ptr;
 		}
-		
-		bool operator!=(iterator const& rhs) const
-		{
+
+		bool operator!=(iterator const &rhs) const {
 			return ptr != rhs.ptr;
 		}
-		
-		T* operator->() const
-		{
+
+		T *operator->() const {
 			return ptr;
 		}
-		
-		T& operator * () const
-		{
+
+		T &operator*() const {
 			return *ptr;
 		}
-		
-		operator T*()
-		{
+
+		operator T *() {
 			return ptr;
 		}
-		
-		T * ptr;
+
+		T *ptr;
 	};
-	
-	typedef T& reference;
-	
-	//typedef iterator reverse_iterator;
-	
-	inline T*		insertSorted(T* a_Item);
-	inline T*		insert(T* a_Item, T* a_insertAfter);
-	inline T*		insert(T* a_Item);			//inserts existing item in list
-	inline T*		insert(T const& a_Src);			//inserts copy of existing item in list
-	inline T*		insert(void);				//inserts an empty item in the list
-	inline void		unlink(T* a_Item);			//Removes the item from the list but doesn't free it's memory
-	inline void		erase(T* a_Item);			//Removes the item from the list and frees it's memory
-	inline void		clear(void);				//clear the whole lists (frees the memory)
-	inline void		unlinkAll(void);			//unlinks all members from the list (this practically sets the first and last pointers to NULL)
 
-	template<class Op>
-	inline void		sort(Op&);
+	typedef T &reference;
 
-	iterator begin()
-	{
+	// typedef iterator reverse_iterator;
+
+	inline T *insertSorted(T *a_Item);
+	inline T *insert(T *a_Item, T *a_insertAfter);
+	inline T *insert(T *a_Item);	  // inserts existing item in list
+	inline T *insert(T const &a_Src); // inserts copy of existing item in list
+	inline T *insert(void);			  // inserts an empty item in the list
+	inline void unlink(T *a_Item);	  // Removes the item from the list but doesn't free it's memory
+	inline void erase(T *a_Item);	  // Removes the item from the list and frees it's memory
+	inline void clear(void);		  // clear the whole lists (frees the memory)
+	inline void
+	unlinkAll(void); // unlinks all members from the list (this practically sets the first and last pointers to NULL)
+
+	template <class Op>
+	inline void sort(Op &);
+
+	iterator begin() {
 		return iterator(getFirst());
 	}
-	
-	iterator end()
-	{
+
+	iterator end() {
 		return iterator(0);
 	}
-	
-	iterator last()
-	{
+
+	iterator last() {
 		return iterator(m_Last);
 	}
-	
-/*
-	reverse_iterator rbegin()
-	{
-		return iterator(getLast());
-	}
-	
-	reverse_iterator rend()
-	{
-		return iterator(0);
-	}*/
 
-	inline T*		getFirst(void);
-	inline T*		getLast(void);
-	inline long		getCount(void);
-	
-	inline static bool	isEnd(T* a_Item);
-	inline static T*	getEnd(void);
+	/*
+		reverse_iterator rbegin()
+		{
+			return iterator(getLast());
+		}
+
+		reverse_iterator rend()
+		{
+			return iterator(0);
+		}*/
+
+	inline T *getFirst(void);
+	inline T *getLast(void);
+	inline long getCount(void);
+
+	inline static bool isEnd(T *a_Item);
+	inline static T *getEnd(void);
 
 	inline LList();
 	inline ~LList();
-
 };
 
-template<class T>
-inline T* LList<T>::insertSorted(T* a_Item)
-{
-	if(m_First == NULL)
-	{
+template <class T>
+inline T *LList<T>::insertSorted(T *a_Item) {
+	if (m_First == NULL) {
 		insert(a_Item);
-	}
-	else
-	{
-		T* insertAfter = NULL;
-		
-		if(T::compare(m_First, a_Item) < 0)
-		{
+	} else {
+		T *insertAfter = NULL;
+
+		if (T::compare(m_First, a_Item) < 0) {
 			insertAfter = m_First;
-			
-			while(insertAfter->getNext() != NULL && T::compare(insertAfter->getNext(), a_Item) < 0)
-			{
+
+			while (insertAfter->getNext() != NULL && T::compare(insertAfter->getNext(), a_Item) < 0) {
 				insertAfter = insertAfter->getNext();
 			}
 		}
 
 		insert(a_Item, insertAfter);
 	}
-	
+
 	return a_Item;
 }
 
-template<class T>
-inline T* LList<T>::insert(T* a_Item, T* a_InsertAfter)
-{
-	if(!m_First)
-	{
+template <class T>
+inline T *LList<T>::insert(T *a_Item, T *a_InsertAfter) {
+	if (!m_First) {
 		m_First = m_Last = a_Item;
 		a_Item->setNext(0);
 		a_Item->setPrev(0);
-	}
-	else
-	{
-		if(!a_InsertAfter)
-		{
+	} else {
+		if (!a_InsertAfter) {
 			a_Item->setNext(m_First);
 			m_First = a_Item;
-		}
-		else
-		{
+		} else {
 			a_Item->setNext(a_InsertAfter->getNext());
-			
-			if(a_InsertAfter == m_Last)
-			{
+
+			if (a_InsertAfter == m_Last) {
 				m_Last = a_Item;
 			}
-			
+
 			a_InsertAfter->setNext(a_Item);
 		}
-		
+
 		a_Item->setPrev(a_InsertAfter);
-		
-		if(a_Item->getNext())
-		{
+
+		if (a_Item->getNext()) {
 			a_Item->getNext()->setPrev(a_Item);
 		}
 	}
@@ -278,84 +229,72 @@ inline T* LList<T>::insert(T* a_Item, T* a_InsertAfter)
 	return a_Item;
 }
 
-template<class T>
-inline T* LList<T>::insert(T* a_Item)
-{
-	if(!m_First)
-	{
+template <class T>
+inline T *LList<T>::insert(T *a_Item) {
+	if (!m_First) {
 		m_First = m_Last = a_Item;
 		a_Item->setNext(0);
 		a_Item->setPrev(0);
-	}
-	else
-	{
+	} else {
 		a_Item->setNext(0);
 		a_Item->setPrev(m_Last);
 
 		m_Last->setNext(a_Item);
 		m_Last = a_Item;
 	}
-	
+
 	++m_Count;
 
 	return a_Item;
 }
 
-template<class T>
-inline T* LList<T>::insert(void)
-{
+template <class T>
+inline T *LList<T>::insert(void) {
 	T *n = new T;
 	return insert(n);
 }
 
-
-template<class T>
-inline T* LList<T>::insert(T const& a_Src)
-{
+template <class T>
+inline T *LList<T>::insert(T const &a_Src) {
 	T *item = insert();
-	
-	T* prev = static_cast<T *>(item->getPrev());
-	T* next = static_cast<T *>(item->getNext());
+
+	T *prev = static_cast<T *>(item->getPrev());
+	T *next = static_cast<T *>(item->getNext());
 
 	*item = a_Src;
-	
+
 	item->setPrev(prev);
 	item->setNext(next);
 
 	return item;
 }
 
-template<class T>
-inline void LList<T>::unlink(T* a_Item)
-{
-	if(a_Item->getPrev())
-	{
+template <class T>
+inline void LList<T>::unlink(T *a_Item) {
+	if (a_Item->getPrev()) {
 		a_Item->getPrev()->setNext(a_Item->getNext());
 	}
-	if(a_Item->getNext())
-	{
+	if (a_Item->getNext()) {
 		a_Item->getNext()->setPrev(a_Item->getPrev());
 	}
 
-	if(a_Item == m_Last)
+	if (a_Item == m_Last)
 		m_Last = a_Item->getPrev();
 
-	if(a_Item == m_First)
+	if (a_Item == m_First)
 		m_First = a_Item->getNext();
-		
+
 	m_Count--;
 }
 
-template<class T>
-inline void	LList<T>::erase(T* a_Item)
-{
+template <class T>
+inline void LList<T>::erase(T *a_Item) {
 	unlink(a_Item);
 	delete a_Item;
 }
 
-template<class T>
-inline void LList<T>::clear(void)
-{
+template <class T>
+inline void LList<T>::clear(void) {
 	// Orphan every node: unlink from the list but do NOT delete, because the
 	// only instantiation (ListNode) is owned by Lua (the userdata memory block
 	// is freed by its __gc finalizer, not by C++). Deleting here would either
@@ -363,131 +302,111 @@ inline void LList<T>::clear(void)
 	unlinkAll();
 }
 
-template<class T>
-inline void LList<T>::unlinkAll(void)
-{
+template <class T>
+inline void LList<T>::unlinkAll(void) {
 	m_First = m_Last = 0;
 	m_Count = 0;
 }
 
-
-template<class T>
-template<class Op>
-inline void LList<T>::sort(Op& op)
-{
-	if(!m_First)
+template <class T>
+template <class Op>
+inline void LList<T>::sort(Op &op) {
+	if (!m_First)
 		return;
-		
-	std::pair<T*, T*> p = sort_private(m_First, op);
+
+	std::pair<T *, T *> p = sort_private(m_First, op);
 	m_First = p.first;
 	m_Last = p.second;
 	m_Last->setNext(0);
-	
+
 	// Correct the prev pointers
-	T* i = m_First;
-	T* last = 0;
-	
-	for(;i ; i = i->getNext())
-	{
+	T *i = m_First;
+	T *last = 0;
+
+	for (; i; i = i->getNext()) {
 		i->setPrev(last);
 		last = i;
 	}
 }
 
-template<class T>
-template<class Op>
-std::pair<T*, T*> LList<T>::sort_private(T* section, Op& op)
-{
-	T* pivot = section;
-	
-	if(pivot->getNext() == 0)
+template <class T>
+template <class Op>
+std::pair<T *, T *> LList<T>::sort_private(T *section, Op &op) {
+	T *pivot = section;
+
+	if (pivot->getNext() == 0)
 		return std::make_pair(pivot, pivot); // Section is sorted (only one element)
-		
-	T* lo = 0;
-	T* hi = 0;
-		
-	T* i = pivot->getNext();
-	while(i)
-	{
-		T* next = i->getNext();
-		
-		if(op(i, pivot))
-		{
+
+	T *lo = 0;
+	T *hi = 0;
+
+	T *i = pivot->getNext();
+	while (i) {
+		T *next = i->getNext();
+
+		if (op(i, pivot)) {
 			i->setNext(lo);
 			lo = i;
-		}
-		else
-		{
+		} else {
 			i->setNext(hi);
 			hi = i;
 		}
-		
+
 		i = next;
 	}
-	
-	std::pair<T*, T*> ret;
-	
-	if(lo)
-	{
-		std::pair<T*, T*> p = sort_private(lo, op);
+
+	std::pair<T *, T *> ret;
+
+	if (lo) {
+		std::pair<T *, T *> p = sort_private(lo, op);
 		p.second->setNext(pivot);
 		ret.first = p.first;
-	}
-	else
+	} else
 		ret.first = pivot;
-	
-	if(hi)
-	{
-		std::pair<T*, T*> p = sort_private(hi, op);
+
+	if (hi) {
+		std::pair<T *, T *> p = sort_private(hi, op);
 		pivot->setNext(p.first);
 		ret.second = p.second;
-	}	
-	else
+	} else
 		ret.second = pivot;
-				
+
 	return ret;
 }
 
-template<class T>
-inline T* LList<T>::getFirst(void)
-{
+template <class T>
+inline T *LList<T>::getFirst(void) {
 	return m_First;
 }
 
-template<class T>
-inline T* LList<T>::getLast(void)
-{
+template <class T>
+inline T *LList<T>::getLast(void) {
 	return m_Last;
 }
 
-template<class T>
-inline long LList<T>::getCount(void)
-{
+template <class T>
+inline long LList<T>::getCount(void) {
 	return m_Count;
 }
 
-template<class T>
-inline /*static*/ bool LList<T>::isEnd(T* a_Item)
-{
+template <class T>
+inline /*static*/ bool LList<T>::isEnd(T *a_Item) {
 	return !a_Item;
 }
 
-template<class T>
-inline /*static*/ T* LList<T>::getEnd(void)
-{
+template <class T>
+inline /*static*/ T *LList<T>::getEnd(void) {
 	return 0;
 }
 
-template<class T>
-inline LList<T>::LList()
-{
+template <class T>
+inline LList<T>::LList() {
 	m_First = m_Last = 0;
 	m_Count = 0;
 }
 
-template<class T>
-inline LList<T>::~LList()
-{
+template <class T>
+inline LList<T>::~LList() {
 	// Orphan nodes rather than delete them (see clear()). The linked structure
 	// is owned by Lua via ListNode; the C++ side only borrows the pointers.
 	unlinkAll();

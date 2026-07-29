@@ -12,7 +12,7 @@ execute tasks that can be performed easily with medium or weak model tiers.
 
 Gusanos is a C++17 game engine (SDL3 + ENet + SDL3_mixer) ported from the
 original Allegro 4 / ZoidCom / FMOD codebase. The engine features destructible
-terrain, pixel-level software blitters, Lua 5.1 scripting, and networked
+terrain, pixel-level software blitters, LuaJIT scripting, and networked
 multiplayer.
 
 ## Documentation Index
@@ -77,7 +77,8 @@ the main thread in `Network::update()`.
 
 ### Lua Integration
 
-- **Lua 5.1** is bundled as `lua51/` (full source).
+- **LuaJIT** (2.x) is linked via `pkg-config` (`luajit-5.1`).
+  The `luaapi/` directory contains the C++ wrapper layer (`LuaContext`, etc.).
 - `LuaContext` (`Goop/luaapi/context.h`) wraps the Lua state. Provides stack
   operations, function calls, class bindings, and reference tracking.
 - `LuaCallbacks` (`Goop/glua.h`) defines ~20 callbacks (`afterUpdate`,

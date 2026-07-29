@@ -4,5 +4,4 @@
 void exit();
 extern bool quit;
 
-#endif //GUSANOS_GUSANOS_H
-
+#endif // GUSANOS_GUSANOS_H

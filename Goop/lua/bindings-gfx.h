@@ -8,15 +8,14 @@
 #include "../blitters/context.h"
 #endif
 
-namespace LuaBindings
-{
-	void initGfx();
+namespace LuaBindings {
+void initGfx();
 
 #ifndef DEDSERV
-	extern LuaReference ViewportMetaTable;
-	extern LuaReference BITMAPMetaTable;
-	extern BlitterContext blitter;
+extern LuaReference ViewportMetaTable;
+extern LuaReference BITMAPMetaTable;
+extern BlitterContext blitter;
 #endif
-}
+} // namespace LuaBindings
 
-#endif //LUA_BINDINGS_GFX_H
+#endif // LUA_BINDINGS_GFX_H

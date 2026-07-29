@@ -2,8 +2,7 @@
 
 using namespace std;
 
-Material::Material()
-{
+Material::Material() {
 	worm_pass = true;
 	particle_pass = true;
 	flows = false;
@@ -15,10 +14,8 @@ Material::Material()
 	creates_water = false;
 	damage = 0;
 	is_stagnated_water = false;
-	
+
 	index = 0; // Should I not initialize this?
 }
 
-Material::~Material()
-{
-}
+Material::~Material() {}

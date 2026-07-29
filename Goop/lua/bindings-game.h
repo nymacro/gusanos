@@ -4,12 +4,11 @@
 #include "luaapi/context.h"
 #include "luaapi/types.h"
 
-namespace LuaBindings
-{
-	void initGame();
-	
-	extern LuaReference playerIterator;
-	extern LuaReference BasePlayerMetaTable;
-}
+namespace LuaBindings {
+void initGame();
 
-#endif //LUA_BINDINGS_GAME_H
+extern LuaReference playerIterator;
+extern LuaReference BasePlayerMetaTable;
+} // namespace LuaBindings
+
+#endif // LUA_BINDINGS_GAME_H

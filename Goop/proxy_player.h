@@ -7,19 +7,16 @@
 class Worm;
 class PlayerOptions;
 
-class ProxyPlayer : public BasePlayer
-{
-public:
-
-	ProxyPlayer(BaseWorm* worm);
+class ProxyPlayer : public BasePlayer {
+  public:
+	ProxyPlayer(BaseWorm *worm);
 	~ProxyPlayer();
-	
+
 	void subThink();
 #ifndef DEDSERV
 	void render();
 #endif
-private:
-
+  private:
 };
 
-#endif  // _WORM_H_
+#endif // _WORM_H_

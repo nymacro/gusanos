@@ -8,17 +8,16 @@
 
 #ifndef DEDSERV
 
-struct LOSPFontLoader : ResourceLocator<Font>::BaseLoader
-{
-	virtual bool canLoad(fs::path const& path, std::string& name);
-	
-	virtual bool load(Font*, fs::path const& path);
-	
-	virtual const char* getName();
-	
+struct LOSPFontLoader : ResourceLocator<Font>::BaseLoader {
+	virtual bool canLoad(fs::path const &path, std::string &name);
+
+	virtual bool load(Font *, fs::path const &path);
+
+	virtual const char *getName();
+
 	static LOSPFontLoader instance;
 };
 
 #endif
 
-#endif //GUSANOS_LOADERS_LOSP_H
+#endif // GUSANOS_LOADERS_LOSP_H

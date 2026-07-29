@@ -4,24 +4,25 @@
 #include "luaapi/context.h"
 #include "util/log.h"
 
-template<class T>
-struct LuaID
-{
-};
+template <class T>
+struct LuaID {};
 
-#define CLASSID(name_, id_) \
-template<> struct LuaID<name_> { static int const value = id_; }
+#define CLASSID(name_, id_)                                                                                            \
+	template <>                                                                                                        \
+	struct LuaID<name_> {                                                                                              \
+		static int const value = id_;                                                                                  \
+	}
 
 class BaseObject;
 class BaseWorm;
 class Particle;
 struct BITMAP;
 class Viewport;
-struct LuaGameEvent; // virtual
-struct LuaPlayerEvent; // virtual
-struct LuaWormEvent; // virtual
+struct LuaGameEvent;	 // virtual
+struct LuaPlayerEvent;	 // virtual
+struct LuaWormEvent;	 // virtual
 struct LuaParticleEvent; // virtual
-struct Socket; // virtual
+struct Socket;			 // virtual
 class ZCom_BitStream;
 class BasePlayer;
 class Weapon;
@@ -31,15 +32,14 @@ class Font;
 class Sound;
 class SpriteSet;
 
-namespace OmfgGUI
-{
+namespace OmfgGUI {
 class Wnd;
 class List;
 struct ListNode;
 class Edit;
 class Check;
 class Label;
-}
+} // namespace OmfgGUI
 
 CLASSID(BaseObject, 1);
 CLASSID(BaseWorm, 2);
@@ -68,55 +68,51 @@ CLASSID(OmfgGUI::Label, 24);
 
 #undef CLASSID
 
-template<class T>
-inline T* getObject(LuaContext& context, int idx)
-{
-	void* p = lua_touserdata(context, idx);
-	if(!p)
+template <class T>
+inline T *getObject(LuaContext &context, int idx) {
+	void *p = lua_touserdata(context, idx);
+	if (!p)
 		return 0;
-	if(!lua_getmetatable(context, idx))
-		return 0;
-	lua_rawgeti(context, -1, LuaID<T>::value);
-	bool b = lua_isnil(context, -1);
-	context.pop(2);
-	if(!b)
-		return *static_cast<T**>(p);
-	return 0;
-}
-
-template<class T>
-inline T* getLObject(LuaContext& context, int idx)
-{
-	void* p = lua_touserdata(context, idx);
-	if(!p)
-		return 0;
-	if(!lua_getmetatable(context, idx))
+	if (!lua_getmetatable(context, idx))
 		return 0;
 	lua_rawgeti(context, -1, LuaID<T>::value);
 	bool b = lua_isnil(context, -1);
 	context.pop(2);
-	if(!b)
-		return static_cast<T*>(p);
+	if (!b)
+		return *static_cast<T **>(p);
 	return 0;
 }
 
-template<class T>
-inline T* assertObject(LuaContext& context, int idx, char const* errstr)
-{
-	if(T* p = getObject<T>(context, idx))
+template <class T>
+inline T *getLObject(LuaContext &context, int idx) {
+	void *p = lua_touserdata(context, idx);
+	if (!p)
+		return 0;
+	if (!lua_getmetatable(context, idx))
+		return 0;
+	lua_rawgeti(context, -1, LuaID<T>::value);
+	bool b = lua_isnil(context, -1);
+	context.pop(2);
+	if (!b)
+		return static_cast<T *>(p);
+	return 0;
+}
+
+template <class T>
+inline T *assertObject(LuaContext &context, int idx, char const *errstr) {
+	if (T *p = getObject<T>(context, idx))
 		return p;
-	
+
 	lua_pushstring(context, errstr);
 	lua_error(context);
 	__builtin_unreachable();
 }
 
-template<class T>
-inline T* assertLObject(LuaContext& context, int idx, char const* errstr)
-{
-	if(T* p = getLObject<T>(context, idx))
+template <class T>
+inline T *assertLObject(LuaContext &context, int idx, char const *errstr) {
+	if (T *p = getLObject<T>(context, idx))
 		return p;
-	
+
 	lua_pushstring(context, errstr);
 	lua_error(context);
 	__builtin_unreachable();
@@ -124,9 +120,12 @@ inline T* assertLObject(LuaContext& context, int idx, char const* errstr)
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
-#define ASSERT_OBJECT(type_, idx_) assertObject<type_>(context, idx_, "Expected object of type " #type_ " as parameter " #idx_)
-#define ASSERT_OBJECT_P(type_, idx_, place_) assertObject<type_>(context, idx_, "Expected object of type " #type_ place_)
-#define ASSERT_LOBJECT(type_, idx_) assertLObject<type_>(context, idx_, "Expected object of type " #type_ " as parameter " #idx_)
+#define ASSERT_OBJECT(type_, idx_)                                                                                     \
+	assertObject<type_>(context, idx_, "Expected object of type " #type_ " as parameter " #idx_)
+#define ASSERT_OBJECT_P(type_, idx_, place_)                                                                           \
+	assertObject<type_>(context, idx_, "Expected object of type " #type_ place_)
+#define ASSERT_LOBJECT(type_, idx_)                                                                                    \
+	assertLObject<type_>(context, idx_, "Expected object of type " #type_ " as parameter " #idx_)
 #pragma GCC diagnostic pop
 
-#endif //LUA_CLASSES_H
+#endif // LUA_CLASSES_H

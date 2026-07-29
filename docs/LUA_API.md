@@ -2,9 +2,9 @@
 
 ## Overview
 
-Gusanos uses **Lua 5.1** as its scripting language for mods, particle types,
-weapons, and game logic. The engine embeds Lua via the `LuaContext` class
-(`lua51/luaapi/context.h`) and exposes a rich API through C function bindings.
+Gusanos uses **LuaJIT** (Lua 5.1-compatible) as its scripting language for mods, particle types,
+weapons, and game logic. The engine links LuaJIT via `pkg-config` and wraps it with the
+`LuaContext` class (`luaapi/luaapi/context.h`) and exposes a rich API through C function bindings.
 
 Mod scripts live in the mod directory and are loaded by the engine at startup
 or on demand through resource loaders (`.part`, `.wpn`, `.script` files).
@@ -13,10 +13,10 @@ or on demand through resource loaders (`.part`, `.wpn`, `.script` files).
 
 | Component | Header | Purpose |
 |---|---|---|
-| `LuaContext` | `lua51/luaapi/context.h` | Wraps `lua_State*`; provides stack ops, ref tracking, serialization |
+| `LuaContext` | `luaapi/luaapi/context.h` | Wraps `lua_State*`; provides stack ops, ref tracking, serialization |
 | `LuaCallbacks` | `Goop/glua.h` | ~30 named callback points fired from the game loop |
 | `LuaObject` | `Goop/glua.h` | Base class for Lua-visible game objects (ref-counted lifetime) |
-| Class/Method macros | `lua51/luaapi/macros.h`, `classes.h` | `CLASS()`, `METHODC()`, `CLASSM()` for binding C++ types |
+| Class/Method macros | `luaapi/luaapi/macros.h`, `classes.h` | `CLASS()`, `METHODC()`, `CLASSM()` for binding C++ types |
 | `LuaBindings` | `Goop/lua/bindings.*` | All C→Lua binding registration |
 
 ### Global Lua Objects
@@ -737,9 +737,9 @@ end
 | `Goop/lua/bindings-resources.cpp` | `mods()`, `maps()`, resource loading |
 | `Goop/glua.h` | `LuaCallbacks` enum, `LuaObject` base class |
 | `Goop/glua.cpp` | Callback firing implementation |
-| `lua51/luaapi/context.h` | `LuaContext` class API |
-| `lua51/luaapi/macros.h` | `METHODC`, `CLASS`, `ENUM` macros |
-| `lua51/luaapi/types.h` | `LuaReference`, type helpers |
+| `luaapi/luaapi/context.h` | `LuaContext` class API |
+| `luaapi/luaapi/macros.h` | `METHODC`, `CLASS`, `ENUM` macros |
+| `luaapi/luaapi/types.h` | `LuaReference`, type helpers |
 
 ## Compile-Time Guards
 

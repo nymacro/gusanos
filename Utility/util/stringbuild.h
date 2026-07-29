@@ -4,35 +4,30 @@
 #include <string>
 #include <sstream>
 
-struct StringBuilder
-{
-	template<class T>
-	StringBuilder(T const& v)
-	{
+struct StringBuilder {
+	template <class T>
+	StringBuilder(T const &v) {
 		ss << v;
 	}
-	
-	template<class T>
-	StringBuilder& operator<<(T const& v)
-	{
+
+	template <class T>
+	StringBuilder &operator<<(T const &v) {
 		ss << v;
 		return *this;
 	}
-	
-	operator std::string()
-	{
+
+	operator std::string() {
 		return ss.str();
 	}
-	
-	operator bool()
-	{
+
+	operator bool() {
 		return !ss.fail();
 	}
-	
-private:
+
+  private:
 	std::stringstream ss;
 };
 
 typedef StringBuilder S_;
 
-#endif //OMFGUTIL_DETAIL_STRINGBUILD_H
+#endif // OMFGUTIL_DETAIL_STRINGBUILD_H

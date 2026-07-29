@@ -13,29 +13,21 @@
 #include <boost/array.hpp>
 #include "util/stringbuild.h"
 
-using std::cout;
-using std::endl;
 using boost::array;
 using boost::lexical_cast;
+using std::cout;
+using std::endl;
 
-struct TokenSet
-{
-	TokenSet(std::set<int>& s_, int idx_)
-	: s(&s_), idx(idx_)
-	{
-	}
-	
-	std::set<int>* s;
+struct TokenSet {
+	TokenSet(std::set<int> &s_, int idx_) : s(&s_), idx(idx_) {}
+
+	std::set<int> *s;
 	int idx;
 };
 
-struct Handler
-{
-	Handler(std::istream& str_, std::string const& file_)
-	: str(str_), file(file_)
-	, assumeset(0), setNumber(1), tokenNumber(1)
-	, line(1)
-	{
+struct Handler {
+	Handler(std::istream &str_, std::string const &file_)
+		: str(str_), file(file_), assumeset(0), setNumber(1), tokenNumber(1), assumeToken(0), line(1) {
 		/*
 		Token* t = new Token("EOF");
 		t->idx = 0;
@@ -43,301 +35,254 @@ struct Handler
 		tokens.push_back(t);*/
 		next();
 	}
-	
-	int cur()
-	{
+
+	int cur() {
 		return c;
 	}
-	
-	void next()
-	{
+
+	void next() {
 		c = str.get();
-		if(c == std::istream::traits_type::eof())
+		if (c == std::istream::traits_type::eof())
 			c = -1;
-		if(c == '\n')
+		if (c == '\n')
 			++line;
 	}
-	
-	void addRule(Rule* r)
-	{
+
+	void addRule(Rule *r) {
 		rules_[r->name] = r;
 	}
-	
-	void addToken(Token* t, int state)
-	{
+
+	void addToken(Token *t, int state) {
 		t->idx = tokenNumber++;
 		tokens.push_back(t);
 		states[state].push_back(t);
 	}
-	
-	void addAlias(std::string const& name, std::string const& content)
-	{
+
+	void addAlias(std::string const &name, std::string const &content) {
 		aliases.push_back(std::make_pair(name, content));
 	}
-	
-	Token* findToken(std::string const& name)
-	{
-		for (auto i : tokens)
-		{
-			if(i->name == name)
+
+	Token *findToken(std::string const &name) {
+		for (auto i : tokens) {
+			if (i->name == name)
 				return i;
 		}
-		
+
 		return 0;
 	}
-	
-	int indexFirstSet(std::set<int>& s)
-	{
-		for (auto i : tokensets)
-		{
-			if(*i.s == s)
-			{
+
+	int indexFirstSet(std::set<int> &s) {
+		for (auto i : tokensets) {
+			if (*i.s == s) {
 				return i.idx;
 			}
 		}
-		
+
 		// We must create a new set
 		int idx = tokensets.size() + 1;
 		tokensets.push_back(TokenSet(s, idx));
 		return idx;
 	}
-	
-	bool firstSet(Element& self, std::set<int>& s)
-	{
-		if(self.sub)
-		{
+
+	bool firstSet(Element &self, std::set<int> &s) {
+		if (self.sub) {
 			firstSet(*self.sub, s);
-		}
-		else if(!self.child.empty() && self.func == Element::NoFunc)
-		{
+		} else if (!self.child.empty() && self.func == Element::NoFunc) {
 			auto i = rules_.find(self.child);
-			if(i != rules_.end())
+			if (i != rules_.end())
 				firstSet(*i->second, s);
-			else
-			{
+			else {
 				auto j = findToken(self.child);
-				if(j)
+				if (j)
 					s.insert(j->idx);
-				else
-				{
+				else {
 					error("Identifier '" + self.child + "' not declared");
 					exit(1);
 				}
 			}
-		}
-		else
+		} else
 			return false;
 		return true;
 	}
-	
-	
-	void firstSet(Option& self, std::set<int>& s)
-	{
-		for (auto i : self.elements)
-		{
-			if(firstSet(*i, s) && !(i->optional))
+
+	void firstSet(Option &self, std::set<int> &s) {
+		for (auto i : self.elements) {
+			if (firstSet(*i, s) && !(i->optional))
 				return;
 		}
 	}
-	
-	void firstSet(Def& self, std::set<int>& s)
-	{
-		if(self.inProgress)
+
+	void firstSet(Def &self, std::set<int> &s) {
+		if (self.inProgress)
 			throw SyntaxError("Left recursive rule(s)");
 
 		self.inProgress = true;
-		
-		for (auto i : self.options)
-		{
+
+		for (auto i : self.options) {
 			firstSet(*i, s);
 		}
-		
+
 		self.inProgress = false;
 	}
-	
-	void firstSet(Rule& self, std::set<int>& s)
-	{
+
+	void firstSet(Rule &self, std::set<int> &s) {
 		firstSet(*self.def, s);
 	}
-	
-	std::string firstSetName(int idx)
-	{
+
+	std::string firstSetName(int idx) {
 		return S_("set_") << idx;
 	}
-	
-	std::string firstSetTest(int idx)
-	{
-		switch(tokensets[idx - 1].s->size())
-		{
-			case 0: return "true";
-			case 1: return S_("(cur == ") << *tokensets[idx - 1].s->begin() << ')';
-			default: return firstSetName(idx) + "[cur]";
+
+	std::string firstSetTest(int idx) {
+		switch (tokensets[idx - 1].s->size()) {
+			case 0:
+				return "true";
+			case 1:
+				return S_("(cur == ") << *tokensets[idx - 1].s->begin() << ')';
+			default:
+				return firstSetName(idx) + "[cur]";
 		}
-		
+
 		return S_("set_") << idx;
 	}
-	
-	std::string firstSetTest(Element& self, bool determined = false)
-	{
-		if(!self.firstSetIdx)
-		{
+
+	std::string firstSetTest(Element &self, bool determined = false) {
+		if (!self.firstSetIdx) {
 			firstSet(self, self.first);
 			self.firstSetIdx = indexFirstSet(self.first);
 		}
-		
-		if(determined)
+
+		if (determined)
 			assumeset = tokensets[self.firstSetIdx - 1].s;
-		
+
 		return firstSetTest(self.firstSetIdx);
 	}
-	
-	std::string firstSetTest(Option& self, bool determined = false)
-	{
-		if(!self.firstSetIdx)
-		{
+
+	std::string firstSetTest(Option &self, bool determined = false) {
+		if (!self.firstSetIdx) {
 			firstSet(self, self.first);
 			self.firstSetIdx = indexFirstSet(self.first);
 		}
-		
-		if(determined)
+
+		if (determined)
 			assumeset = tokensets[self.firstSetIdx - 1].s;
-			
+
 		return firstSetTest(self.firstSetIdx);
 	}
-	
-	//Element Option
-	
-	void output(std::ostream& s, Element& self)
-	{
-		if(self.optional)
+
+	// Element Option
+
+	void output(std::ostream &s, Element &self) {
+		if (self.optional)
 			s << "if(" << firstSetTest(self, true) << ") {\n";
-			
-		switch(self.mult)
-		{
-			case Element::Repeat0: s << "while(" << firstSetTest(self, true) << ") {\n"; break;
-			case Element::Repeat1: s << "do {\n"; break;
-			case Element::Once: break;
+
+		switch (self.mult) {
+			case Element::Repeat0:
+				s << "while(" << firstSetTest(self, true) << ") {\n";
+				break;
+			case Element::Repeat1:
+				s << "do {\n";
+				break;
+			case Element::Once:
+				break;
 		}
-				
-		if(self.sub)
+
+		if (self.sub)
 			output(s, *self.sub);
-		
-		else if(!self.child.empty())
-		{
-			switch(self.func)
-			{
-				case Element::NoFunc:
-				{
+
+		else if (!self.child.empty()) {
+			switch (self.func) {
+				case Element::NoFunc: {
 					auto i = rules_.find(self.child);
-					if(i != rules_.end())
+					if (i != rules_.end())
 						s << "rule_" << i->first << "(" << self.code << ");\n";
-					else
-					{
+					else {
 						auto j = findToken(self.child);
-						if(j)
-						{
-							Token& token = *j;
-							//s << "if(cur != " << token.idx << ") syntaxError();\n";
-							if(!assumeset || assumeset->find(token.idx) == assumeset->end())
-							{
+						if (j) {
+							Token &token = *j;
+							// s << "if(cur != " << token.idx << ") syntaxError();\n";
+							if (!assumeset || assumeset->find(token.idx) == assumeset->end()) {
 								s << "if(!matchToken(" << token.idx << ")) return;\n";
 							}
-							if(!self.code.empty())
-							{
-								if(!token.code.empty())
-								{
-									if(self.code[0] == '=')
+							if (!self.code.empty()) {
+								if (!token.code.empty()) {
+									if (self.code[0] == '=')
 										s << self.code.substr(1) << ".reset(curData.release());\n";
-									else	
-										s << "std::unique_ptr<" << token.name << "> " << self.code << "(static_cast<" << token.name << "*>(curData.release()));\n";
-								}
-								else
-								{
+									else
+										s << "std::unique_ptr<" << token.name << "> " << self.code << "(static_cast<"
+										  << token.name << "*>(curData.release()));\n";
+								} else {
 									error("Token does not return any data");
 									exit(1);
 								}
 							}
 							s << "next();\n";
 							assumeset = 0;
-						}
-						else
-						{
+						} else {
 							error("Identifier '" + self.child + "' not declared");
 							exit(1);
 						}
 					}
-				}
-				break;
-				
-				case Element::SkipTo:
-				{
+				} break;
+
+				case Element::SkipTo: {
 					auto j = findToken(self.child);
-					if(!j)
-					{
+					if (!j) {
 						error("Token '" + self.child + "' not declared");
 						exit(1);
 					}
-					
+
 					s << "while(cur != " << j->idx << " && cur != 0) next();\n";
 					assumeset = 0;
-				}
-				break;
-				
-				case Element::SkipAfter:
-				{
+				} break;
+
+				case Element::SkipAfter: {
 					auto j = findToken(self.child);
-					if(!j)
-					{
+					if (!j) {
 						error("Token '" + self.child + "' not declared");
 						exit(1);
 					}
-					
+
 					s << "while(cur != " << j->idx << " && cur != 0) next();\nnext();\n";
 					assumeset = 0;
-				}
-				break;
-				
-				case Element::Location:
-				{
+				} break;
+
+				case Element::Location: {
 					s << "Location " << self.child << "(self->getLoc());\n";
-				}
-				break;
+				} break;
 			}
-		}
-		else
-		{
+		} else {
 			s << self.code << endl;
 		}
-		
-		switch(self.mult)
-		{
-			case Element::Repeat0: s << "}\n"; break;
-			case Element::Repeat1: s << "} while(" << firstSetTest(self) << ");\n"; break;
-			case Element::Once: break;
+
+		switch (self.mult) {
+			case Element::Repeat0:
+				s << "}\n";
+				break;
+			case Element::Repeat1:
+				s << "} while(" << firstSetTest(self) << ");\n";
+				break;
+			case Element::Once:
+				break;
 		}
-		
-		if(self.optional)
+
+		if (self.optional)
 			s << "}" << endl;
 	}
-	
-	void output(std::ostream& s, Option& self)
-	{
-		for (auto i : self.elements)
-		{
+
+	void output(std::ostream &s, Option &self) {
+		for (auto i : self.elements) {
 			output(s, *i);
 		}
 	}
-	
-	void output(std::ostream& s, Def& self)
-	{
-		
-		if(self.options.size() > 1)
-		{
+
+	void output(std::ostream &s, Def &self) {
+
+		if (self.options.size() > 1) {
 			bool first = true;
-			
-			for (auto i : self.options)
-			{
-				if(first)
+
+			for (auto i : self.options) {
+				if (first)
 					first = false;
 				else
 					s << "else ";
@@ -345,382 +290,340 @@ struct Handler
 				output(s, *i);
 				s << "}\n";
 			}
-			
+
 			s << "else { syntaxError(); return; }\n";
-		}
-		else
-		{
+		} else {
 			output(s, **self.options.begin());
 		}
 	}
-	
-	void output(std::ostream& s, Rule& self)
-	{
-		s
-		<< "void rule_" << self.name << "(" << self.args << ") {\n";
+
+	void output(std::ostream &s, Rule &self) {
+		s << "void rule_" << self.name << "(" << self.args << ") {\n";
 		output(s, *self.def);
 		s << "}\n";
 	}
-	
-	void output(std::ostream& s, Token& self)
-	{
-		if(!self.code.empty() && self.copy.empty())
-		{
-			s
-			<< "struct " << self.name << " : public Token {\n"
-			<< "typedef std::unique_ptr<" << self.name << "> ptr;\n"
-			<< "#define CONSTRUCT(b_, e_) " << self.name << "(T& g, char const* b_, char const* e_)\n"
-			<< self.code
-			<<
-			"\n"
-			"#undef CONSTRUCT\n"
-			"};\n";
+
+	void output(std::ostream &s, Token &self) {
+		if (!self.code.empty() && self.copy.empty()) {
+			s << "struct " << self.name << " : public Token {\n"
+			  << "typedef std::unique_ptr<" << self.name << "> ptr;\n"
+			  << "#define CONSTRUCT(b_, e_) " << self.name << "(T& g, char const* b_, char const* e_)\n"
+			  << self.code
+			  << "\n"
+				 "#undef CONSTRUCT\n"
+				 "};\n";
 		}
 	}
-	
-	void output(std::ostream& s, std::string name)
-	{
-		s <<
-		"#include <memory>\n"
-		"#include <cstddef>\n"
-		"#include <cstdlib>\n"
-		"#include <cstring>\n"
-		"#include <iostream>\n"
-		"using std::unique_ptr;\n"
-		;
-		
+
+	void output(std::ostream &s, std::string name) {
+		s << "#include <memory>\n"
+			 "#include <cstddef>\n"
+			 "#include <cstdlib>\n"
+			 "#include <cstring>\n"
+			 "#include <iostream>\n"
+			 "using std::unique_ptr;\n";
+
 		s << prolog << '\n';
-		
-		if(!namespace_.empty())
+
+		if (!namespace_.empty())
 			s << "namespace " << namespace_ << "{\n";
-		
-		s <<
-		"template<class T>\n"
-		"struct " << name << " {\n"
-		"#define self (static_cast<T *>(this))\n"
-		"~" << name << "() { free(buffer); }\n"
-		"struct Token";
-		
-		if(!tokenbase.empty())
+
+		s << "template<class T>\n"
+			 "struct "
+		  << name
+		  << " {\n"
+			 "#define self (static_cast<T *>(this))\n"
+			 "~"
+		  << name
+		  << "() { free(buffer); }\n"
+			 "struct Token";
+
+		if (!tokenbase.empty())
 			s << " : public " << tokenbase << ' ';
-		
-		s <<
-		"{ typedef std::unique_ptr<Token> ptr;\n"
-		<< tokencontent <<
-		"\nvirtual ~Token() {}\n"
-		"};\n\n"
-		;
-		
-		for (auto i : tokens)
-		{
-			Token& token = *i;
+
+		s << "{ typedef std::unique_ptr<Token> ptr;\n"
+		  << tokencontent
+		  << "\nvirtual ~Token() {}\n"
+			 "};\n\n";
+
+		for (auto i : tokens) {
+			Token &token = *i;
 
 			output(s, token);
 		}
-		
-		s <<
-		"void next() {\n"
-		"#define YYCTYPE char\n"
-		"#define YYCURSOR curp\n"
-		"#define YYLIMIT limit\n"
-		"#define YYMARKER marker\n"
-		"#define YYFILL(n) fill(n)\n"
-		"retry:\n"
-		"begin = curp;\n"
-		"goto append; append:\n"
-		"/*!re2c\n";
-		for (auto i : aliases)
-		{
+
+		s << "void next() {\n"
+			 "#define YYCTYPE char\n"
+			 "#define YYCURSOR curp\n"
+			 "#define YYLIMIT limit\n"
+			 "#define YYMARKER marker\n"
+			 "#define YYFILL(n) fill(n)\n"
+			 "retry:\n"
+			 "begin = curp;\n"
+			 "goto append; append:\n"
+			 "/*!re2c\n";
+		for (auto i : aliases) {
 			s << i.first << " = " << i.second << ";\n";
 		}
-		s <<
-		"*/\nswitch(state) {";
-		
-		for (auto state : states)
-		{
-			s <<
-			"case " << state.first << ":\n"
-			"/*!re2c\n"
-			;
+		s << "*/\nswitch(state) {";
 
-			for (auto i : state.second)
-			{
-				Token& token = *i;
-				
+		for (auto state : states) {
+			s << "case " << state.first
+			  << ":\n"
+				 "/*!re2c\n";
+
+			for (auto i : state.second) {
+				Token &token = *i;
+
 				s << token.def << "{ ";
-					
+
 				/*
 				if(token.linecounter)
 					s << "++this->line; ";
 				*/
-				if(!token.code2.empty())
-				{
-					s <<
-					"\n#define linecounter() (++this->line)\n"
-					"#define skip() goto retry\n"
-					"#define append() goto append\n"
-					"#define setstate(x_) (state = (x_))\n"
-					<< token.code2 << // Append this token at the beginning of others
-					"\n#undef setstate\n"
-					"#undef append\n"
-					"#undef skip\n"
-					"#undef linecounter\n";
+				if (!token.code2.empty()) {
+					s << "\n#define linecounter() (++this->line)\n"
+						 "#define skip() goto retry\n"
+						 "#define append() goto append\n"
+						 "#define setstate(x_) (state = (x_))\n"
+					  << token.code2 << // Append this token at the beginning of others
+						"\n#undef setstate\n"
+						"#undef append\n"
+						"#undef skip\n"
+						"#undef linecounter\n";
 				}
-				
-				if(!token.copy.empty())
-				{
+
+				if (!token.copy.empty()) {
 					auto j = findToken(token.copy);
-					if(!j)
-					{
+					if (!j) {
 						error("Token not found");
 						exit(1);
 					}
-						
-					s <<
-					"\n#define b (begin)\n"
-					"#define e (YYCURSOR)\n";
+
+					s << "\n#define b (begin)\n"
+						 "#define e (YYCURSOR)\n";
 					s << " cur = " << j->idx << "; ";
-					if(!token.code.empty())
+					if (!token.code.empty())
 						s << "curData.reset(new " << j->name << "(*self, " << token.code << ")); ";
-					else if(!j->code.empty())
+					else if (!j->code.empty())
 						s << "curData.reset(new " << j->name << "(*self, b, e)); ";
-					
+
 					s <<
-					//"std::cout << \"" << j->name << " \"; \n" 
-					"return; \n"
-					"\n#undef b\n"
-					"#undef e\n";
-				}
-				else
-				{
+						//"std::cout << \"" << j->name << " \"; \n"
+						"return; \n"
+						"\n#undef b\n"
+						"#undef e\n";
+				} else {
 					s << " cur = " << token.idx << "; ";
-					if(!token.code.empty())
+					if (!token.code.empty())
 						s << "curData.reset(new " << token.name << "(*self, begin, YYCURSOR)); ";
-		
-					//s << " std::cout << \"" << token.idx << " \"; ";
+
+					// s << " std::cout << \"" << token.idx << " \"; ";
 					s <<
-					//"std::cout << \"" << token.name << " \"; \n" 
-					"return; ";
+						//"std::cout << \"" << token.name << " \"; \n"
+						"return; ";
 				}
-			
+
 				s << "}\n";
 			}
-			
-			s <<
-			"\"\\000\" { cur = 0; return; }\n"
-			"[\\000-\\377] { semanticError(std::string(\"Unknown character '\") + *begin + \"'\"); goto retry; }\n"
-			"*/\n"
-			"break;\n";
-			
+
+			s << "\"\\000\" { cur = 0; return; }\n"
+				 "[\\000-\\377] { semanticError(std::string(\"Unknown character '\") + *begin + \"'\"); goto retry; }\n"
+				 "*/\n"
+				 "break;\n";
 		}
-		s <<
-		"}\n"
-		"#undef YYCTYPE\n"
-		"#undef YYCURSOR\n"
-		"#undef YYLIMIT\n"
-		"#undef YYMARKER\n"
-		"#undef YYFILL\n"
-		"}\n";
-		
-		s <<
-		"void fill(size_t s) {\n"
-		//"std::cout << \"fill begin (\" << (void*)begin << \", \" << (void*)marker << \", \" << (void*)curp << \", \" << (void*)limit << \")\\n\";"
-		"size_t l = limit - begin;\n"
-		"if(buffer)\n"
-		"	memmove(buffer, begin, l);\n" // Move the beginning of the token to the beginning of the buffer
-		"size_t newSize = std::max(static_cast<size_t>(1024), l + s);\n"
-		"buffer = (char *)realloc(buffer, newSize);\n"
-		"size_t toRead = newSize - l;\n"
-		//"std::cout << \"to read: \" << toRead;\n"
-		"size_t amountRead = self->read(&buffer[l], toRead);\n"
-		//"std::cout << \", amount read: \" << amountRead << '\\n';\n"
-		"if(amountRead == 0) { memset(&buffer[l], 0, toRead); }\n" // Add null chars at the end
-		"else newSize = l+amountRead;\n"
-		//"std::cout << \"fill size: \" << newSize << '\\n';\n"
-		"if(begin) {\n"
-		"ptrdiff_t offs = buffer - begin;\n"
-		"curp += offs;\n"
-		"marker += offs;\n"
-		"} else {\n"
-		"curp = buffer;\n"
-		"marker = buffer;\n"
-		"}\n"
-		"begin = buffer;\n"
-		"limit = buffer + newSize;\n"
-		//"std::cout << \"fill end (\" << (void*)begin << \", \" << (void*)marker << \", \" << (void*)curp << \", \" << (void*)limit << \")\" << std::endl;"
-		"}\n";
-		
-		
+		s << "}\n"
+			 "#undef YYCTYPE\n"
+			 "#undef YYCURSOR\n"
+			 "#undef YYLIMIT\n"
+			 "#undef YYMARKER\n"
+			 "#undef YYFILL\n"
+			 "}\n";
+
+		s << "void fill(size_t s) {\n"
+			 //"std::cout << \"fill begin (\" << (void*)begin << \", \" << (void*)marker << \", \" << (void*)curp << \",
+			 //\" << (void*)limit << \")\\n\";"
+			 "size_t l = limit - begin;\n"
+			 "if(buffer)\n"
+			 "	memmove(buffer, begin, l);\n" // Move the beginning of the token to the beginning of the buffer
+			 "size_t newSize = std::max(static_cast<size_t>(1024), l + s);\n"
+			 "buffer = (char *)realloc(buffer, newSize);\n"
+			 "size_t toRead = newSize - l;\n"
+			 //"std::cout << \"to read: \" << toRead;\n"
+			 "size_t amountRead = self->read(&buffer[l], toRead);\n"
+			 //"std::cout << \", amount read: \" << amountRead << '\\n';\n"
+			 "if(amountRead == 0) { memset(&buffer[l], 0, toRead); }\n" // Add null chars at the end
+			 "else newSize = l+amountRead;\n"
+			 //"std::cout << \"fill size: \" << newSize << '\\n';\n"
+			 "if(begin) {\n"
+			 "ptrdiff_t offs = buffer - begin;\n"
+			 "curp += offs;\n"
+			 "marker += offs;\n"
+			 "} else {\n"
+			 "curp = buffer;\n"
+			 "marker = buffer;\n"
+			 "}\n"
+			 "begin = buffer;\n"
+			 "limit = buffer + newSize;\n"
+			 //"std::cout << \"fill end (\" << (void*)begin << \", \" << (void*)marker << \", \" << (void*)curp << \",
+			 //\" << (void*)limit << \")\" << std::endl;"
+			 "}\n";
+
 		/*
 		"struct SyntaxError : public std::exception {\n"
 		"SyntaxError(char const* msg_) : msg(msg_) {}\n"
 		"virtual char const* what() const throw() { return msg; }\n"
 		"char const* msg;};\n"*/
-		s <<
-		"struct ParsingAborted : public std::exception { };\n"
-		
-		"void fatalError(std::string const& msg = \"Syntax error\") {\n"
-		"self->reportError(msg, self->getLoc());\n"
-		"throw ParsingAborted();\n}\n"
-		
-		"void syntaxError(std::string const& msg = \"Syntax error\") {\n"
-		"syntaxError(msg, self->getLoc());\n"
-		"}\n"
-		
-		"void syntaxError(std::string const& msg, Location loc) {\n"
-		"self->reportError(msg, loc);\n"
-		"syncTokens = true;\n"
-		"error = true;\n"
-		"}\n"
-		
-		"void semanticError(std::string const& msg = \"Semantic error\") {\n"
-		"semanticError(msg, self->getLoc());\n"
-		"}\n"
-		
-		"void semanticError(std::string const& msg, Location loc) {\n"
-		"self->reportError(msg, loc);\n"
-		"error = true;\n"
-		"}\n"
-		
-		"void semanticWarning(std::string const& msg = \"Semantic warning\") {\n"
-		"semanticWarning(msg, self->getLoc());\n"
-		"}\n"
-		
-		"void semanticWarning(std::string const& msg, Location loc) {\n"
-		"self->reportError(\"warning: \" + msg, loc);\n"
-		"}\n"
-		
-		"bool matchToken(int token) {\n"
-		"if(syncTokens) {\n"
-		"while(cur != token && cur != 0) next();\n"
-		"if(cur == 0 && token != 0) fatalError(\"Unexpected end of file\");\n"
-		"syncTokens = false;"
-		"} else {\n"
-		"if(cur != token) {\n"
-		"syntaxError(\"Unexpected token\");\n"
-		"return false;\n }"
-		"}\n"
-		"return true; }\n"
-		
-		"bool optionalMatch(int token) {\n"
-		"if(syncTokens) {\n"
-		"while(cur != token && cur != 0) next();\n"
-		"syncTokens = false;"
-		"if(cur != token) return false;\n"
-		"} else {\n"
-		"if(cur != token) {\n"
-		"return false;\n }"
-		"}\n"
-		"return true; }\n"
-		
-		"bool full() { return cur == 0 && !error; }\n";
+		s << "struct ParsingAborted : public std::exception { };\n"
 
-		for (auto i : rules_)
-		{
-			Rule& rule = *i.second;
+			 "void fatalError(std::string const& msg = \"Syntax error\") {\n"
+			 "self->reportError(msg, self->getLoc());\n"
+			 "throw ParsingAborted();\n}\n"
+
+			 "void syntaxError(std::string const& msg = \"Syntax error\") {\n"
+			 "syntaxError(msg, self->getLoc());\n"
+			 "}\n"
+
+			 "void syntaxError(std::string const& msg, Location loc) {\n"
+			 "self->reportError(msg, loc);\n"
+			 "syncTokens = true;\n"
+			 "error = true;\n"
+			 "}\n"
+
+			 "void semanticError(std::string const& msg = \"Semantic error\") {\n"
+			 "semanticError(msg, self->getLoc());\n"
+			 "}\n"
+
+			 "void semanticError(std::string const& msg, Location loc) {\n"
+			 "self->reportError(msg, loc);\n"
+			 "error = true;\n"
+			 "}\n"
+
+			 "void semanticWarning(std::string const& msg = \"Semantic warning\") {\n"
+			 "semanticWarning(msg, self->getLoc());\n"
+			 "}\n"
+
+			 "void semanticWarning(std::string const& msg, Location loc) {\n"
+			 "self->reportError(\"warning: \" + msg, loc);\n"
+			 "}\n"
+
+			 "bool matchToken(int token) {\n"
+			 "if(syncTokens) {\n"
+			 "while(cur != token && cur != 0) next();\n"
+			 "if(cur == 0 && token != 0) fatalError(\"Unexpected end of file\");\n"
+			 "syncTokens = false;"
+			 "} else {\n"
+			 "if(cur != token) {\n"
+			 "syntaxError(\"Unexpected token\");\n"
+			 "return false;\n }"
+			 "}\n"
+			 "return true; }\n"
+
+			 "bool optionalMatch(int token) {\n"
+			 "if(syncTokens) {\n"
+			 "while(cur != token && cur != 0) next();\n"
+			 "syncTokens = false;"
+			 "if(cur != token) return false;\n"
+			 "} else {\n"
+			 "if(cur != token) {\n"
+			 "return false;\n }"
+			 "}\n"
+			 "return true; }\n"
+
+			 "bool full() { return cur == 0 && !error; }\n";
+
+		for (auto i : rules_) {
+			Rule &rule = *i.second;
 
 			output(s, rule);
 		}
-		
-		for (auto i : tokensets)
-		{
-			if(i.s->size() > 1)
+
+		for (auto i : tokensets) {
+			if (i.s->size() > 1)
 				s << "bool " << firstSetName(i.idx) << "[" << tokenNumber << "];\n";
 		}
-		
-		s <<
-		name << "() : cur(-1), curp(0), limit(0), marker(0), begin(0), buffer(0), line(1), state(0), syncTokens(false), error(false) {\n";
-		
-		for (auto i : tokensets)
-		{
-			if(i.s->size() > 1)
-			{
+
+		s << name
+		  << "() : cur(-1), curp(0), limit(0), marker(0), begin(0), buffer(0), line(1), state(0), syncTokens(false), "
+			 "error(false) {\n";
+
+		for (auto i : tokensets) {
+			if (i.s->size() > 1) {
 				std::string name = firstSetName(i.idx);
 				s << "memset(" << name << ", 0, sizeof(bool)*" << tokenNumber << ");\n";
-				for (auto j : *i.s)
-				{
+				for (auto j : *i.s) {
 					s << name << "[" << j << "] = true;\n";
 				}
 			}
 		}
-		
+
 		s << "}\n";
-		
-		s <<
-		"int cur;\n"
-		"std::unique_ptr<Token> curData;\n"
-		"char* curp;\n"
-		"char* limit;\n"
-		"char* marker;\n"
-		"char* begin;\n"
-		"char* buffer;\n"
-		"int line;\n"
-		"int state;\n"
-		"bool syncTokens;\n"
-		"bool error;\n"
-		"#undef self\n"
-		"};\n";
-		
-		if(!namespace_.empty())
+
+		s << "int cur;\n"
+			 "std::unique_ptr<Token> curData;\n"
+			 "char* curp;\n"
+			 "char* limit;\n"
+			 "char* marker;\n"
+			 "char* begin;\n"
+			 "char* buffer;\n"
+			 "int line;\n"
+			 "int state;\n"
+			 "bool syncTokens;\n"
+			 "bool error;\n"
+			 "#undef self\n"
+			 "};\n";
+
+		if (!namespace_.empty())
 			s << "}\n";
 	}
-	
-	void error(std::string const& msg)
-	{
+
+	void error(std::string const &msg) {
 		std::cerr << file << ':' << line << ": " << msg << endl;
 	}
-	
+
 	int c;
-	std::istream& str;
+	std::istream &str;
 	std::string file;
 	std::map<std::string, Rule *> rules_;
 	std::list<Token *> tokens;
-	std::map<int, std::list<Token *> > states;
-	std::list<std::pair<std::string, std::string> > aliases;  
-	//std::map<std::string, std::set<int> > sets;
+	std::map<int, std::list<Token *>> states;
+	std::list<std::pair<std::string, std::string>> aliases;
+	// std::map<std::string, std::set<int> > sets;
 	std::vector<TokenSet> tokensets;
-	std::set<int>* assumeset;
+	std::set<int> *assumeset;
 	int setNumber;
 	int tokenNumber;
 	std::string prolog;
 	int assumeToken;
-	
+
 	std::string tokenbase;
 	std::string tokencontent;
 	std::string namespace_;
 	int line;
-	//int maxToken;
+	// int maxToken;
 };
 
-//#define PARSER
+// #define PARSER
 
-int main(int argc, char const* argv[])
-{
-	if(argc < 3)
-	{
+int main(int argc, char const *argv[]) {
+	if (argc < 3) {
 		cout << "Usage: parsergen <source> <target>\n";
 		return 0;
 	}
-	
+
 	std::ifstream i(argv[1]);
 	Grammar<Handler> handler((Handler(i, argv[1])));
-		
-	try
-	{
-		
-		
+
+	try {
+
 		handler.rules();
 		cout << "Parsed file" << endl;
 		std::ofstream o(argv[2]);
 		handler.output(o, "TGrammar");
-	}
-	catch(SyntaxError& err)
-	{
+	} catch (SyntaxError &err) {
 		std::cerr << argv[1] << ':' << handler.line << ": " << err.what() << endl;
 		return 1;
-	}
-	catch(...)
-	{
+	} catch (...) {
 		std::cerr << ">:O" << endl;
 		return 1;
 	}

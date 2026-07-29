@@ -13,8 +13,7 @@ BOOST_AUTO_TEST_SUITE(console_basic)
 
 // --- Variable registration and retrieval ---
 
-BOOST_AUTO_TEST_CASE(int_variable_default)
-{
+BOOST_AUTO_TEST_CASE(int_variable_default) {
 	Console c;
 	int val = 0;
 	c.registerVariables()("my_int", &val, 42);
@@ -23,8 +22,7 @@ BOOST_AUTO_TEST_CASE(int_variable_default)
 	BOOST_CHECK_EQUAL(result, "42");
 }
 
-BOOST_AUTO_TEST_CASE(int_variable_set)
-{
+BOOST_AUTO_TEST_CASE(int_variable_set) {
 	Console c;
 	int val = 0;
 	c.registerVariables()("my_int", &val, 42);
@@ -33,8 +31,7 @@ BOOST_AUTO_TEST_CASE(int_variable_set)
 	BOOST_CHECK_EQUAL(val, 100);
 }
 
-BOOST_AUTO_TEST_CASE(int_variable_set_via_parseLine)
-{
+BOOST_AUTO_TEST_CASE(int_variable_set_via_parseLine) {
 	Console c;
 	int val = 0;
 	c.registerVariables()("my_int", &val, 42);
@@ -43,8 +40,7 @@ BOOST_AUTO_TEST_CASE(int_variable_set_via_parseLine)
 	BOOST_CHECK_EQUAL(val, 77);
 }
 
-BOOST_AUTO_TEST_CASE(float_variable_default)
-{
+BOOST_AUTO_TEST_CASE(float_variable_default) {
 	Console c;
 	float val = 0.0f;
 	c.registerVariables()("my_float", &val, 3.14f);
@@ -53,8 +49,7 @@ BOOST_AUTO_TEST_CASE(float_variable_default)
 	BOOST_CHECK_CLOSE(stof(result), 3.14f, 0.01f);
 }
 
-BOOST_AUTO_TEST_CASE(float_variable_set)
-{
+BOOST_AUTO_TEST_CASE(float_variable_set) {
 	Console c;
 	float val = 0.0f;
 	c.registerVariables()("my_float", &val, 1.0f);
@@ -63,8 +58,7 @@ BOOST_AUTO_TEST_CASE(float_variable_set)
 	BOOST_CHECK_CLOSE(val, 2.5f, 0.01f);
 }
 
-BOOST_AUTO_TEST_CASE(string_variable_default)
-{
+BOOST_AUTO_TEST_CASE(string_variable_default) {
 	Console c;
 	string val;
 	c.registerVariables()("my_str", &val, string("hello"));
@@ -73,8 +67,7 @@ BOOST_AUTO_TEST_CASE(string_variable_default)
 	BOOST_CHECK_EQUAL(result, "hello");
 }
 
-BOOST_AUTO_TEST_CASE(string_variable_set)
-{
+BOOST_AUTO_TEST_CASE(string_variable_set) {
 	Console c;
 	string val;
 	c.registerVariables()("my_str", &val, string(""));
@@ -85,8 +78,7 @@ BOOST_AUTO_TEST_CASE(string_variable_set)
 
 // --- Quoted string arguments ---
 
-BOOST_AUTO_TEST_CASE(string_with_spaces_via_quotes)
-{
+BOOST_AUTO_TEST_CASE(string_with_spaces_via_quotes) {
 	Console c;
 	string val;
 	c.registerVariables()("my_str", &val, string(""));
@@ -97,14 +89,12 @@ BOOST_AUTO_TEST_CASE(string_with_spaces_via_quotes)
 
 // --- Callback invocation ---
 
-BOOST_AUTO_TEST_CASE(int_variable_callback)
-{
+BOOST_AUTO_TEST_CASE(int_variable_callback) {
 	Console c;
 	int val = 0;
 	bool callbackFired = false;
 
-	c.registerVariables()("my_int", &val, 0,
-		[&](int const&) { callbackFired = true; });
+	c.registerVariables()("my_int", &val, 0, [&](int const &) { callbackFired = true; });
 
 	BOOST_CHECK_EQUAL(callbackFired, false);
 
@@ -113,14 +103,12 @@ BOOST_AUTO_TEST_CASE(int_variable_callback)
 	BOOST_CHECK_EQUAL(val, 42);
 }
 
-BOOST_AUTO_TEST_CASE(float_variable_callback)
-{
+BOOST_AUTO_TEST_CASE(float_variable_callback) {
 	Console c;
 	float val = 0.0f;
 	int callbackCount = 0;
 
-	c.registerVariables()("my_float", &val, 0.0f,
-		[&](float const&) { callbackCount++; });
+	c.registerVariables()("my_float", &val, 0.0f, [&](float const &) { callbackCount++; });
 
 	c.invoke("my_float", {"1.5"}, false);
 	c.invoke("my_float", {"2.5"}, false);
@@ -129,8 +117,7 @@ BOOST_AUTO_TEST_CASE(float_variable_callback)
 
 // --- Log management ---
 
-BOOST_AUTO_TEST_CASE(log_messages)
-{
+BOOST_AUTO_TEST_CASE(log_messages) {
 	Console c;
 	c.addLogMsg("first");
 	c.addLogMsg("second");
@@ -141,8 +128,7 @@ BOOST_AUTO_TEST_CASE(log_messages)
 	BOOST_CHECK_EQUAL(c.getLog().back(), "third");
 }
 
-BOOST_AUTO_TEST_CASE(log_empty_message_ignored)
-{
+BOOST_AUTO_TEST_CASE(log_empty_message_ignored) {
 	Console c;
 	c.addLogMsg("first");
 	c.addLogMsg("");
@@ -151,8 +137,7 @@ BOOST_AUTO_TEST_CASE(log_empty_message_ignored)
 	BOOST_CHECK_EQUAL(c.getLog().size(), 2u);
 }
 
-BOOST_AUTO_TEST_CASE(log_max_size)
-{
+BOOST_AUTO_TEST_CASE(log_max_size) {
 	Console c(3); // max 3 messages
 	c.addLogMsg("one");
 	c.addLogMsg("two");
@@ -166,15 +151,13 @@ BOOST_AUTO_TEST_CASE(log_max_size)
 
 // --- Error handling ---
 
-BOOST_AUTO_TEST_CASE(unknown_command)
-{
+BOOST_AUTO_TEST_CASE(unknown_command) {
 	Console c;
 	string result = c.invoke("nonexistent", list<string>(), false);
 	BOOST_CHECK(result.find("UNKNOWN COMMAND") != string::npos);
 }
 
-BOOST_AUTO_TEST_CASE(syntax_error_in_parseLine)
-{
+BOOST_AUTO_TEST_CASE(syntax_error_in_parseLine) {
 	Console c;
 	c.parseLine("my_int {"); // malformed syntax
 
@@ -185,8 +168,7 @@ BOOST_AUTO_TEST_CASE(syntax_error_in_parseLine)
 
 // --- Multiple commands with semicolons ---
 
-BOOST_AUTO_TEST_CASE(multiple_commands_semicolon)
-{
+BOOST_AUTO_TEST_CASE(multiple_commands_semicolon) {
 	Console c;
 	int a = 0, b = 0;
 	c.registerVariables()("var_a", &a, 0);
@@ -197,8 +179,7 @@ BOOST_AUTO_TEST_CASE(multiple_commands_semicolon)
 	BOOST_CHECK_EQUAL(b, 20);
 }
 
-BOOST_AUTO_TEST_CASE(multiple_commands_semicolon_one_error)
-{
+BOOST_AUTO_TEST_CASE(multiple_commands_semicolon_one_error) {
 	Console c;
 	int a = 0;
 	c.registerVariables()("var_a", &a, 0);
@@ -213,8 +194,7 @@ BOOST_AUTO_TEST_CASE(multiple_commands_semicolon_one_error)
 
 // --- Empty and whitespace lines ---
 
-BOOST_AUTO_TEST_CASE(empty_line)
-{
+BOOST_AUTO_TEST_CASE(empty_line) {
 	Console c;
 	c.parseLine("");
 	BOOST_CHECK_EQUAL(c.getLog().size(), 0u);
@@ -222,16 +202,15 @@ BOOST_AUTO_TEST_CASE(empty_line)
 
 // --- Strip whitespace from line ends ---
 
-static string trim(string const& s)
-{
+static string trim(string const &s) {
 	size_t start = s.find_first_not_of(" \t\r\n");
-	if (start == string::npos) return "";
+	if (start == string::npos)
+		return "";
 	size_t end = s.find_last_not_of(" \t\r\n");
 	return s.substr(start, end - start + 1);
 }
 
-BOOST_AUTO_TEST_CASE(whitespace_line)
-{
+BOOST_AUTO_TEST_CASE(whitespace_line) {
 	Console c;
 	c.parseLine("   ");
 	BOOST_CHECK_EQUAL(c.getLog().size(), 0u);
@@ -239,8 +218,7 @@ BOOST_AUTO_TEST_CASE(whitespace_line)
 
 // --- Case insensitivity ---
 
-BOOST_AUTO_TEST_CASE(case_insensitive_command)
-{
+BOOST_AUTO_TEST_CASE(case_insensitive_command) {
 	Console c;
 	int val = 0;
 	c.registerVariables()("MyVar", &val, 0);
@@ -249,8 +227,7 @@ BOOST_AUTO_TEST_CASE(case_insensitive_command)
 	BOOST_CHECK_EQUAL(val, 42);
 }
 
-BOOST_AUTO_TEST_CASE(case_insensitive_command_upper)
-{
+BOOST_AUTO_TEST_CASE(case_insensitive_command_upper) {
 	Console c;
 	int val = 0;
 	c.registerVariables()("myvar", &val, 0);
@@ -261,8 +238,7 @@ BOOST_AUTO_TEST_CASE(case_insensitive_command_upper)
 
 // --- Direct invoke with empty args returns value ---
 
-BOOST_AUTO_TEST_CASE(invoke_empty_args_returns_value)
-{
+BOOST_AUTO_TEST_CASE(invoke_empty_args_returns_value) {
 	Console c;
 	int val = 0;
 	c.registerVariables()("my_int", &val, 0);
@@ -278,8 +254,7 @@ BOOST_AUTO_TEST_CASE(invoke_empty_args_returns_value)
 
 // --- Release mode parsing ---
 
-BOOST_AUTO_TEST_CASE(release_mode_parse)
-{
+BOOST_AUTO_TEST_CASE(release_mode_parse) {
 	Console c;
 	int val = 0;
 	c.registerVariables()("my_int", &val, 0);

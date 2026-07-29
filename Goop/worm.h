@@ -1,9 +1,9 @@
 #ifndef WORM_H
 #define WORM_H
 
-//#include "base_object.h"
+// #include "base_object.h"
 #include "base_worm.h"
-//#include "sprite.h"
+// #include "sprite.h"
 
 #include "network_compat.h"
 
@@ -11,19 +11,16 @@ class BaseAnimator;
 class BasePlayer;
 class NinjaRope;
 
-class Worm : public BaseWorm
-{	
-	public:
-		
-	static ZCom_ClassID  classID;
-		
+class Worm : public BaseWorm {
+  public:
+	static ZCom_ClassID classID;
+
 	Worm();
 	~Worm();
 
 	void think();
-	
-	private:
 
+  private:
 };
 
-#endif  // _WORM_H_
+#endif // _WORM_H_

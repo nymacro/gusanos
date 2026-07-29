@@ -2,8 +2,7 @@
 
 using namespace std;
 
-Material::Material()
-{
+Material::Material() {
 	worm_pass = true;
 	particle_pass = true;
 	flows = false;
@@ -16,6 +15,4 @@ Material::Material()
 	damage = 0;
 }
 
-Material::~Material()
-{
-}
+Material::~Material() {}

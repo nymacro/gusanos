@@ -1,6 +1,7 @@
 import re
 import os
 import subprocess
+import json
 
 exp = Split('env')
 sconscript = [
@@ -210,4 +211,99 @@ for i in sconscript:
     SConscript(i + '/SConscript', exports=exp)
 
 # Generate compile_commands.json for IDE/LSP support
-env.CompilationDatabase()
+cdb = env.CompilationDatabase()
+
+# ---------------------------------------------------------------------------
+# clang-format / clang-tidy targets
+# ---------------------------------------------------------------------------
+# Sources scanned for both tools. Bundled third-party code, generated parser
+# headers, and build artifacts are excluded.
+# ---------------------------------------------------------------------------
+_FORMAT_TIDY_SOURCE_DIRS = [
+    'Goop', 'Net', 'Console', 'GUI', 'Utility/util',
+    'OmfgScript', 'http', 'luaapi', 'lighter', 'liero2gus', 'parsergen',
+]
+
+# Directories to prune while walking source trees.
+_FORMAT_TIDY_EXCLUDED_DIRS = {'.build', 'bin', 'lib', '.sconf_temp', '.git'}
+
+# Specific paths (relative to project root) to skip entirely.
+_FORMAT_TIDY_EXCLUDED_PATHS = {
+    'Net/Reference',  # ZoidCom reference samples, not part of the Gusanos build
+}
+
+_FORMAT_TIDY_GENERATED_HEADERS = {
+    'Console/console-grammar.h',
+    'OmfgScript/omfg_script_parser.h',
+    'GUI/detail/gss-grammar.h',
+}
+
+_FORMAT_TIDY_SOURCE_EXTS = {'.cpp', '.h', '.hpp', '.c'}
+
+def _collect_project_sources(env):
+    sources = []
+    for d in _FORMAT_TIDY_SOURCE_DIRS:
+        if not os.path.isdir(d):
+            continue
+        for dirpath, dirnames, filenames in os.walk(d):
+            dirnames[:] = [dn for dn in dirnames if dn not in _FORMAT_TIDY_EXCLUDED_DIRS]
+            # Skip excluded whole subtrees (e.g. reference samples).
+            rel_dir = os.path.relpath(dirpath, '.')
+            if rel_dir in _FORMAT_TIDY_EXCLUDED_PATHS:
+                dirnames[:] = []
+                continue
+            for fn in filenames:
+                if os.path.splitext(fn)[1] in _FORMAT_TIDY_SOURCE_EXTS:
+                    path = os.path.join(dirpath, fn)
+                    if path not in _FORMAT_TIDY_GENERATED_HEADERS:
+                        sources.append(path)
+    return sorted(set(sources))
+
+def _run_clang_format(target, source, env):
+    files = _collect_project_sources(env)
+    if not files:
+        print("No source files found for formatting")
+        return 0
+    try:
+        subprocess.run(['clang-format', '-i'] + files, check=True)
+    except FileNotFoundError:
+        print("Error: clang-format not found in PATH")
+        return 1
+    return None
+
+def _load_compile_db_cpp_files():
+    try:
+        with open('compile_commands.json') as f:
+            return {entry['file'] for entry in json.load(f)
+                    if entry['file'].endswith('.cpp')}
+    except Exception:
+        return set()
+
+_CLANG_TIDY = os.environ.get('CLANG_TIDY', 'clang-tidy')
+
+def _run_clang_tidy(target, source, env):
+    all_cpp = [f for f in _collect_project_sources(env) if f.endswith('.cpp')]
+    cdb_files = _load_compile_db_cpp_files()
+    files = [f for f in all_cpp if f in cdb_files]
+    skipped = [f for f in all_cpp if f not in cdb_files]
+    if skipped:
+        print(f"Skipping {len(skipped)} file(s) not in compile_commands.json")
+    if not files:
+        print("No C++ source files found for tidy")
+        return 0
+    print(f"Running {_CLANG_TIDY} on {len(files)} file(s)...")
+    try:
+        subprocess.run([_CLANG_TIDY, '-p', '.'] + files, check=True)
+    except FileNotFoundError:
+        print(f"Error: {_CLANG_TIDY} not found in PATH")
+        return 1
+    except subprocess.CalledProcessError as e:
+        # emit-only: report diagnostics but do not fail the scons build
+        print(f"clang-tidy finished with exit code {e.returncode}; ignoring because tidy is emit-only")
+    return 0
+
+_format_target = env.Alias('format', [], _run_clang_format)
+_tidy_target = env.Alias('tidy', [], _run_clang_tidy)
+env.Depends(_tidy_target, cdb)
+env.AlwaysBuild(_format_target)
+env.AlwaysBuild(_tidy_target)

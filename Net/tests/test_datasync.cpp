@@ -8,10 +8,8 @@
 #include "net_control.h"
 #include "net_node.h"
 
-static void processBoth(ZCom_Control* srv, ZCom_Control* cli, int n = 200)
-{
-	for (int i = 0; i < n; i++)
-	{
+static void processBoth(ZCom_Control *srv, ZCom_Control *cli, int n = 200) {
+	for (int i = 0; i < n; i++) {
 		g_currentControl = srv;
 		srv->ZCom_processInput(eZCom_NoBlock);
 		srv->ZCom_processOutput();
@@ -22,57 +20,46 @@ static void processBoth(ZCom_Control* srv, ZCom_Control* cli, int n = 200)
 	g_currentControl = nullptr;
 }
 
-class SyncServer : public ZCom_Control
-{
-public:
+class SyncServer : public ZCom_Control {
+  public:
 	int m_spawnedCount;
 	uint32_t m_syncClass;
-	ZCom_Node* m_node;
+	ZCom_Node *m_node;
 
-	~SyncServer() { delete m_node; m_node = nullptr; }
-	SyncServer(int udpPort)
-		: ZCom_Control()
-		, m_spawnedCount(0)
-		, m_syncClass(0)
-		, m_node(nullptr)
-	{
+	~SyncServer() {
+		delete m_node;
+		m_node = nullptr;
+	}
+	SyncServer(int udpPort) : ZCom_Control(), m_spawnedCount(0), m_syncClass(0), m_node(nullptr) {
 		m_syncClass = ZCom_registerClass("GameState", 0);
 		g_currentControl = this;
 		ZCom_initSockets(true, udpPort, 0, 0);
 	}
 
-protected:
-	bool ZCom_cbConnectionRequest(ZCom_ConnID id, ZCom_BitStream& request, ZCom_BitStream& reply) override
-	{
+  protected:
+	bool ZCom_cbConnectionRequest(ZCom_ConnID id, ZCom_BitStream &request, ZCom_BitStream &reply) override {
 		return true;
 	}
 
-	void ZCom_cbConnectionSpawned(ZCom_ConnID id) override
-	{
+	void ZCom_cbConnectionSpawned(ZCom_ConnID id) override {
 		m_spawnedCount++;
 		m_node = new ZCom_Node();
 		m_node->registerNodeDynamic(m_syncClass, this);
 	}
 };
 
-class SyncClient : public ZCom_Control
-{
-public:
+class SyncClient : public ZCom_Control {
+  public:
 	bool m_connected;
 	uint32_t m_syncClass;
 
-	SyncClient(int udpPort)
-		: ZCom_Control()
-		, m_connected(false)
-		, m_syncClass(0)
-	{
+	SyncClient(int udpPort) : ZCom_Control(), m_connected(false), m_syncClass(0) {
 		m_syncClass = ZCom_registerClass("GameState", 0);
 		g_currentControl = this;
 		ZCom_initSockets(false, 0, 0, 0);
 	}
 
-	uint32_t ConnectTo(const char* host, int port)
-	{
+	uint32_t ConnectTo(const char *host, int port) {
 		ZCom_Address addr;
 		char hostport[64];
 		snprintf(hostport, sizeof(hostport), "%s:%d", host, port);
@@ -80,166 +67,160 @@ public:
 		return ZCom_Connect(addr, nullptr);
 	}
 
-protected:
-	void ZCom_cbConnectResult(ZCom_ConnID id, eZCom_ConnectResult result, ZCom_BitStream& reply) override
-	{
+  protected:
+	void ZCom_cbConnectResult(ZCom_ConnID id, eZCom_ConnectResult result, ZCom_BitStream &reply) override {
 		m_connected = (result == eZCom_ConnAccepted);
 	}
 };
 
 BOOST_AUTO_TEST_SUITE(datasync)
 
-BOOST_AUTO_TEST_CASE(node_with_replicator_setup)
-{
+BOOST_AUTO_TEST_CASE(node_with_replicator_setup) {
 	static int portOffset = 0;
 	g_currentControl = nullptr;
 	int port = 19100 + (portOffset++);
 
 	{
-	SyncServer srv(port);
-	SyncClient cli(port);
+		SyncServer srv(port);
+		SyncClient cli(port);
 
-	uint32_t cid = cli.ConnectTo("127.0.0.1", port);
-	BOOST_REQUIRE(cid != ZCom_Invalid_ID);
+		uint32_t cid = cli.ConnectTo("127.0.0.1", port);
+		BOOST_REQUIRE(cid != ZCom_Invalid_ID);
 
-	processBoth(&srv, &cli, 30);
-	BOOST_REQUIRE(cli.m_connected);
-	BOOST_REQUIRE(srv.m_node != nullptr);
+		processBoth(&srv, &cli, 30);
+		BOOST_REQUIRE(cli.m_connected);
+		BOOST_REQUIRE(srv.m_node != nullptr);
 
-	srv.Shutdown();
-	cli.Shutdown();
+		srv.Shutdown();
+		cli.Shutdown();
 	}
 
 	BOOST_CHECK(true);
 }
 
-BOOST_AUTO_TEST_CASE(node_id_unique)
-{
+BOOST_AUTO_TEST_CASE(node_id_unique) {
 	static int portOffset = 0;
 	g_currentControl = nullptr;
 	int port = 19110 + (portOffset++);
 
 	{
-	SyncServer srv(port);
-	SyncClient cli(port);
+		SyncServer srv(port);
+		SyncClient cli(port);
 
-	uint32_t cid = cli.ConnectTo("127.0.0.1", port);
-	BOOST_REQUIRE(cid != ZCom_Invalid_ID);
+		uint32_t cid = cli.ConnectTo("127.0.0.1", port);
+		BOOST_REQUIRE(cid != ZCom_Invalid_ID);
 
-	processBoth(&srv, &cli, 30);
-	BOOST_REQUIRE(cli.m_connected);
-	BOOST_REQUIRE(srv.m_node != nullptr);
+		processBoth(&srv, &cli, 30);
+		BOOST_REQUIRE(cli.m_connected);
+		BOOST_REQUIRE(srv.m_node != nullptr);
 
-	uint32_t nid1 = srv.m_node->getNetworkID();
+		uint32_t nid1 = srv.m_node->getNetworkID();
 
-	g_currentControl = &srv;
-	ZCom_Node* node2 = new ZCom_Node();
-	node2->registerNodeDynamic(srv.m_syncClass, &srv);
-	uint32_t nid2 = node2->getNetworkID();
-	g_currentControl = nullptr;
+		g_currentControl = &srv;
+		ZCom_Node *node2 = new ZCom_Node();
+		node2->registerNodeDynamic(srv.m_syncClass, &srv);
+		uint32_t nid2 = node2->getNetworkID();
+		g_currentControl = nullptr;
 
-	BOOST_CHECK(nid1 != nid2);
+		BOOST_CHECK(nid1 != nid2);
 
-	srv.Shutdown();
-	cli.Shutdown();
-	delete node2;
+		srv.Shutdown();
+		cli.Shutdown();
+		delete node2;
 	}
 }
 
-
-
-BOOST_AUTO_TEST_CASE(replicator_pack_unpack_cycle)
-{
+BOOST_AUTO_TEST_CASE(replicator_pack_unpack_cycle) {
 	static int portOffset = 0;
 	g_currentControl = nullptr;
 	int port = 19120 + (portOffset++);
 
 	{
-	SyncServer srv(port);
+		SyncServer srv(port);
 
-	ZCom_Node* source = new ZCom_Node();
-	float sourceVal = 0.0f;
+		ZCom_Node *source = new ZCom_Node();
+		float sourceVal = 0.0f;
 
-	g_currentControl = &srv;
-	source->registerNodeDynamic(srv.m_syncClass, &srv);
-	source->addReplicationFloat(&sourceVal, 16, 0, 0);
-	sourceVal = 0.42f;
-	g_currentControl = nullptr;
+		g_currentControl = &srv;
+		source->registerNodeDynamic(srv.m_syncClass, &srv);
+		source->addReplicationFloat(&sourceVal, 16, 0, 0);
+		sourceVal = 0.42f;
+		g_currentControl = nullptr;
 
-	ZCom_BitStream packed;
-	source->packAllReplicators(&packed);
-	BOOST_REQUIRE_MESSAGE(packed.getDataLength() > 0,
-	                       "packAllReplicators should produce data");
+		ZCom_BitStream packed;
+		source->packAllReplicators(&packed);
+		BOOST_REQUIRE_MESSAGE(packed.getDataLength() > 0, "packAllReplicators should produce data");
 
-	ZCom_Node* target = new ZCom_Node();
-	float targetVal = 0.0f;
+		ZCom_Node *target = new ZCom_Node();
+		float targetVal = 0.0f;
 
-	g_currentControl = &srv;
-	target->registerNodeDynamic(srv.m_syncClass, &srv);
-	target->addReplicationFloat(&targetVal, 16, 0, 0);
-	g_currentControl = nullptr;
+		g_currentControl = &srv;
+		target->registerNodeDynamic(srv.m_syncClass, &srv);
+		target->addReplicationFloat(&targetVal, 16, 0, 0);
+		g_currentControl = nullptr;
 
-	ZCom_BitStream packedCopy(packed.getData(), packed.getDataLength());
-	target->unpackAllReplicators(&packedCopy, true, 0);
+		ZCom_BitStream packedCopy(packed.getData(), packed.getDataLength());
+		target->unpackAllReplicators(&packedCopy, true, 0);
 
-	BOOST_CHECK_CLOSE(targetVal, sourceVal, 0.1f);
+		BOOST_CHECK_CLOSE(targetVal, sourceVal, 0.1f);
 
-	delete target;
-	delete source;
-	srv.Shutdown();
+		delete target;
+		delete source;
+		srv.Shutdown();
 	}
 }
 
-BOOST_AUTO_TEST_CASE(replicator_multiple_values)
-{
+BOOST_AUTO_TEST_CASE(replicator_multiple_values) {
 	static int portOffset = 0;
 	g_currentControl = nullptr;
 	int port = 19130 + (portOffset++);
 
 	{
-	SyncServer srv(port);
+		SyncServer srv(port);
 
-	ZCom_Node* source = new ZCom_Node();
-	float x = 0.0f, y = 0.0f, z = 0.0f;
-	int32_t ammo = 0;
+		ZCom_Node *source = new ZCom_Node();
+		float x = 0.0f, y = 0.0f, z = 0.0f;
+		int32_t ammo = 0;
 
-	g_currentControl = &srv;
-	source->registerNodeDynamic(srv.m_syncClass, &srv);
-	source->addReplicationFloat(&x, 16, 0, 0);
-	source->addReplicationFloat(&y, 16, 0, 0);
-	source->addReplicationFloat(&z, 16, 0, 0);
-	source->addReplicationInt(&ammo, 16, true, 0, 0);
-	x = 0.15f; y = 0.25f; z = 0.35f; ammo = 100;
-	g_currentControl = nullptr;
+		g_currentControl = &srv;
+		source->registerNodeDynamic(srv.m_syncClass, &srv);
+		source->addReplicationFloat(&x, 16, 0, 0);
+		source->addReplicationFloat(&y, 16, 0, 0);
+		source->addReplicationFloat(&z, 16, 0, 0);
+		source->addReplicationInt(&ammo, 16, true, 0, 0);
+		x = 0.15f;
+		y = 0.25f;
+		z = 0.35f;
+		ammo = 100;
+		g_currentControl = nullptr;
 
-	ZCom_BitStream packed;
-	source->packAllReplicators(&packed);
-	BOOST_REQUIRE_MESSAGE(packed.getDataLength() > 0,
-	                       "packAllReplicators should produce data");
+		ZCom_BitStream packed;
+		source->packAllReplicators(&packed);
+		BOOST_REQUIRE_MESSAGE(packed.getDataLength() > 0, "packAllReplicators should produce data");
 
-	ZCom_Node* target = new ZCom_Node();
-	float rx = 0, ry = 0, rz = 0;
-	int32_t rammo = 0;
+		ZCom_Node *target = new ZCom_Node();
+		float rx = 0, ry = 0, rz = 0;
+		int32_t rammo = 0;
 
-	g_currentControl = &srv;
-	target->registerNodeDynamic(srv.m_syncClass, &srv);
-	target->addReplicationFloat(&rx, 16, 0, 0);
-	target->addReplicationFloat(&ry, 16, 0, 0);
-	target->addReplicationFloat(&rz, 16, 0, 0);
-	target->addReplicationInt(&rammo, 16, true, 0, 0);
-	g_currentControl = nullptr;
+		g_currentControl = &srv;
+		target->registerNodeDynamic(srv.m_syncClass, &srv);
+		target->addReplicationFloat(&rx, 16, 0, 0);
+		target->addReplicationFloat(&ry, 16, 0, 0);
+		target->addReplicationFloat(&rz, 16, 0, 0);
+		target->addReplicationInt(&rammo, 16, true, 0, 0);
+		g_currentControl = nullptr;
 
-	ZCom_BitStream packedCopy(packed.getData(), packed.getDataLength());
-	target->unpackAllReplicators(&packedCopy, true, 0);
+		ZCom_BitStream packedCopy(packed.getData(), packed.getDataLength());
+		target->unpackAllReplicators(&packedCopy, true, 0);
 
-	BOOST_CHECK_CLOSE(rx, x, 0.1f);
-	BOOST_CHECK_CLOSE(ry, y, 0.1f);
-	BOOST_CHECK_CLOSE(rz, z, 0.1f);
-	BOOST_CHECK_EQUAL(rammo, ammo);
+		BOOST_CHECK_CLOSE(rx, x, 0.1f);
+		BOOST_CHECK_CLOSE(ry, y, 0.1f);
+		BOOST_CHECK_CLOSE(rz, z, 0.1f);
+		BOOST_CHECK_EQUAL(rammo, ammo);
 
-	delete target;
-	delete source;
-	srv.Shutdown();
+		delete target;
+		delete source;
+		srv.Shutdown();
 	}
 }
 
@@ -247,59 +228,55 @@ BOOST_AUTO_TEST_CASE(replicator_multiple_values)
 // entry.sign was stored but never consumed in pack/unpack — unsigned
 // addInt/getInt was always used. With bits<32 (e.g. 8), negative values were
 // corrupted (m_dir=-1 became 255 on the client, no sign extension).
-BOOST_AUTO_TEST_CASE(auto_replication_signed_int_roundtrip)
-{
+BOOST_AUTO_TEST_CASE(auto_replication_signed_int_roundtrip) {
 	static int portOffset = 0;
 	g_currentControl = nullptr;
 	int port = 19140 + (portOffset++);
 
 	{
-	SyncServer srv(port);
+		SyncServer srv(port);
 
-	auto roundtrip = [&](int32_t value, int bits) {
-		ZCom_Node* source = new ZCom_Node();
-		int32_t dir = 0;
+		auto roundtrip = [&](int32_t value, int bits) {
+			ZCom_Node *source = new ZCom_Node();
+			int32_t dir = 0;
 
-		g_currentControl = &srv;
-		source->registerNodeDynamic(srv.m_syncClass, &srv);
-		source->addReplicationInt(&dir, (zU8)bits, true,
-			ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY);
-		dir = value;
-		g_currentControl = nullptr;
+			g_currentControl = &srv;
+			source->registerNodeDynamic(srv.m_syncClass, &srv);
+			source->addReplicationInt(&dir, (zU8)bits, true, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY);
+			dir = value;
+			g_currentControl = nullptr;
 
-		ZCom_BitStream packed;
-		source->packAllReplicators(&packed);
-		BOOST_REQUIRE_MESSAGE(packed.getDataLength() > 0,
-			"packAllReplicators should produce data for signed int");
+			ZCom_BitStream packed;
+			source->packAllReplicators(&packed);
+			BOOST_REQUIRE_MESSAGE(packed.getDataLength() > 0, "packAllReplicators should produce data for signed int");
 
-		ZCom_Node* target = new ZCom_Node();
-		int32_t rdir = 0;
-		g_currentControl = &srv;
-		target->registerNodeDynamic(srv.m_syncClass, &srv);
-		target->addReplicationInt(&rdir, (zU8)bits, true,
-			ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY);
-		g_currentControl = nullptr;
+			ZCom_Node *target = new ZCom_Node();
+			int32_t rdir = 0;
+			g_currentControl = &srv;
+			target->registerNodeDynamic(srv.m_syncClass, &srv);
+			target->addReplicationInt(&rdir, (zU8)bits, true, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY);
+			g_currentControl = nullptr;
 
-		ZCom_BitStream copy(packed.getData(), packed.getDataLength());
-		target->unpackAllReplicators(&copy, true, 0);
+			ZCom_BitStream copy(packed.getData(), packed.getDataLength());
+			target->unpackAllReplicators(&copy, true, 0);
 
-		BOOST_CHECK_EQUAL(rdir, value);
+			BOOST_CHECK_EQUAL(rdir, value);
 
-		delete target;
-		delete source;
-	};
+			delete target;
+			delete source;
+		};
 
-	// 8-bit signed — the m_dir pattern (worm faces left = -1)
-	roundtrip(-1, 8);
-	// 8-bit signed boundaries
-	roundtrip(-128, 8);
-	roundtrip(127, 8);
-	// Positive control (passes even without the fix)
-	roundtrip(1, 8);
-	// 16-bit signed
-	roundtrip(-30000, 16);
+		// 8-bit signed — the m_dir pattern (worm faces left = -1)
+		roundtrip(-1, 8);
+		// 8-bit signed boundaries
+		roundtrip(-128, 8);
+		roundtrip(127, 8);
+		// Positive control (passes even without the fix)
+		roundtrip(1, 8);
+		// 16-bit signed
+		roundtrip(-30000, 16);
 
-	srv.Shutdown();
+		srv.Shutdown();
 	}
 }
 

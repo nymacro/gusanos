@@ -1,7 +1,7 @@
-//#ifdef __cplusplus
-//extern "C"
+// #ifdef __cplusplus
+// extern "C"
 //{
-//#endif
+// #endif
 
 #define uint32 unsigned long
 #define uint16 unsigned short
@@ -9,6 +9,6 @@
 
 int Init_2xSaI(int depth);
 
-//#ifdef __cplusplus
-//}
-//#endif
+// #ifdef __cplusplus
+// }
+// #endif

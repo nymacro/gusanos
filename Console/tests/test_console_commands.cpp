@@ -14,12 +14,11 @@ BOOST_AUTO_TEST_SUITE(console_commands)
 
 // --- Simple command ---
 
-BOOST_AUTO_TEST_CASE(simple_command_invocation)
-{
+BOOST_AUTO_TEST_CASE(simple_command_invocation) {
 	Console c;
 	int callCount = 0;
 
-	c.registerCommands()("mycmd", [&](list<string> const&) {
+	c.registerCommands()("mycmd", [&](list<string> const &) {
 		callCount++;
 		return "";
 	});
@@ -28,12 +27,11 @@ BOOST_AUTO_TEST_CASE(simple_command_invocation)
 	BOOST_CHECK_EQUAL(callCount, 1);
 }
 
-BOOST_AUTO_TEST_CASE(simple_command_with_args)
-{
+BOOST_AUTO_TEST_CASE(simple_command_with_args) {
 	Console c;
 	string receivedArg;
 
-	c.registerCommands()("mycmd", [&](list<string> const& args) {
+	c.registerCommands()("mycmd", [&](list<string> const &args) {
 		BOOST_CHECK_EQUAL(args.size(), 2u);
 		receivedArg = args.front();
 		return "";
@@ -43,13 +41,10 @@ BOOST_AUTO_TEST_CASE(simple_command_with_args)
 	BOOST_CHECK_EQUAL(receivedArg, "hello");
 }
 
-BOOST_AUTO_TEST_CASE(command_return_value_logged)
-{
+BOOST_AUTO_TEST_CASE(command_return_value_logged) {
 	Console c;
 
-	c.registerCommands()("mycmd", [&](list<string> const&) {
-		return "command output";
-	});
+	c.registerCommands()("mycmd", [&](list<string> const &) { return "command output"; });
 
 	c.parseLine("mycmd");
 	BOOST_CHECK_EQUAL(c.getLog().size(), 1u);
@@ -58,12 +53,11 @@ BOOST_AUTO_TEST_CASE(command_return_value_logged)
 
 // --- Command via parseLine ---
 
-BOOST_AUTO_TEST_CASE(command_via_parseLine)
-{
+BOOST_AUTO_TEST_CASE(command_via_parseLine) {
 	Console c;
 	int callCount = 0;
 
-	c.registerCommands()("echo", [&](list<string> const& args) {
+	c.registerCommands()("echo", [&](list<string> const &args) {
 		callCount++;
 		return args.empty() ? "empty" : args.front();
 	});
@@ -75,15 +69,12 @@ BOOST_AUTO_TEST_CASE(command_via_parseLine)
 
 // --- Command with completion ---
 
-BOOST_AUTO_TEST_CASE(command_with_completion)
-{
+BOOST_AUTO_TEST_CASE(command_with_completion) {
 	Console c;
 
-	c.registerCommands()("mycmd",
-		[](list<string> const&) { return ""; },
-		[](Console*, int, string const& begin) {
-			return begin + "_completed";
-		});
+	c.registerCommands()(
+		"mycmd", [](list<string> const &) { return ""; },
+		[](Console *, int, string const &begin) { return begin + "_completed"; });
 
 	// The completion callback receives the full input prefix and appends _completed
 	string result = c.autoComplete("mycmd ar");
@@ -92,8 +83,7 @@ BOOST_AUTO_TEST_CASE(command_with_completion)
 
 // --- Alias registration and execution ---
 
-BOOST_AUTO_TEST_CASE(alias_basic)
-{
+BOOST_AUTO_TEST_CASE(alias_basic) {
 	Console c;
 	int val = 0;
 	c.registerVariables()("my_int", &val, 0);
@@ -103,8 +93,7 @@ BOOST_AUTO_TEST_CASE(alias_basic)
 	BOOST_CHECK_EQUAL(val, 42);
 }
 
-BOOST_AUTO_TEST_CASE(alias_with_args)
-{
+BOOST_AUTO_TEST_CASE(alias_with_args) {
 	Console c;
 	int val = 0;
 	c.registerVariables()("my_int", &val, 0);
@@ -119,8 +108,7 @@ BOOST_AUTO_TEST_CASE(alias_with_args)
 	BOOST_CHECK_EQUAL(c.getLog().front(), "<0>");
 }
 
-BOOST_AUTO_TEST_CASE(alias_multiple_commands)
-{
+BOOST_AUTO_TEST_CASE(alias_multiple_commands) {
 	Console c;
 	int a = 0, b = 0;
 	c.registerVariables()("var_a", &a, 0);
@@ -132,8 +120,7 @@ BOOST_AUTO_TEST_CASE(alias_multiple_commands)
 	BOOST_CHECK_EQUAL(b, 20);
 }
 
-BOOST_AUTO_TEST_CASE(alias_overwrite)
-{
+BOOST_AUTO_TEST_CASE(alias_overwrite) {
 	Console c;
 
 	c.registerAlias("myalias", "cmd1");
@@ -150,13 +137,11 @@ BOOST_AUTO_TEST_CASE(alias_overwrite)
 // --- Special command ---
 
 // C-style function for special command registration
-static string specialCmdFunc(int idx, list<string> const&)
-{
+static string specialCmdFunc(int idx, list<string> const &) {
 	return to_string(idx);
 }
 
-BOOST_AUTO_TEST_CASE(special_command_invocation)
-{
+BOOST_AUTO_TEST_CASE(special_command_invocation) {
 	Console c;
 
 	c.registerSpecialCommand("spcmd", 42, specialCmdFunc);
@@ -169,12 +154,11 @@ BOOST_AUTO_TEST_CASE(special_command_invocation)
 
 // --- Duplicate registration ---
 
-BOOST_AUTO_TEST_CASE(duplicate_command_rejected)
-{
+BOOST_AUTO_TEST_CASE(duplicate_command_rejected) {
 	Console c;
 
-	c.registerCommands()("mycmd", [](list<string> const&) { return ""; });
-	c.registerCommands()("mycmd", [](list<string> const&) { return ""; });
+	c.registerCommands()("mycmd", [](list<string> const &) { return ""; });
+	c.registerCommands()("mycmd", [](list<string> const &) { return ""; });
 
 	// Second registration should be rejected (command already exists)
 	// The command should still work (first registration)
@@ -184,18 +168,16 @@ BOOST_AUTO_TEST_CASE(duplicate_command_rejected)
 
 // --- Temp command ---
 
-BOOST_AUTO_TEST_CASE(temp_command_removed)
-{
+BOOST_AUTO_TEST_CASE(temp_command_removed) {
 	Console c;
 
-	c.registerCommands()("tempcmd", [](list<string> const&) { return ""; }, true);
-	c.registerCommands()("permcmd", [](list<string> const&) { return ""; });
+	c.registerCommands()("tempcmd", [](list<string> const &) { return ""; }, true);
+	c.registerCommands()("permcmd", [](list<string> const &) { return ""; });
 
 	c.clearTemporaries();
 
 	// tempcmd should be removed
-	BOOST_CHECK_EQUAL(c.invoke("tempcmd", list<string>(), false).find("UNKNOWN"),
-		string::npos ? false : true);
+	BOOST_CHECK_EQUAL(c.invoke("tempcmd", list<string>(), false).find("UNKNOWN"), string::npos ? false : true);
 	// permcmd should still work
 	c.invoke("permcmd", list<string>(), false);
 	BOOST_CHECK_EQUAL(c.getLog().size(), 0u);
@@ -203,13 +185,12 @@ BOOST_AUTO_TEST_CASE(temp_command_removed)
 
 // --- Command that modifies state ---
 
-BOOST_AUTO_TEST_CASE(command_modifies_variable)
-{
+BOOST_AUTO_TEST_CASE(command_modifies_variable) {
 	Console c;
 	int val = 0;
 	c.registerVariables()("my_int", &val, 0);
 
-	c.registerCommands()("double", [&](list<string> const&) {
+	c.registerCommands()("double", [&](list<string> const &) {
 		val *= 2;
 		return "";
 	});
@@ -226,12 +207,11 @@ BOOST_AUTO_TEST_CASE(command_modifies_variable)
 
 // --- Command with quoted args ---
 
-BOOST_AUTO_TEST_CASE(command_with_quoted_args)
-{
+BOOST_AUTO_TEST_CASE(command_with_quoted_args) {
 	Console c;
 	string received;
 
-	c.registerCommands()("say", [&](list<string> const& args) {
+	c.registerCommands()("say", [&](list<string> const &args) {
 		received = args.front();
 		return received;
 	});
@@ -242,16 +222,13 @@ BOOST_AUTO_TEST_CASE(command_with_quoted_args)
 
 // --- Nested command expansion in arguments ---
 
-BOOST_AUTO_TEST_CASE(nested_command_in_argument)
-{
+BOOST_AUTO_TEST_CASE(nested_command_in_argument) {
 	Console c;
 	string received;
 
-	c.registerCommands()("inner", [&](list<string> const&) {
-		return "inner_result";
-	});
+	c.registerCommands()("inner", [&](list<string> const &) { return "inner_result"; });
 
-	c.registerCommands()("outer", [&](list<string> const& args) {
+	c.registerCommands()("outer", [&](list<string> const &args) {
 		received = args.front();
 		return "";
 	});

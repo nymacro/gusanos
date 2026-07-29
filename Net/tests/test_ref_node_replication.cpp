@@ -19,21 +19,22 @@ static ZCom_ClassID g_classDynamic = ZCom_Invalid_ID;
 // ZCom_initSockets calls enet_initialize() which must only be called once
 // per process without enet_shutdown() in between.  We gate it with a flag
 // so that the 2nd+ call in the same test process is a no-op.
-static bool& g_enetInitialized() { static bool v = false; return v; }
+static bool &g_enetInitialized() {
+	static bool v = false;
+	return v;
+}
 
-static void ensureEnetInit()
-{
-	if (g_enetInitialized()) return;
+static void ensureEnetInit() {
+	if (g_enetInitialized())
+		return;
 	// First call: g_currentControl may be null — that's fine,
 	// the host will be assigned when a control sets it.
 	g_enetInitialized() = true;
 }
 
-class NodeTestServer : public ZCom_Control
-{
-public:
-	NodeTestServer(int udpPort)
-	{
+class NodeTestServer : public ZCom_Control {
+  public:
+	NodeTestServer(int udpPort) {
 		ensureEnetInit();
 		g_currentControl = this;
 		BOOST_CHECK(ZCom_initSockets(true, udpPort, 0, 0));
@@ -43,28 +44,31 @@ public:
 		g_currentControl = nullptr;
 	}
 
-protected:
-	bool ZCom_cbConnectionRequest(ZCom_ConnID, ZCom_BitStream&, ZCom_BitStream&) override { return true; }
+  protected:
+	bool ZCom_cbConnectionRequest(ZCom_ConnID, ZCom_BitStream &, ZCom_BitStream &) override {
+		return true;
+	}
 	void ZCom_cbConnectionSpawned(ZCom_ConnID) override {}
-	void ZCom_cbConnectionClosed(ZCom_ConnID, eZCom_CloseReason, ZCom_BitStream&) override {}
-	void ZCom_cbDataReceived(ZCom_ConnID, ZCom_BitStream&) override {}
-	bool ZCom_cbZoidRequest(ZCom_ConnID, uint8_t, ZCom_BitStream&) override { return false; }
-	void ZCom_cbZoidResult(ZCom_ConnID, eZCom_ZoidResult, uint8_t, ZCom_BitStream&) override {}
-	bool ZCom_cbDiscoverRequest(const ZCom_Address&, ZCom_BitStream&, ZCom_BitStream&) override { return false; }
-	void ZCom_cbConnectResult(ZCom_ConnID, eZCom_ConnectResult, ZCom_BitStream&) override {}
-	void ZCom_cbNodeRequest_Dynamic(ZCom_ConnID, ZCom_ClassID, ZCom_BitStream*, int, ZCom_NodeID) override {}
-	void ZCom_cbNodeRequest_Tag(ZCom_ConnID, ZCom_ClassID, ZCom_BitStream*, int, uint32_t) override {}
-	void ZCom_cbDiscovered(const ZCom_Address&, ZCom_BitStream&) override {}
+	void ZCom_cbConnectionClosed(ZCom_ConnID, eZCom_CloseReason, ZCom_BitStream &) override {}
+	void ZCom_cbDataReceived(ZCom_ConnID, ZCom_BitStream &) override {}
+	bool ZCom_cbZoidRequest(ZCom_ConnID, uint8_t, ZCom_BitStream &) override {
+		return false;
+	}
+	void ZCom_cbZoidResult(ZCom_ConnID, eZCom_ZoidResult, uint8_t, ZCom_BitStream &) override {}
+	bool ZCom_cbDiscoverRequest(const ZCom_Address &, ZCom_BitStream &, ZCom_BitStream &) override {
+		return false;
+	}
+	void ZCom_cbConnectResult(ZCom_ConnID, eZCom_ConnectResult, ZCom_BitStream &) override {}
+	void ZCom_cbNodeRequest_Dynamic(ZCom_ConnID, ZCom_ClassID, ZCom_BitStream *, int, ZCom_NodeID) override {}
+	void ZCom_cbNodeRequest_Tag(ZCom_ConnID, ZCom_ClassID, ZCom_BitStream *, int, uint32_t) override {}
+	void ZCom_cbDiscovered(const ZCom_Address &, ZCom_BitStream &) override {}
 };
 
-class NodeTestClient : public ZCom_Control
-{
-public:
+class NodeTestClient : public ZCom_Control {
+  public:
 	bool m_connected;
 
-	NodeTestClient(int udpPort)
-		: m_connected(false)
-	{
+	NodeTestClient(int udpPort) : m_connected(false) {
 		ensureEnetInit();
 		g_currentControl = this;
 		BOOST_CHECK(ZCom_initSockets(false, 0, 0, 0));
@@ -74,33 +78,36 @@ public:
 		g_currentControl = nullptr;
 	}
 
-protected:
-	void ZCom_cbConnectResult(ZCom_ConnID id, eZCom_ConnectResult result, ZCom_BitStream& reply) override
-	{
-		(void)id; (void)reply;
+  protected:
+	void ZCom_cbConnectResult(ZCom_ConnID id, eZCom_ConnectResult result, ZCom_BitStream &reply) override {
+		(void)id;
+		(void)reply;
 		m_connected = (result == eZCom_ConnAccepted);
 	}
 
 	void ZCom_cbConnectionSpawned(ZCom_ConnID) override {}
-	bool ZCom_cbConnectionRequest(ZCom_ConnID, ZCom_BitStream&, ZCom_BitStream&) override { return false; }
-	void ZCom_cbConnectionClosed(ZCom_ConnID, eZCom_CloseReason, ZCom_BitStream&) override {}
-	void ZCom_cbDataReceived(ZCom_ConnID, ZCom_BitStream&) override {}
-	bool ZCom_cbZoidRequest(ZCom_ConnID, uint8_t, ZCom_BitStream&) override { return false; }
-	void ZCom_cbZoidResult(ZCom_ConnID, eZCom_ZoidResult, uint8_t, ZCom_BitStream&) override {}
-	bool ZCom_cbDiscoverRequest(const ZCom_Address&, ZCom_BitStream&, ZCom_BitStream&) override { return false; }
-	void ZCom_cbNodeRequest_Dynamic(ZCom_ConnID, ZCom_ClassID, ZCom_BitStream*, int, ZCom_NodeID) override {}
-	void ZCom_cbNodeRequest_Tag(ZCom_ConnID, ZCom_ClassID, ZCom_BitStream*, int, uint32_t) override {}
-	void ZCom_cbDiscovered(const ZCom_Address&, ZCom_BitStream&) override {}
+	bool ZCom_cbConnectionRequest(ZCom_ConnID, ZCom_BitStream &, ZCom_BitStream &) override {
+		return false;
+	}
+	void ZCom_cbConnectionClosed(ZCom_ConnID, eZCom_CloseReason, ZCom_BitStream &) override {}
+	void ZCom_cbDataReceived(ZCom_ConnID, ZCom_BitStream &) override {}
+	bool ZCom_cbZoidRequest(ZCom_ConnID, uint8_t, ZCom_BitStream &) override {
+		return false;
+	}
+	void ZCom_cbZoidResult(ZCom_ConnID, eZCom_ZoidResult, uint8_t, ZCom_BitStream &) override {}
+	bool ZCom_cbDiscoverRequest(const ZCom_Address &, ZCom_BitStream &, ZCom_BitStream &) override {
+		return false;
+	}
+	void ZCom_cbNodeRequest_Dynamic(ZCom_ConnID, ZCom_ClassID, ZCom_BitStream *, int, ZCom_NodeID) override {}
+	void ZCom_cbNodeRequest_Tag(ZCom_ConnID, ZCom_ClassID, ZCom_BitStream *, int, uint32_t) override {}
+	void ZCom_cbDiscovered(const ZCom_Address &, ZCom_BitStream &) override {}
 };
 
 // ---------------------------------------------------------------------------
 // Helper: pump client + server until a condition is met
 // ---------------------------------------------------------------------------
-static void pumpUntil(NodeTestClient* cli, NodeTestServer* srv,
-                      std::function<bool()> done, int maxIter = 300)
-{
-	for (int i = 0; i < maxIter; i++)
-	{
+static void pumpUntil(NodeTestClient *cli, NodeTestServer *srv, std::function<bool()> done, int maxIter = 300) {
+	for (int i = 0; i < maxIter; i++) {
 		g_currentControl = srv;
 		srv->ZCom_processInput(eZCom_NoBlock);
 		srv->ZCom_processOutput();
@@ -108,7 +115,8 @@ static void pumpUntil(NodeTestClient* cli, NodeTestServer* srv,
 		cli->ZCom_processInput(eZCom_NoBlock);
 		cli->ZCom_processOutput();
 		ZoidCom::Sleep(10);
-		if (done()) return;
+		if (done())
+			return;
 	}
 }
 
@@ -118,8 +126,7 @@ static void pumpUntil(NodeTestClient* cli, NodeTestServer* srv,
 
 BOOST_AUTO_TEST_SUITE(ref_node_replication)
 
-BOOST_AUTO_TEST_CASE(unique_node_with_data_replication)
-{
+BOOST_AUTO_TEST_CASE(unique_node_with_data_replication) {
 	int port = 19200;
 	g_currentControl = nullptr;
 
@@ -146,14 +153,11 @@ BOOST_AUTO_TEST_CASE(unique_node_with_data_replication)
 	bool testBool = true;
 	float testFloat = 3.14f;
 
-	ZCom_Node* node = new ZCom_Node();
+	ZCom_Node *node = new ZCom_Node();
 	node->beginReplicationSetup(3);
-	node->addReplicationInt(&testInt, 32, true,
-		ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
-	node->addReplicationBool(&testBool,
-		ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
-	node->addReplicationFloat(&testFloat, 10,
-		ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
+	node->addReplicationInt(&testInt, 32, true, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
+	node->addReplicationBool(&testBool, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
+	node->addReplicationFloat(&testFloat, 10, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
 	node->endReplicationSetup();
 
 	node->registerNodeUnique(g_classUnique, eZCom_RoleAuthority, &cli);
@@ -165,8 +169,7 @@ BOOST_AUTO_TEST_CASE(unique_node_with_data_replication)
 	delete node;
 }
 
-BOOST_AUTO_TEST_CASE(zoidlevel_transition)
-{
+BOOST_AUTO_TEST_CASE(zoidlevel_transition) {
 	int port = 19210;
 	g_currentControl = nullptr;
 
@@ -196,8 +199,7 @@ BOOST_AUTO_TEST_CASE(zoidlevel_transition)
 	pumpUntil(&cli, &srv, []() { return true; }, 100);
 }
 
-BOOST_AUTO_TEST_CASE(node_user_data)
-{
+BOOST_AUTO_TEST_CASE(node_user_data) {
 	// No networking needed — just testing node API
 	g_currentControl = nullptr;
 
@@ -205,14 +207,14 @@ BOOST_AUTO_TEST_CASE(node_user_data)
 	NodeTestServer srv(port);
 
 	{
-		ZCom_Node* userNode = new ZCom_Node();
+		ZCom_Node *userNode = new ZCom_Node();
 		userNode->beginReplicationSetup(0);
 		userNode->endReplicationSetup();
 		userNode->registerNodeUnique(g_classUnique, eZCom_RoleAuthority, &srv);
 
 		int myData = 42;
 		userNode->setUserData(&myData);
-		void* retrieved = userNode->getUserData();
+		void *retrieved = userNode->getUserData();
 
 		BOOST_CHECK_EQUAL(retrieved, &myData);
 
@@ -223,13 +225,10 @@ BOOST_AUTO_TEST_CASE(node_user_data)
 	srv.Shutdown();
 }
 
-BOOST_AUTO_TEST_CASE(node_properties)
-{
+BOOST_AUTO_TEST_CASE(node_properties) {
 	// No networking needed — just testing node API
-	// We use setControl() directly to avoid potential issues with
-	// full node registration (registerNodeUnique) which adds the node
-	// to the control's m_nodes list and can cause double-free in
-	// the control destructor if the node is deleted first.
+	// We use setControl() directly so we don't need a full registration path
+	// for this purely local property test.
 	g_currentControl = nullptr;
 
 	int port = 19220;
@@ -239,7 +238,7 @@ BOOST_AUTO_TEST_CASE(node_properties)
 	g_classUnique = srv.ZCom_registerClass("UniqueClass", 0);
 
 	{
-		ZCom_Node* propNode = new ZCom_Node();
+		ZCom_Node *propNode = new ZCom_Node();
 		propNode->beginReplicationSetup(0);
 		propNode->endReplicationSetup();
 

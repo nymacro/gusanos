@@ -9,14 +9,12 @@
 
 #include "net_control.h"
 
-static void resetGlobals()
-{
+static void resetGlobals() {
 	g_currentControl = nullptr;
 }
 
-class TestServer : public ZCom_Control
-{
-public:
+class TestServer : public ZCom_Control {
+  public:
 	int m_connCount;
 	int m_disconnectCount;
 	int m_dataReceivedCount;
@@ -24,38 +22,27 @@ public:
 	std::string m_lastData;
 
 	TestServer(int udpPort)
-		: ZCom_Control()
-		, m_connCount(0)
-		, m_disconnectCount(0)
-		, m_dataReceivedCount(0)
-		, m_port(udpPort)
-	{
-	}
+		: ZCom_Control(), m_connCount(0), m_disconnectCount(0), m_dataReceivedCount(0), m_port(udpPort) {}
 
-	bool InitSockets()
-	{
+	bool InitSockets() {
 		return ZCom_initSockets(true, m_port, 0, 0);
 	}
 
-protected:
-	bool ZCom_cbConnectionRequest(ZCom_ConnID id, ZCom_BitStream& request, ZCom_BitStream& reply) override
-	{
+  protected:
+	bool ZCom_cbConnectionRequest(ZCom_ConnID id, ZCom_BitStream &request, ZCom_BitStream &reply) override {
 		return true;
 	}
 
-	void ZCom_cbConnectionSpawned(ZCom_ConnID id) override
-	{
+	void ZCom_cbConnectionSpawned(ZCom_ConnID id) override {
 		m_connCount++;
 	}
 
-	void ZCom_cbConnectionClosed(ZCom_ConnID id, eZCom_CloseReason reason, ZCom_BitStream& reasondata) override
-	{
+	void ZCom_cbConnectionClosed(ZCom_ConnID id, eZCom_CloseReason reason, ZCom_BitStream &reasondata) override {
 		m_disconnectCount++;
 		m_connCount--;
 	}
 
-	void ZCom_cbDataReceived(ZCom_ConnID id, ZCom_BitStream& data) override
-	{
+	void ZCom_cbDataReceived(ZCom_ConnID id, ZCom_BitStream &data) override {
 		m_dataReceivedCount++;
 		m_lastData = data.getStringStatic();
 
@@ -65,9 +52,8 @@ protected:
 	}
 };
 
-class TestClient : public ZCom_Control
-{
-public:
+class TestClient : public ZCom_Control {
+  public:
 	bool m_connected;
 	bool m_accepted;
 	bool m_disconnected;
@@ -75,57 +61,41 @@ public:
 	std::string m_lastReply;
 
 	TestClient()
-		: ZCom_Control()
-		, m_connected(false)
-		, m_accepted(false)
-		, m_disconnected(false)
-		, m_dataReceivedCount(0)
-	{
-	}
+		: ZCom_Control(), m_connected(false), m_accepted(false), m_disconnected(false), m_dataReceivedCount(0) {}
 
-	bool InitSockets()
-	{
+	bool InitSockets() {
 		return ZCom_initSockets(false, 0, 0, 0);
 	}
 
-protected:
-	void ZCom_cbConnectResult(ZCom_ConnID id, eZCom_ConnectResult result, ZCom_BitStream& reply) override
-	{
+  protected:
+	void ZCom_cbConnectResult(ZCom_ConnID id, eZCom_ConnectResult result, ZCom_BitStream &reply) override {
 		m_connected = true;
 		m_accepted = (result == eZCom_ConnAccepted);
 	}
 
-	void ZCom_cbConnectionClosed(ZCom_ConnID id, eZCom_CloseReason reason, ZCom_BitStream& reasondata) override
-	{
+	void ZCom_cbConnectionClosed(ZCom_ConnID id, eZCom_CloseReason reason, ZCom_BitStream &reasondata) override {
 		m_disconnected = true;
 	}
 
-	void ZCom_cbDataReceived(ZCom_ConnID id, ZCom_BitStream& data) override
-	{
+	void ZCom_cbDataReceived(ZCom_ConnID id, ZCom_BitStream &data) override {
 		m_dataReceivedCount++;
 		m_lastReply = data.getStringStatic();
 	}
 };
 
-struct ConnectFixture
-{
+struct ConnectFixture {
 	int testPort;
-	TestServer* server;
-	TestClient* client;
+	TestServer *server;
+	TestClient *client;
 	ZCom_Address serverAddr;
 
-	ConnectFixture()
-		: testPort(18899)
-		, server(nullptr)
-		, client(nullptr)
-	{
+	ConnectFixture() : testPort(18899), server(nullptr), client(nullptr) {
 		static int portOffset = 0;
 		testPort = 18900 + (portOffset++);
 		resetGlobals();
 	}
 
-	void Setup()
-	{
+	void Setup() {
 		resetGlobals();
 
 		server = new TestServer(testPort);
@@ -139,10 +109,8 @@ struct ConnectFixture
 		serverAddr.setAddress(ZCom_Control::eZCom_AddressUDP, 0, hostport);
 	}
 
-	void ProcessAll(int iterations = 200)
-	{
-		for (int i = 0; i < iterations; i++)
-		{
+	void ProcessAll(int iterations = 200) {
+		for (int i = 0; i < iterations; i++) {
 			g_currentControl = server;
 			server->ZCom_processInput(eZCom_NoBlock);
 			server->ZCom_processOutput();
@@ -154,8 +122,7 @@ struct ConnectFixture
 		g_currentControl = nullptr;
 	}
 
-	~ConnectFixture()
-	{
+	~ConnectFixture() {
 		g_currentControl = nullptr;
 		delete client;
 		delete server;
@@ -164,8 +131,7 @@ struct ConnectFixture
 
 BOOST_AUTO_TEST_SUITE(connection)
 
-BOOST_AUTO_TEST_CASE(server_can_accept_client)
-{
+BOOST_AUTO_TEST_CASE(server_can_accept_client) {
 	ConnectFixture f;
 	f.Setup();
 
@@ -182,8 +148,7 @@ BOOST_AUTO_TEST_CASE(server_can_accept_client)
 	BOOST_CHECK(f.client->m_accepted);
 }
 
-BOOST_AUTO_TEST_CASE(client_can_send_data_to_server)
-{
+BOOST_AUTO_TEST_CASE(client_can_send_data_to_server) {
 	ConnectFixture f;
 	f.Setup();
 
@@ -206,8 +171,7 @@ BOOST_AUTO_TEST_CASE(client_can_send_data_to_server)
 	BOOST_CHECK_EQUAL(f.server->m_lastData, "Hello server!");
 }
 
-BOOST_AUTO_TEST_CASE(server_echos_data_back)
-{
+BOOST_AUTO_TEST_CASE(server_echos_data_back) {
 	ConnectFixture f;
 	f.Setup();
 
@@ -229,8 +193,7 @@ BOOST_AUTO_TEST_CASE(server_echos_data_back)
 	BOOST_CHECK_EQUAL(f.client->m_lastReply, "your data has been received");
 }
 
-BOOST_AUTO_TEST_CASE(client_disconnect_notifies_server)
-{
+BOOST_AUTO_TEST_CASE(client_disconnect_notifies_server) {
 	ConnectFixture f;
 	f.Setup();
 
@@ -253,8 +216,7 @@ BOOST_AUTO_TEST_CASE(client_disconnect_notifies_server)
 	BOOST_CHECK(f.client->m_disconnected);
 }
 
-BOOST_AUTO_TEST_CASE(shutdown_cleans_up)
-{
+BOOST_AUTO_TEST_CASE(shutdown_cleans_up) {
 	ConnectFixture f;
 	f.Setup();
 
@@ -271,8 +233,7 @@ BOOST_AUTO_TEST_CASE(shutdown_cleans_up)
 	BOOST_CHECK(true);
 }
 
-BOOST_AUTO_TEST_CASE(reconnect_after_disconnect)
-{
+BOOST_AUTO_TEST_CASE(reconnect_after_disconnect) {
 	ConnectFixture f;
 	f.Setup();
 

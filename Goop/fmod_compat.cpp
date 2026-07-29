@@ -4,6 +4,7 @@
 #include "fmod_compat.h"
 
 #include <SDL3/SDL.h>
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <cmath>
@@ -41,16 +42,14 @@ static float listener_pos[3] = {0, 0, 0};
 // Helpers
 // ---------------------------------------------------------------------------
 
-static MIX_Track *get_or_create_track(int channel)
-{
+static MIX_Track *get_or_create_track(int channel) {
 	if (channel < 0 || channel >= MAX_CHANNELS)
 		return nullptr;
 
 	if (!track_pool[channel]) {
 		track_pool[channel] = MIX_CreateTrack(s_mixer);
 		if (!track_pool[channel]) {
-			SDL_Log("FSOUND compat: failed to create track %d: %s",
-				channel, SDL_GetError());
+			SDL_Log("FSOUND compat: failed to create track %d: %s", channel, SDL_GetError());
 			return nullptr;
 		}
 		chan_volume[channel] = 255;
@@ -59,8 +58,7 @@ static MIX_Track *get_or_create_track(int channel)
 	return track_pool[channel];
 }
 
-static int find_free_channel()
-{
+static int find_free_channel() {
 	for (int i = 0; i < MAX_CHANNELS; ++i) {
 		if (!track_pool[i] || !MIX_TrackPlaying(track_pool[i]))
 			return i;
@@ -70,8 +68,7 @@ static int find_free_channel()
 }
 
 // Convert FMOD 0-255 volume to SDL3_mixer linear gain.
-static float vol_to_gain(int vol)
-{
+static float vol_to_gain(int vol) {
 	return vol / 255.0f;
 }
 
@@ -79,8 +76,7 @@ static float vol_to_gain(int vol)
 // System
 // ---------------------------------------------------------------------------
 
-int FSOUND_Init(int mixrate, int maxsoftwarechannels, unsigned int flags)
-{
+int FSOUND_Init(int mixrate, int maxsoftwarechannels, unsigned int flags) {
 	(void)maxsoftwarechannels;
 	(void)flags;
 
@@ -116,8 +112,7 @@ int FSOUND_Init(int mixrate, int maxsoftwarechannels, unsigned int flags)
 	return 1;
 }
 
-int FSOUND_Close()
-{
+int FSOUND_Close() {
 	// Stop and destroy all tracks.
 	for (int i = 0; i < MAX_CHANNELS; ++i) {
 		if (track_pool[i]) {
@@ -139,44 +134,39 @@ int FSOUND_Close()
 	return 1;
 }
 
-int FSOUND_SetOutput(int output)
-{
+int FSOUND_SetOutput(int output) {
 	(void)output;
 	// SDL3_mixer uses SDL audio devices directly — no output mode switching.
 	return 1;
 }
 
-int FSOUND_SetDriver(int driver)
-{
+int FSOUND_SetDriver(int driver) {
 	(void)driver;
 	return 1;
 }
 
-int FSOUND_GetNumDrivers()
-{
+int FSOUND_GetNumDrivers() {
 	return 1;
 }
 
-int FSOUND_GetDriver()
-{
+int FSOUND_GetDriver() {
 	return 0;
 }
 
-const char* FSOUND_GetDriverName(int driver)
-{
+const char *FSOUND_GetDriverName(int driver) {
 	(void)driver;
 	return "SDL3_mixer";
 }
 
-int FSOUND_SetSFXMasterVolume(int volume)
-{
-	if (!s_mixer) return 0;
-	MIX_SetMixerGain(s_mixer, vol_to_gain(volume));
+int FSOUND_SetSFXMasterVolume(int volume) {
+	if (!s_mixer)
+		return 0;
+	int v = std::clamp(volume, 0, 255);
+	MIX_SetMixerGain(s_mixer, vol_to_gain(v));
 	return 1;
 }
 
-int FSOUND_Update()
-{
+int FSOUND_Update() {
 	// SDL3_mixer manages mixing in its own audio thread — no per-frame
 	// update needed.  Listener position updates (previously done here)
 	// are handled by FSOUND_3D_Listener_SetAttributes which is now a
@@ -188,18 +178,19 @@ int FSOUND_Update()
 // Sample management
 // ---------------------------------------------------------------------------
 
-FSOUND_SAMPLE* FSOUND_Sample_Load(int index, const char* name, unsigned int mode, int memlength, int offset)
-{
+FSOUND_SAMPLE *FSOUND_Sample_Load(int index, const char *name, unsigned int mode, int memlength, int offset) {
 	(void)index;
 	(void)mode;
 	(void)memlength;
 	(void)offset;
 
-	if (!s_mixer || !name) return nullptr;
+	if (!s_mixer || !name)
+		return nullptr;
 
 	// Allocate host struct.
-	FSOUND_SAMPLE *s = (FSOUND_SAMPLE*)std::malloc(sizeof(FSOUND_SAMPLE));
-	if (!s) return nullptr;
+	FSOUND_SAMPLE *s = (FSOUND_SAMPLE *)std::malloc(sizeof(FSOUND_SAMPLE));
+	if (!s)
+		return nullptr;
 	s->audio = nullptr;
 
 	// predecode=true — decode fully into RAM (matches FSOUND_Sample_Load
@@ -213,9 +204,9 @@ FSOUND_SAMPLE* FSOUND_Sample_Load(int index, const char* name, unsigned int mode
 	return s;
 }
 
-int FSOUND_Sample_Free(FSOUND_SAMPLE* s)
-{
-	if (!s) return 0;
+int FSOUND_Sample_Free(FSOUND_SAMPLE *s) {
+	if (!s)
+		return 0;
 
 	if (s->audio) {
 		// Stop any track still using this audio before freeing.
@@ -238,17 +229,21 @@ int FSOUND_Sample_Free(FSOUND_SAMPLE* s)
 // Playback
 // ---------------------------------------------------------------------------
 
-int FSOUND_PlaySoundEx(int channel, FSOUND_SAMPLE* s, void* dsp, int startpaused)
-{
+int FSOUND_PlaySoundEx(int channel, FSOUND_SAMPLE *s, void *dsp, int startpaused) {
 	(void)dsp;
 
-	if (!s_mixer || !s || !s->audio) return -1;
+	if (!s_mixer || !s || !s->audio)
+		return -1;
 
 	if (channel == FSOUND_FREE)
 		channel = find_free_channel();
 
 	MIX_Track *track = get_or_create_track(channel);
-	if (!track) return -1;
+	if (!track)
+		return -1;
+
+	// Each new playback starts at full channel volume; callers set it afterwards.
+	chan_volume[channel] = 255;
 
 	// Stop anything already on this channel.
 	if (MIX_TrackPlaying(track))
@@ -281,23 +276,26 @@ int FSOUND_PlaySoundEx(int channel, FSOUND_SAMPLE* s, void* dsp, int startpaused
 	bool ok = MIX_PlayTrack(track, props);
 	SDL_DestroyProperties(props);
 
-	if (!ok) return -1;
+	if (!ok)
+		return -1;
 
 	return channel;
 }
 
-int FSOUND_IsPlaying(int channel)
-{
-	if (channel < 0 || channel >= MAX_CHANNELS) return 0;
-	if (!track_pool[channel]) return 0;
+int FSOUND_IsPlaying(int channel) {
+	if (channel < 0 || channel >= MAX_CHANNELS)
+		return 0;
+	if (!track_pool[channel])
+		return 0;
 	return MIX_TrackPlaying(track_pool[channel]) ? 1 : 0;
 }
 
-int FSOUND_SetPaused(int channel, int paused)
-{
-	if (channel < 0 || channel >= MAX_CHANNELS) return 0;
+int FSOUND_SetPaused(int channel, int paused) {
+	if (channel < 0 || channel >= MAX_CHANNELS)
+		return 0;
 	MIX_Track *track = track_pool[channel];
-	if (!track) return 0;
+	if (!track)
+		return 0;
 	if (paused)
 		MIX_PauseTrack(track);
 	else
@@ -305,46 +303,47 @@ int FSOUND_SetPaused(int channel, int paused)
 	return 1;
 }
 
-int FSOUND_SetFrequency(int channel, int freq)
-{
-	if (channel < 0 || channel >= MAX_CHANNELS) return 0;
+int FSOUND_SetFrequency(int channel, int freq) {
+	if (channel < 0 || channel >= MAX_CHANNELS)
+		return 0;
 	MIX_Track *track = track_pool[channel];
-	if (!track) return 0;
-	float ratio = (chan_orig_freq[channel] > 0)
-		? (float)freq / (float)chan_orig_freq[channel]
-		: 1.0f;
+	if (!track)
+		return 0;
+	float ratio = (chan_orig_freq[channel] > 0) ? (float)freq / (float)chan_orig_freq[channel] : 1.0f;
 	MIX_SetTrackFrequencyRatio(track, ratio);
 	return 1;
 }
 
-int FSOUND_GetFrequency(int channel)
-{
-	if (channel < 0 || channel >= MAX_CHANNELS) return 44100;
+int FSOUND_GetFrequency(int channel) {
+	if (channel < 0 || channel >= MAX_CHANNELS)
+		return 44100;
 	MIX_Track *track = track_pool[channel];
-	if (!track || chan_orig_freq[channel] <= 0) return 44100;
+	if (!track || chan_orig_freq[channel] <= 0)
+		return 44100;
 	float ratio = MIX_GetTrackFrequencyRatio(track);
 	return (int)(chan_orig_freq[channel] * ratio);
 }
 
-int FSOUND_SetVolume(int channel, int vol)
-{
-	if (channel < 0 || channel >= MAX_CHANNELS) return 0;
-	chan_volume[channel] = vol;
+int FSOUND_SetVolume(int channel, int vol) {
+	if (channel < 0 || channel >= MAX_CHANNELS)
+		return 0;
+	int v = std::clamp(vol, 0, 255);
+	chan_volume[channel] = v;
 	MIX_Track *track = track_pool[channel];
 	if (track)
-		MIX_SetTrackGain(track, vol_to_gain(vol));
+		MIX_SetTrackGain(track, vol_to_gain(v));
 	return 1;
 }
 
-int FSOUND_GetVolume(int channel)
-{
-	if (channel < 0 || channel >= MAX_CHANNELS) return 0;
+int FSOUND_GetVolume(int channel) {
+	if (channel < 0 || channel >= MAX_CHANNELS)
+		return 0;
 	return chan_volume[channel];
 }
 
-int FSOUND_SetLoopMode(int channel, int mode)
-{
-	if (channel < 0 || channel >= MAX_CHANNELS) return 0;
+int FSOUND_SetLoopMode(int channel, int mode) {
+	if (channel < 0 || channel >= MAX_CHANNELS)
+		return 0;
 	chan_loop_mode[channel] = mode;
 	MIX_Track *track = track_pool[channel];
 	if (track) {
@@ -355,9 +354,9 @@ int FSOUND_SetLoopMode(int channel, int mode)
 	return 1;
 }
 
-int FSOUND_StopSound(int channel)
-{
-	if (channel < 0 || channel >= MAX_CHANNELS) return 0;
+int FSOUND_StopSound(int channel) {
+	if (channel < 0 || channel >= MAX_CHANNELS)
+		return 0;
 	MIX_Track *track = track_pool[channel];
 	if (track)
 		MIX_StopTrack(track, 0);
@@ -372,24 +371,23 @@ int FSOUND_StopSound(int channel)
 // are no-ops.  Min/max distance is also not supported — SDL3_mixer uses a
 // fixed distance model.
 
-int FSOUND_3D_SetDistanceFactor(float factor)
-{
+int FSOUND_3D_SetDistanceFactor(float factor) {
 	(void)factor;
 	return 1;
 }
 
-int FSOUND_3D_SetRolloffFactor(float factor)
-{
+int FSOUND_3D_SetRolloffFactor(float factor) {
 	(void)factor;
 	return 1;
 }
 
-int FSOUND_3D_SetAttributes(int channel, const float* pos, const float* vel)
-{
+int FSOUND_3D_SetAttributes(int channel, const float *pos, const float *vel) {
 	(void)vel;
-	if (channel < 0 || channel >= MAX_CHANNELS) return 0;
+	if (channel < 0 || channel >= MAX_CHANNELS)
+		return 0;
 	MIX_Track *track = track_pool[channel];
-	if (!track) return 0;
+	if (!track)
+		return 0;
 
 	if (pos) {
 		MIX_Point3D p;
@@ -403,8 +401,7 @@ int FSOUND_3D_SetAttributes(int channel, const float* pos, const float* vel)
 	return 1;
 }
 
-int FSOUND_3D_SetMinMaxDistance(int channel, float min, float max)
-{
+int FSOUND_3D_SetMinMaxDistance(int channel, float min, float max) {
 	(void)channel;
 	(void)min;
 	(void)max;
@@ -413,20 +410,22 @@ int FSOUND_3D_SetMinMaxDistance(int channel, float min, float max)
 	return 1;
 }
 
-int FSOUND_3D_Listener_SetCurrent(int index, int num)
-{
+int FSOUND_3D_Listener_SetCurrent(int index, int num) {
 	(void)index;
 	(void)num;
 	// No listener concept in SDL3_mixer.
 	return 1;
 }
 
-int FSOUND_3D_Listener_SetAttributes(const float* pos, const float* vel,
-	float fx, float fy, float fz, float ux, float uy, float uz)
-{
+int FSOUND_3D_Listener_SetAttributes(const float *pos, const float *vel, float fx, float fy, float fz, float ux,
+									 float uy, float uz) {
 	(void)vel;
-	(void)fx; (void)fy; (void)fz;
-	(void)ux; (void)uy; (void)uz;
+	(void)fx;
+	(void)fy;
+	(void)fz;
+	(void)ux;
+	(void)uy;
+	(void)uz;
 	if (pos) {
 		listener_pos[0] = pos[0];
 		listener_pos[1] = pos[1];

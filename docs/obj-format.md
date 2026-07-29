@@ -118,7 +118,7 @@ Actions are commands run when an event fires. Multiple actions can be listed, on
 | `damage(amount, variation, maxDist)` | `amount`: base damage. `variation`: random ± added. `maxDist`: max distance for damage falloff. | Deal damage to the detected/worm within range. |
 | `shoot_particles(type, count, inheritance, speed, speedVar, distribution, angleOffs, distOffs)` | `type`: `.obj` name. `count`: number to spawn. `inheritance`: fraction of parent velocity inherited (0–1). `speed`: base speed. `speedVar`: random ±. `distribution`: angular spread. `angleOffs`: angle offset relative to parent facing. `distOffs`: spawn distance from parent origin. | Spawn child particles. Named params can be used after positional (e.g. `distribution = 0`). |
 | `uniform_shoot_particles(...)` | same as `shoot_particles` | Spawn child particles distributed uniformly in the spread angle. |
-| `put_particle(type, x, y, xspd, yspd, angle)` | all same as params | Spawn one particle at explicit coordinates with explicit velocity and angle. |
+| `put_particle(type, x, y, xspd, yspd, angle)` | `type`: `.obj` name. `x`, `y`: world coordinates. `xspd`, `yspd`: initial velocity (default 0). `angle`: initial facing (default 0). | Spawn one particle at explicit coordinates with explicit velocity and angle. **Coordinate convention:** `(x, y)` is the sprite's **top-left** by default, matching the level.png pixel coordinate space. Maps authored for the original Gusanos 0.9 center convention can set `center_aligned_particles = 1` in their `config.cfg` to opt back in (see [Map Config](#map-config-configcfg)). |
 | `create_explosion(type)` | `type`: `.exp` name | Trigger an explosion effect at this particle's position. |
 | `damp(factor)` | `factor`: velocity multiplier (0–1) | Reduce particle speed by multiplying velocity. |
 | `repel(maxForce, maxDist, minForce)` | `maxForce`: force at distance 0. `maxDist`: range of effect. `minForce`: force at maxDist edge. | Apply a repulsion force away from detected object. |
@@ -145,6 +145,42 @@ When a `.obj` has minimal behavior (no sprite, no blender, no distortion, only a
 - 32-bit and 16-bit colour depth variants
 
 Any extra feature (sprite, blender, distortion, damping != 1, acceleration, multiple timers, detect_ranges, death event, line_to_origin, networking) forces the full Particle path.
+
+---
+
+## Map Config (`config.cfg`)
+
+A map's `config.cfg` declares map-level properties and event handlers. Currently recognized top-level flags:
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `dark_mode` | bool | `false` | Enables lightmap-driven lighting on this map. |
+| `spawnpoints` | list | `[]` | List of `[x, y]` or `[x, y, team]` entries for worm spawn positions. |
+| `center_aligned_particles` | bool | `false` | When `true`, `put_particle` coordinates are interpreted as the sprite's **center** (matches the original Gusanos 0.9 behavior). When `false` (default), coords are the sprite's **top-left**, matching the `level.png` coordinate space. Set this to `1` for legacy maps whose `put_particle` calls were authored under the center convention. |
+
+Event handlers:
+
+| Event | Fires when |
+|---|---|
+| `on game_start()` | After the map is loaded, before the first worm spawns. |
+| `on game_end()` | When the match ends. |
+
+Example:
+```
+dark_mode = 1
+center_aligned_particles = 1   # legacy maps authored for Gusanos 0.9
+
+spawnpoints = [
+ [260,140],
+ [212,454],
+ [546,374],
+ [566,144]
+]
+
+on game_start()
+ put_particle(bunnyhopspawner1.obj, 510, 252)
+ put_particle(bunnyhopspawner2.obj, 506, 267)
+```
 
 ---
 

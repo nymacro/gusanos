@@ -14,20 +14,12 @@ typedef unsigned char BYTE;
 
 struct TC;
 
-struct WeapSettings
-{
-	WeapSettings()
-	: written(false)
-	{
-	}
+struct WeapSettings {
+	WeapSettings() : written(false) {}
 
-	struct ObjGovernor
-	{
+	struct ObjGovernor {};
 
-	};
-
-	enum
-	{
+	enum {
 		SHOTTYPE_LASER = 4,
 	};
 
@@ -41,7 +33,7 @@ struct WeapSettings
 	BYTE launchsound;
 	BYTE loopsound;
 	BYTE explosound;
-	short speed; // *
+	short speed;	// *
 	short addspeed; // *
 	short distribution;
 	BYTE parts; // *
@@ -61,31 +53,31 @@ struct WeapSettings
 	BYTE firecone;
 	bool collidewithobjects;
 	bool affectbyexplosions;
-	BYTE bounce; // *
-	short timetoexplosion;  // *
+	BYTE bounce;			// *
+	short timetoexplosion;	// *
 	short timetoexplosionv; // *
 	BYTE hitdamage;
 	BYTE bloodonhit;
-	short startframe;    // .
+	short startframe; // .
 	BYTE numframes;
 	bool loopanim;
-	BYTE shottype;       // .
-	BYTE colorbullets;   // *
+	BYTE shottype;		 // .
+	BYTE colorbullets;	 // *
 	BYTE splinteramount; // *
 	BYTE splintercolor;
-	BYTE splintertype;   // *
+	BYTE splintertype; // *
 	BYTE splinterscatter;
 	BYTE objtrailtype;
 	BYTE objtraildelay;
 	BYTE parttrailtype;
-	BYTE parttrailobj;   // *
+	BYTE parttrailobj;	 // *
 	BYTE parttraildelay; // *
 
 	char name[14];
 
 	std::string writeWeapon();
 	std::string writeWObj();
-	void writeWObjExplActions(std::ostream& f);
+	void writeWObjExplActions(std::ostream &f);
 
 	int idx;
 	bool written;
@@ -93,15 +85,11 @@ struct WeapSettings
 	bool objWritten;
 	std::string objWrittenName;
 
-	TC* tc;
+	TC *tc;
 };
 
-struct ObjSettings
-{
-	ObjSettings()
-	: written(false)
-	{
-	}
+struct ObjSettings {
+	ObjSettings() : written(false) {}
 
 	BYTE detectdistance;
 	short gravity; // *
@@ -124,30 +112,26 @@ struct ObjSettings
 	char dirteffect;
 	BYTE splinteramount; // *
 	BYTE splintercolor;
-	BYTE splintertype;   // *
-	bool bloodtrail;      // .
+	BYTE splintertype;	  // *
+	bool bloodtrail;	  // .
 	BYTE bloodtraildelay; // .
 	BYTE leaveobj;
 	BYTE leaveobjdelay;
-	short timetoexplosion;  // *
+	short timetoexplosion;	// *
 	short timetoexplosionv; // *
 
-	void writeObjExplActions(std::ostream& f);
+	void writeObjExplActions(std::ostream &f);
 	std::string writeObj();
 
-	int  idx;
+	int idx;
 	bool written;
 	std::string writtenName;
 
-	TC* tc;
+	TC *tc;
 };
 
-struct Sound
-{
-	Sound()
-	: written(false)
-	{
-	}
+struct Sound {
+	Sound() : written(false) {}
 
 	std::vector<char> data;
 
@@ -160,30 +144,24 @@ struct Sound
 	bool written;
 	std::string writtenName;
 
-	TC* tc;
+	TC *tc;
 };
 
-struct RGB
-{
+struct RGB {
 	int r;
 	int g;
 	int b;
 };
 
-struct TC
-{
-	TC(fs::path const& dest_)
-	: dest(dest_)
-	{
+struct TC {
+	TC(fs::path const &dest_) : dest(dest_) {
 		int i;
-		for(i = 0; i < 40; ++i)
-		{
+		for (i = 0; i < 40; ++i) {
 			w[i].tc = this;
 			w[i].idx = i + 1;
 		}
 
-		for(i = 0; i < 24; ++i)
-		{
+		for (i = 0; i < 24; ++i) {
 			o[i].tc = this;
 			o[i].idx = i + 1;
 		}
@@ -194,7 +172,7 @@ struct TC
 	RGB palette[256];
 	std::vector<Sound> s;
 	fs::path dest;
-	void read(std::istream&, std::istream&);
+	void read(std::istream &, std::istream &);
 };
 
-#endif //DEF_H
+#endif // DEF_H

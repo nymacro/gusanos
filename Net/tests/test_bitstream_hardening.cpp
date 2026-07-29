@@ -15,25 +15,22 @@ BOOST_AUTO_TEST_SUITE(bitstream_hardening)
 
 // ---- T3.1: over-read flag ----
 
-BOOST_AUTO_TEST_CASE(overread_sets_flag)
-{
+BOOST_AUTO_TEST_CASE(overread_sets_flag) {
 	ZCom_BitStream bs;
 	bs.addInt(0xAB, 8);
 	BOOST_CHECK(!bs.getReadError());
-	(void)bs.getInt(16);  // over-reads by 8 bits
+	(void)bs.getInt(16); // over-reads by 8 bits
 	BOOST_CHECK(bs.getReadError());
 }
 
-BOOST_AUTO_TEST_CASE(overread_returns_zero)
-{
+BOOST_AUTO_TEST_CASE(overread_returns_zero) {
 	ZCom_BitStream bs;
 	bs.addInt(0xAB, 8);
 	BOOST_CHECK_EQUAL(bs.getInt(16), 0u);
 	BOOST_CHECK(bs.getReadError());
 }
 
-BOOST_AUTO_TEST_CASE(overread_flag_sticky_until_clear)
-{
+BOOST_AUTO_TEST_CASE(overread_flag_sticky_until_clear) {
 	ZCom_BitStream bs;
 	bs.addInt(0xAB, 8);
 	(void)bs.getInt(16);
@@ -47,8 +44,7 @@ BOOST_AUTO_TEST_CASE(overread_flag_sticky_until_clear)
 	BOOST_CHECK(!bs.getReadError());
 }
 
-BOOST_AUTO_TEST_CASE(reset_clears_flag)
-{
+BOOST_AUTO_TEST_CASE(reset_clears_flag) {
 	ZCom_BitStream bs;
 	bs.addInt(0xAB, 8);
 	(void)bs.getInt(16);
@@ -57,8 +53,7 @@ BOOST_AUTO_TEST_CASE(reset_clears_flag)
 	BOOST_CHECK(!bs.getReadError());
 }
 
-BOOST_AUTO_TEST_CASE(clear_clears_flag)
-{
+BOOST_AUTO_TEST_CASE(clear_clears_flag) {
 	ZCom_BitStream bs;
 	bs.addInt(0xAB, 8);
 	(void)bs.getInt(16);
@@ -67,8 +62,7 @@ BOOST_AUTO_TEST_CASE(clear_clears_flag)
 	BOOST_CHECK(!bs.getReadError());
 }
 
-BOOST_AUTO_TEST_CASE(assign_clears_flag)
-{
+BOOST_AUTO_TEST_CASE(assign_clears_flag) {
 	ZCom_BitStream bs;
 	bs.addInt(0xAB, 8);
 	(void)bs.getInt(16);
@@ -78,8 +72,7 @@ BOOST_AUTO_TEST_CASE(assign_clears_flag)
 	BOOST_CHECK(!bs.getReadError());
 }
 
-BOOST_AUTO_TEST_CASE(copy_preserves_flag)
-{
+BOOST_AUTO_TEST_CASE(copy_preserves_flag) {
 	ZCom_BitStream bs;
 	bs.addInt(0xAB, 8);
 	(void)bs.getInt(16);
@@ -88,8 +81,7 @@ BOOST_AUTO_TEST_CASE(copy_preserves_flag)
 	BOOST_CHECK(copy.getReadError());
 }
 
-BOOST_AUTO_TEST_CASE(assign_op_preserves_flag)
-{
+BOOST_AUTO_TEST_CASE(assign_op_preserves_flag) {
 	ZCom_BitStream bs;
 	bs.addInt(0xAB, 8);
 	(void)bs.getInt(16);
@@ -102,8 +94,7 @@ BOOST_AUTO_TEST_CASE(assign_op_preserves_flag)
 
 // ---- T3.3: bits boundary round-trips ----
 
-BOOST_AUTO_TEST_CASE(add_get_int_32bits_boundary)
-{
+BOOST_AUTO_TEST_CASE(add_get_int_32bits_boundary) {
 	ZCom_BitStream bs;
 	bs.addInt(0xFFFFFFFFu, 32);
 	BOOST_CHECK_EQUAL(bs.getBitCount(), 32u);
@@ -111,16 +102,14 @@ BOOST_AUTO_TEST_CASE(add_get_int_32bits_boundary)
 	BOOST_CHECK(!bs.getReadError());
 }
 
-BOOST_AUTO_TEST_CASE(add_get_signed_int_32bits_boundary)
-{
+BOOST_AUTO_TEST_CASE(add_get_signed_int_32bits_boundary) {
 	ZCom_BitStream bs;
 	bs.addSignedInt(-1, 32);
 	BOOST_CHECK_EQUAL(bs.getSignedInt(32), -1);
 	BOOST_CHECK(!bs.getReadError());
 }
 
-BOOST_AUTO_TEST_CASE(add_get_int64_64bits_boundary)
-{
+BOOST_AUTO_TEST_CASE(add_get_int64_64bits_boundary) {
 	ZCom_BitStream bs;
 	bs.addInt64(static_cast<int64_t>(-1), 64);
 	BOOST_CHECK_EQUAL(bs.getInt64(64), static_cast<int64_t>(-1));
@@ -129,8 +118,7 @@ BOOST_AUTO_TEST_CASE(add_get_int64_64bits_boundary)
 
 // ---- T2.4: addBitStream preserves bit count and alignment ----
 
-BOOST_AUTO_TEST_CASE(addbitstream_preserves_bitcount)
-{
+BOOST_AUTO_TEST_CASE(addbitstream_preserves_bitcount) {
 	ZCom_BitStream src;
 	src.addInt(0x1FFF, 13);
 	BOOST_CHECK_EQUAL(src.getBitCount(), 13u);
@@ -142,20 +130,18 @@ BOOST_AUTO_TEST_CASE(addbitstream_preserves_bitcount)
 	BOOST_CHECK_EQUAL(dst.getInt(13), 0x1FFFu);
 }
 
-BOOST_AUTO_TEST_CASE(addbitstream_preserves_alignment)
-{
+BOOST_AUTO_TEST_CASE(addbitstream_preserves_alignment) {
 	ZCom_BitStream src;
 	src.addInt(0x1FFF, 13);
 	ZCom_BitStream dst;
-	dst.addInt(0, 5);          // 5 bits -> non-byte-aligned write position
-	dst.addBitStream(&src);    // appends 13 bits at bit position 5
+	dst.addInt(0, 5);		// 5 bits -> non-byte-aligned write position
+	dst.addBitStream(&src); // appends 13 bits at bit position 5
 	BOOST_CHECK_EQUAL(dst.getBitCount(), 18u);
 	BOOST_CHECK_EQUAL(dst.getInt(5), 0u);
 	BOOST_CHECK_EQUAL(dst.getInt(13), 0x1FFFu);
 }
 
-BOOST_AUTO_TEST_CASE(addbitstream_does_not_touch_flag)
-{
+BOOST_AUTO_TEST_CASE(addbitstream_does_not_touch_flag) {
 	// addBitStream resets the source's read position but must not touch its
 	// over-read flag (callers may reuse the source afterwards).
 	ZCom_BitStream src;

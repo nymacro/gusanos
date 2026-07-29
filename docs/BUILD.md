@@ -12,6 +12,7 @@
 | libpng | Homebrew (`libpng`) | — |
 | zlib | Homebrew (`zlib`) | — |
 | Boost | Homebrew (`boost`) | 1.70+ |
+| LuaJIT | Homebrew (`luajit`) | 2.x |
 | re2c | Homebrew (`re2c`) | — |
 | pkg-config | Homebrew (`pkg-config`) | — |
 
@@ -39,6 +40,25 @@ scons -c
 # Force-parser regeneration
 scons no-parsers=0
 ```
+
+## Code quality targets
+
+```bash
+# Reformat all project C/C++ sources in place
+scons format
+
+# Run clang-tidy over project C++ sources (uses compile_commands.json)
+scons tidy
+```
+
+Starter configuration files are provided at the repository root:
+
+- `.clang-format` — controls `scons format`.
+- `.clang-tidy` — controls `scons tidy`.
+
+Both tools operate on the project’s own sources under `Goop/`, `Net/`, `Console/`, `GUI/`, `Utility/util/`, `OmfgScript/`, `http/`, `luaapi/`, `lighter/`, `liero2gus/`, and `parsergen/`. Bundled third-party code (`loadpng/`), ZoidCom reference samples (`Net/Reference/`), and generated parser headers are excluded.
+
+`scons tidy` only runs on C++ files that are present in `compile_commands.json`. Run a normal build first to ensure the database is up to date.
 
 ## Output Layout
 
@@ -70,7 +90,7 @@ lib/posix/debug/
 | `Utility/util/SConscript` | `libomfgutil.a` | `Utility/util/` |
 | `OmfgScript/SConscript` | `libomfgscript.a` | `OmfgScript/` |
 | `http/SConscript` | `libomfghttp.a` | `http/` |
-| `lua51/SConscript` | `libglua.a` | `lua51/`, `lua51/luaapi/` |
+| `luaapi/SConscript` | `libglua.a` | `luaapi/` (LuaJIT wrapper) |
 | `liero2gus/SConscript` | `liero2gus` | `liero2gus/` |
 | `lighter/SConscript` | `lighter` | `lighter/`, `lighter/loaders/` |
 | `parsergen/SConscript` | `parsergen` | `parsergen/` |
@@ -94,6 +114,7 @@ All builds use `-std=c++17`, `-Wall -Wno-reorder`, and define `_GNU_SOURCE`,
 Libraries detected via `pkg-config`:
 - `sdl3`, `sdl3-mixer`, `sdl3-image`, `sdl3-ttf`
 - `libenet`, `libpng`, `zlib`
+- `luajit`
 
 Boost libraries detected via `CheckLib`:
 - `boost_filesystem`, `boost_system`

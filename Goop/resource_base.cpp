@@ -1,7 +1,7 @@
 //
 // C++ Implementation: resource_base
 //
-// Description: 
+// Description:
 //
 //
 // Author:  <basara@liero>, (C) 2005

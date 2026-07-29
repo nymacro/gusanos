@@ -13,16 +13,14 @@ namespace fs = boost::filesystem;
 
 class SpriteSet;
 
-class LevelEffect : public ResourceBase
-{
-public:
-	
+class LevelEffect : public ResourceBase {
+  public:
 	LevelEffect();
 	~LevelEffect();
 
-	bool load(fs::path const& filename);
-	
-	SpriteSet* mask;
+	bool load(fs::path const &filename);
+
+	SpriteSet *mask;
 	boost::uint32_t crc;
 };
 

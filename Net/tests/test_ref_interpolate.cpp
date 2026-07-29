@@ -6,10 +6,8 @@
 
 BOOST_AUTO_TEST_SUITE(ref_interpolate)
 
-BOOST_AUTO_TEST_CASE(rsetup_interpolate)
-{
-	ZCom_RSetupInterpolate<zS32> setup(16, ZCOM_REPFLAG_NONE, ZCOM_REPRULE_AUTH_2_ALL,
-	                                     5, 0, -1, -1, 0.4f);
+BOOST_AUTO_TEST_CASE(rsetup_interpolate) {
+	ZCom_RSetupInterpolate<zS32> setup(16, ZCOM_REPFLAG_NONE, ZCOM_REPRULE_AUTH_2_ALL, 5, 0, -1, -1, 0.4f);
 
 	BOOST_CHECK_EQUAL(setup.getRelevantBits(), 16);
 	BOOST_CHECK_EQUAL(setup.ipol_treshold, 5);
@@ -19,15 +17,13 @@ BOOST_AUTO_TEST_CASE(rsetup_interpolate)
 	BOOST_REQUIRE(dup);
 }
 
-BOOST_AUTO_TEST_CASE(interpolate_api)
-{
-	ZCom_RSetupInterpolate<zS32> setup(32, ZCOM_REPFLAG_NONE, ZCOM_REPRULE_AUTH_2_ALL,
-	                                     100, 0, -1, -1, 0.5f);
+BOOST_AUTO_TEST_CASE(interpolate_api) {
+	ZCom_RSetupInterpolate<zS32> setup(32, ZCOM_REPFLAG_NONE, ZCOM_REPRULE_AUTH_2_ALL, 100, 0, -1, -1, 0.5f);
 	BOOST_CHECK_EQUAL(setup.ipol_treshold, 100);
 	BOOST_CHECK_EQUAL(setup.ipol_factor, 0.5f);
 
 	zS32 val = 42;
-	ZCom_Interpolate<zS32, 1>* interp =
+	ZCom_Interpolate<zS32, 1> *interp =
 		new ZCom_Interpolate<zS32, 1>(&val, 32, ZCOM_REPFLAG_NONE, ZCOM_REPRULE_AUTH_2_ALL, 100);
 
 	BOOST_CHECK_EQUAL(interp->getSize(), 1);
@@ -41,7 +37,7 @@ BOOST_AUTO_TEST_CASE(interpolate_api)
 }
 
 class CustomProcReplicator : public ZCom_Replicator {
-public:
+  public:
 	eZCom_NodeRole lastRole = eZCom_RoleUndefined;
 	zU32 lastTime = 0;
 	int callCount = 0;
@@ -52,10 +48,9 @@ public:
 	}
 };
 
-BOOST_AUTO_TEST_CASE(replicator_process_override_resolution)
-{
+BOOST_AUTO_TEST_CASE(replicator_process_override_resolution) {
 	CustomProcReplicator rep;
-	ZCom_Replicator* basePtr = &rep;
+	ZCom_Replicator *basePtr = &rep;
 	basePtr->Process(eZCom_RoleAuthority, 100);
 	BOOST_CHECK_EQUAL(rep.callCount, 1);
 	BOOST_CHECK_EQUAL(rep.lastRole, eZCom_RoleAuthority);

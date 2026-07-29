@@ -26,86 +26,88 @@ using namespace std;
 
 ZCom_ClassID NetWorm::classID = ZCom_Invalid_ID;
 
-NetWorm::NetWorm(bool isAuthority) : BaseWorm()
-{
+NetWorm::NetWorm(bool isAuthority) : BaseWorm() {
 	health = 100;
 	timeSinceLastUpdate = 1;
-	
+
 	m_playerID = INVALID_NODE_ID;
 	m_node = new ZCom_Node();
-	if (!m_node)
-	{
+	if (!m_node) {
 		allegro_message("ERROR: Unable to create worm node.");
 	}
-	
+
 	m_node->beginReplicationSetup(9);
-	
-		static ZCom_ReplicatorSetup posSetup( ZCOM_REPFLAG_MOSTRECENT | ZCOM_REPFLAG_INTERCEPT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH , Position, -1, 1000);
-		
-		//m_node->setInterceptID( static_cast<ZCom_InterceptID>(Position) );
-		
-		m_node->addReplicator(std::make_unique<PosSpdReplicator>( &posSetup, &pos, &spd, game.level.vectorEncoding, game.level.diffVectorEncoding ), true);
-		
-		static ZCom_ReplicatorSetup nrSetup( ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH );
-		
-		m_node->addReplicator(std::make_unique<VectorReplicator>( &nrSetup, &m_ninjaRope->getPosReference(), game.level.vectorEncoding ), true);
-		
-m_node->addReplicationInt ((zS32*)&m_ninjaRope->getLengthReference(), 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
 
-	m_node->addReplicationInt ((zS32*)&health, 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
+	static ZCom_ReplicatorSetup posSetup(ZCOM_REPFLAG_MOSTRECENT | ZCOM_REPFLAG_INTERCEPT,
+										 ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH, Position, -1, 1000);
 
-		static ZCom_ReplicatorSetup angleSetup( ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH );
-		
-		m_node->addReplicator(std::make_unique<AngleReplicator>( &angleSetup, &aimAngle), true );
+	// m_node->setInterceptID( static_cast<ZCom_InterceptID>(Position) );
 
-		m_node->addReplicationInt( (zS32*)&m_dir, 8, true, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
-		
-		m_node->addReplicationBool( &m_ninjaRope->active, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
-		m_node->addReplicationBool( &m_ninjaRope->attached, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
+	m_node->addReplicator(std::make_unique<PosSpdReplicator>(&posSetup, &pos, &spd, game.level.vectorEncoding,
+															 game.level.diffVectorEncoding),
+						  true);
 
-		// Intercepted stuff
-		m_node->setInterceptID( PlayerID );
-		
-		m_node->addReplicationInt( (zS32*)&m_playerID, 32, false, ZCOM_REPFLAG_MOSTRECENT | ZCOM_REPFLAG_INTERCEPT, ZCOM_REPRULE_AUTH_2_ALL , INVALID_NODE_ID);
-		
+	static ZCom_ReplicatorSetup nrSetup(ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
+
+	m_node->addReplicator(
+		std::make_unique<VectorReplicator>(&nrSetup, &m_ninjaRope->getPosReference(), game.level.vectorEncoding), true);
+
+	m_node->addReplicationInt((zS32 *)&m_ninjaRope->getLengthReference(), 32, false, ZCOM_REPFLAG_MOSTRECENT,
+							  ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
+
+	m_node->addReplicationInt((zS32 *)&health, 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL);
+
+	static ZCom_ReplicatorSetup angleSetup(ZCOM_REPFLAG_MOSTRECENT,
+										   ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
+
+	m_node->addReplicator(std::make_unique<AngleReplicator>(&angleSetup, &aimAngle), true);
+
+	m_node->addReplicationInt((zS32 *)&m_dir, 8, true, ZCOM_REPFLAG_MOSTRECENT,
+							  ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
+
+	m_node->addReplicationBool(&m_ninjaRope->active, ZCOM_REPFLAG_MOSTRECENT,
+							   ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
+	m_node->addReplicationBool(&m_ninjaRope->attached, ZCOM_REPFLAG_MOSTRECENT,
+							   ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
+
+	// Intercepted stuff
+	m_node->setInterceptID(PlayerID);
+
+	m_node->addReplicationInt((zS32 *)&m_playerID, 32, false, ZCOM_REPFLAG_MOSTRECENT | ZCOM_REPFLAG_INTERCEPT,
+							  ZCOM_REPRULE_AUTH_2_ALL, INVALID_NODE_ID);
+
 	m_node->endReplicationSetup();
 
-	m_interceptor = new NetWormInterceptor( this );
+	m_interceptor = new NetWormInterceptor(this);
 	m_node->setReplicationInterceptor(m_interceptor);
 
 	m_isAuthority = isAuthority;
-	if( isAuthority)
-	{
+	if (isAuthority) {
 		m_node->setEventNotification(true, false); // Enables the eEvent_Init.
-               if( !m_node->registerNodeDynamic(classID, network.getZControl() ) )
-                       allegro_message("ERROR: Unable to register worm authority node.");
-
-	}else
-	{
-               if( !m_node->registerRequestedNode( classID, network.getZControl() ) )
-		       allegro_message("ERROR: Unable to register worm requested node.");
+		if (!m_node->registerNodeDynamic(classID, network.getZControl()))
+			allegro_message("ERROR: Unable to register worm authority node.");
+	} else {
+		if (!m_node->registerRequestedNode(classID, network.getZControl()))
+			allegro_message("ERROR: Unable to register worm requested node.");
 	}
 	m_node->applyForZoidLevel(1);
 }
 
-NetWorm::~NetWorm()
-{
+NetWorm::~NetWorm() {
 	delete m_node;
 	delete m_interceptor;
 }
 
-void NetWorm::addEvent(ZCom_BitStream* data, NetWorm::NetEvents event)
-{
+void NetWorm::addEvent(ZCom_BitStream *data, NetWorm::NetEvents event) {
 #ifdef COMPACT_EVENTS
-	//data->addInt(event, Encoding::bitsOf(NetWorm::EVENT_COUNT - 1));
+	// data->addInt(event, Encoding::bitsOf(NetWorm::EVENT_COUNT - 1));
 	Encoding::encode(*data, event, NetWorm::EVENT_COUNT);
 #else
-	data->addInt(static_cast<int>(event),8 );
+	data->addInt(static_cast<int>(event), 8);
 #endif
 }
 
-void NetWorm::think()
-{
+void NetWorm::think() {
 	// Authority gate for remote-client-owned worms on the server.
 	//
 	// On the server, a worm whose ZCom_Node is owned by a remote client
@@ -142,11 +144,10 @@ void NetWorm::think()
 	// oscillating addSpeed() to the worm body. The owner's rope pull is
 	// already baked into the replicated spd, so the proxy worm follows
 	// the owner's trajectory without a local rope force.
-	if (m_isAuthority && !isLocalAuthority())
-	{
-		if (m_isActive)
-		{
-			if (health <= 0) die();
+	if (m_isAuthority && !isLocalAuthority()) {
+		if (m_isActive) {
+			if (health <= 0)
+				die();
 			// The owner client owns this worm's physics (pos/spd/aim are
 			// replicated to us), so we must NOT run BaseWorm::think() or we
 			// reintroduce the rubber-band. But the owner cannot spawn the
@@ -155,17 +156,12 @@ void NetWorm::think()
 			// set primaryShooting on this authority worm, and
 			// runWeaponThink() consumes it, fires, and broadcasts SHOOT.
 			runWeaponThink();
-		}
-		else
-		{
-			if (m_timeSinceDeath > game.options.maxRespawnTime
-			    && game.options.maxRespawnTime >= 0)
+		} else {
+			if (m_timeSinceDeath > game.options.maxRespawnTime && game.options.maxRespawnTime >= 0)
 				respawn();
 			++m_timeSinceDeath;
 		}
-	}
-	else
-	{
+	} else {
 		BaseWorm::think();
 	}
 #ifndef DEDSERV
@@ -174,180 +170,151 @@ void NetWorm::think()
 	// small gaps (normal movement) exactly as before.
 	Vec delta(renderPos, pos); // == pos - renderPos (see BaseVec two-arg ctor)
 	double dist = delta.length();
-	if (dist > RENDER_SNAP_THRESHOLD)
-	{
+	if (dist > RENDER_SNAP_THRESHOLD) {
 		renderPos = pos;
-	}
-	else
-	{
+	} else {
 		double fact = 1.0 / (1.0 + dist / 4.0);
 		renderPos = renderPos * (1.0 - fact) + pos * fact;
 	}
 #endif
 
 	++timeSinceLastUpdate;
-	
-	if ( !m_node )
+
+	if (!m_node)
 		return;
-	
-	while ( m_node->checkEventWaiting() )
-	{
+
+	while (m_node->checkEventWaiting()) {
 		std::cout << "[DEBUG] NetWorm::think processing event, isAuthority=" << m_isAuthority << std::endl;
 		eZCom_Event type;
-		eZCom_NodeRole    remote_role;
-		ZCom_ConnID       conn_id;
-		
+		eZCom_NodeRole remote_role;
+		ZCom_ConnID conn_id;
+
 		auto data = m_node->getNextEvent(&type, &remote_role, &conn_id);
-		switch(type)
-		{
-		case eZCom_EventUser:
-			if ( data )
-			{
+		switch (type) {
+			case eZCom_EventUser:
+				if (data) {
 #ifdef COMPACT_EVENTS
-				//NetEvents event = (NetEvents)data->getInt(Encoding::bitsOf(EVENT_COUNT - 1));
-				NetEvents event = (NetEvents)Encoding::decode(*data, EVENT_COUNT);
+					// NetEvents event = (NetEvents)data->getInt(Encoding::bitsOf(EVENT_COUNT - 1));
+					NetEvents event = (NetEvents)Encoding::decode(*data, EVENT_COUNT);
 #else
-				NetEvents event = (NetEvents)data->getInt(8);
+					NetEvents event = (NetEvents)data->getInt(8);
 #endif
-				switch ( event )
-				{
-					case PosCorrection:
-					{
-						/*
-						pos.x = data->getFloat(32);
-						pos.y = data->getFloat(32);
-						spd.x = data->getFloat(32);
-						spd.y = data->getFloat(32);*/
-						pos = game.level.vectorEncoding.decode<Vec>(*data);
-						spd = game.level.vectorEncoding.decode<Vec>(*data);
+					switch (event) {
+						case PosCorrection: {
+							/*
+							pos.x = data->getFloat(32);
+							pos.y = data->getFloat(32);
+							spd.x = data->getFloat(32);
+							spd.y = data->getFloat(32);*/
+							pos = game.level.vectorEncoding.decode<Vec>(*data);
+							spd = game.level.vectorEncoding.decode<Vec>(*data);
+						} break;
+						case Respawn: {
+							std::cout << "[DEBUG] NetWorm::think Respawn received, calling BaseWorm::respawn"
+									  << std::endl;
+							Vec newpos = game.level.vectorEncoding.decode<Vec>(*data);
+							BaseWorm::respawn(newpos);
+							health = 100;
+						} break;
+						case Dig: {
+							Vec digPos = game.level.vectorEncoding.decode<Vec>(*data);
+							Angle digAngle = Angle((int)data->getInt(Angle::prec));
+							BaseWorm::dig(digPos, digAngle);
+						} break;
+						case Die: {
+							m_lastHurt = game.findPlayerWithID(data->getInt(32));
+							int wcount = (int)game.weaponList.size();
+							m_lastHurtWeapon = Encoding::decode(*data, wcount + 1) - 1;
+							if (const char *s = data->getStringStatic())
+								m_lastHurtName = s;
+							else
+								m_lastHurtName.clear();
+							BaseWorm::die();
+						} break;
+						case ChangeWeapon: {
+							// size_t weapIndex = data->getInt(Encoding::bitsOf(game.weaponList.size() - 1));
+							size_t weapIndex = Encoding::decode(*data, m_weapons.size());
+							changeWeaponTo(weapIndex);
+						} break;
+						case WeaponMessage: {
+							// size_t weapIndex = data->getInt(Encoding::bitsOf(game.weaponList.size() - 1));
+							size_t weapIndex = Encoding::decode(*data, m_weapons.size());
+							if (weapIndex < m_weapons.size() && m_weapons[weapIndex])
+								m_weapons[weapIndex]->recieveMessage(data.get());
+						} break;
+						case SetWeapon: {
+							size_t index = Encoding::decode(*data, game.options.maxWeapons);
+							if (data->getBool()) {
+								size_t weaponIndex = Encoding::decode(*data, game.weaponList.size());
+								if (weaponIndex < game.weaponList.size())
+									BaseWorm::setWeapon(index, game.weaponList[weaponIndex]);
+								else
+									BaseWorm::setWeapon(index, 0);
+							} else {
+								BaseWorm::setWeapon(index, 0);
+							}
+						} break;
+						case ClearWeapons: {
+							DLOG("Clearing weapons");
+							BaseWorm::clearWeapons();
+						} break;
+						case SYNC: {
+							m_isActive = data->getBool();
+							m_ninjaRope->active = data->getBool();
+							// currentWeapon = data->getInt(Encoding::bitsOf(game.weaponList.size() - 1));
+							currentWeapon = Encoding::decode(*data, m_weapons.size());
+							BaseWorm::clearWeapons();
+							while (data->getBool()) {
+								size_t index = Encoding::decode(*data, m_weapons.size());
+								size_t weapTypeIndex = Encoding::decode(*data, game.weaponList.size());
+								if (weapTypeIndex < game.weaponList.size() && index < m_weapons.size()) {
+									luaDelete(m_weapons[index]);
+									m_weapons[index] = 0;
+									m_weapons[index] = new Weapon(game.weaponList[weapTypeIndex], this);
+								}
+							}
+						} break;
+
+						case LuaEvent: {
+							int index = data->getInt(8);
+							if (LuaEventDef *event = network.indexToLuaEvent(Network::LuaEventGroup::Worm, index)) {
+								event->call(getLuaReference(), data.get());
+							}
+						} break;
+
+						case EVENT_COUNT:
+							break;
 					}
-					break;
-					case Respawn:
-					{
-						std::cout << "[DEBUG] NetWorm::think Respawn received, calling BaseWorm::respawn" << std::endl;
-						Vec newpos = game.level.vectorEncoding.decode<Vec>(*data);
-						BaseWorm::respawn( newpos );
-						health = 100;
-					}
-					break;
-					case Dig:
-					{
-						Vec digPos = game.level.vectorEncoding.decode<Vec>(*data);
-						Angle digAngle = Angle((int)data->getInt(Angle::prec));
-						BaseWorm::dig(digPos, digAngle);
-					}
-					break;
-				case Die:
-				{
-					m_lastHurt       = game.findPlayerWithID( data->getInt(32) );
-					int wcount = (int)game.weaponList.size();
-					m_lastHurtWeapon = Encoding::decode(*data, wcount + 1) - 1;
-					if (const char* s = data->getStringStatic()) m_lastHurtName = s; else m_lastHurtName.clear();
-					BaseWorm::die();
 				}
 				break;
-					case ChangeWeapon:
-					{
-						//size_t weapIndex = data->getInt(Encoding::bitsOf(game.weaponList.size() - 1));
-						size_t weapIndex = Encoding::decode(*data, m_weapons.size());
-						changeWeaponTo( weapIndex );
-					}
-					break;
-					case WeaponMessage:
-					{
-						//size_t weapIndex = data->getInt(Encoding::bitsOf(game.weaponList.size() - 1));
-						size_t weapIndex = Encoding::decode(*data, m_weapons.size());
-						if ( weapIndex < m_weapons.size() && m_weapons[weapIndex] )
-							m_weapons[weapIndex]->recieveMessage( data.get() );
-					}
-					break;
-					case SetWeapon:
-					{
-						size_t index = Encoding::decode(*data, game.options.maxWeapons);
-						if ( data->getBool() )
-						{
-							size_t weaponIndex = Encoding::decode(*data, game.weaponList.size());
-							if(weaponIndex < game.weaponList.size())
-								BaseWorm::setWeapon( index, game.weaponList[weaponIndex] );
-							else
-								BaseWorm::setWeapon( index, 0 );
-						}
-						else
-						{
-							BaseWorm::setWeapon( index, 0 );
-						}
-					}
-					break;
-					case ClearWeapons:
-					{
-						DLOG("Clearing weapons");
-						BaseWorm::clearWeapons();
-					}
-					break;
-					case SYNC:
-					{
-						m_isActive = data->getBool();
-						m_ninjaRope->active = data->getBool();
-						//currentWeapon = data->getInt(Encoding::bitsOf(game.weaponList.size() - 1));
-						currentWeapon = Encoding::decode(*data, m_weapons.size());
-						BaseWorm::clearWeapons();
-						while ( data->getBool() )
-						{
-							size_t index = Encoding::decode(*data, m_weapons.size());
-							size_t weapTypeIndex = Encoding::decode(*data, game.weaponList.size());
-							if(weapTypeIndex < game.weaponList.size() && index < m_weapons.size())
-							{
-								luaDelete(m_weapons[index]); m_weapons[index] = 0; 
-								m_weapons[index] = new Weapon(game.weaponList[weapTypeIndex], this);
-							}
-						}
-					}
-					break;
-					
-					case LuaEvent:
-					{
-						int index = data->getInt(8);
-						if(LuaEventDef* event = network.indexToLuaEvent(Network::LuaEventGroup::Worm, index))
-						{
-							event->call(getLuaReference(), data.get());
-						}
-					}
-					break;
-					
-					case EVENT_COUNT: break;
-				}
-			}
-			break;
-			
-			case eZCom_EventInit:
-			{
-				sendSyncMessage( conn_id );
-			}
-			break;
-			
-			default: break; // Annoying warnings >:O
+
+			case eZCom_EventInit: {
+				sendSyncMessage(conn_id);
+			} break;
+
+			default:
+				break; // Annoying warnings >:O
 		}
 	}
 }
 
-void NetWorm::sendLuaEvent(LuaEventDef* event, eZCom_SendMode mode, zU8 rules, ZCom_BitStream* userdata, ZCom_ConnID connID)
-{
-	if(!m_node) return;
+void NetWorm::sendLuaEvent(LuaEventDef *event, eZCom_SendMode mode, zU8 rules, ZCom_BitStream *userdata,
+						   ZCom_ConnID connID) {
+	if (!m_node)
+		return;
 	ZCom_BitStream data;
 	addEvent(&data, LuaEvent);
 	data.addInt(event->idx, 8);
-	if(userdata)
-	{
+	if (userdata) {
 		data.addBitStream(userdata);
 	}
-	if(!connID)
+	if (!connID)
 		m_node->sendEvent(mode, rules, &data);
 	else
 		m_node->sendEventDirect(mode, &data, connID);
 }
 
-void NetWorm::correctOwnerPosition()
-{
+void NetWorm::correctOwnerPosition() {
 	ZCom_BitStream data;
 	addEvent(&data, PosCorrection);
 	/*
@@ -360,75 +327,63 @@ void NetWorm::correctOwnerPosition()
 	m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_OWNER, &data);
 }
 
-void NetWorm::assignOwner( BasePlayer* owner)
-{
+void NetWorm::assignOwner(BasePlayer *owner) {
 	BaseWorm::assignOwner(owner);
 	m_playerID = m_owner->getNodeID();
 }
 
-void NetWorm::setOwnerId( ZCom_ConnID _id )
-{
-	m_node->setOwner(_id,true);
+void NetWorm::setOwnerId(ZCom_ConnID _id) {
+	m_node->setOwner(_id, true);
 }
 
-
-void NetWorm::sendSyncMessage( ZCom_ConnID id )
-{
+void NetWorm::sendSyncMessage(ZCom_ConnID id) {
 	ZCom_BitStream data;
 	addEvent(&data, SYNC);
 	data.addBool(m_isActive);
 	data.addBool(m_ninjaRope->active);
-	//data.addInt(currentWeapon, Encoding::bitsOf(game.weaponList.size() - 1));
+	// data.addInt(currentWeapon, Encoding::bitsOf(game.weaponList.size() - 1));
 	Encoding::encode(data, currentWeapon, m_weapons.size());
-	
-	for( size_t i = 0; i < m_weapons.size(); ++i )
-	{
-		if ( m_weapons[i] )
-		{
+
+	for (size_t i = 0; i < m_weapons.size(); ++i) {
+		if (m_weapons[i]) {
 			data.addBool(true);
 			Encoding::encode(data, i, m_weapons.size());
 			Encoding::encode(data, m_weapons[i]->getType()->getIndex(), game.weaponList.size());
 		}
 	}
 	data.addBool(false);
-	
+
 	m_node->sendEventDirect(eZCom_ReliableOrdered, &data, id);
 }
 
-void NetWorm::sendWeaponMessage( int index, ZCom_BitStream* weaponData, zU8 repRules )
-{
+void NetWorm::sendWeaponMessage(int index, ZCom_BitStream *weaponData, zU8 repRules) {
 	ZCom_BitStream data;
 	addEvent(&data, WeaponMessage);
-	//data.addInt(index, Encoding::bitsOf(game.weaponList.size() - 1));
+	// data.addInt(index, Encoding::bitsOf(game.weaponList.size() - 1));
 	Encoding::encode(data, index, m_weapons.size());
-	data.addBitStream( weaponData );
+	data.addBitStream(weaponData);
 	m_node->sendEvent(eZCom_ReliableOrdered, repRules, &data);
 }
 
-ZCom_NodeID NetWorm::getNodeID()
-{
-	if ( m_node )
+ZCom_NodeID NetWorm::getNodeID() {
+	if (m_node)
 		return m_node->getNetworkID();
 	else
 		return INVALID_NODE_ID;
 }
 
-void NetWorm::respawn()
-{
-	if ( m_isAuthority && m_node )
-	{
+void NetWorm::respawn() {
+	if (m_isAuthority && m_node) {
 		// Network-initiated respawn: honor immediately, bypassing the
 		// m_timeSinceDeath > minRespawnTime gate in BaseWorm::respawn().
 		// That gate exists for auto-respawn timing, not for explicit
 		// user-initiated respawn requests (JUMP with inactive worm).
 		std::cout << "[DEBUG] NetWorm::respawn authority nodeID=" << m_node->getNetworkID()
-			<< " m_timeSinceDeath=" << m_timeSinceDeath
-			<< " m_isActive(before)=" << m_isActive << std::endl;
-		BaseWorm::respawn( game.level.getSpawnLocation( m_owner ) );
+				  << " m_timeSinceDeath=" << m_timeSinceDeath << " m_isActive(before)=" << m_isActive << std::endl;
+		BaseWorm::respawn(game.level.getSpawnLocation(m_owner));
 		std::cout << "[DEBUG] NetWorm::respawn authority nodeID=" << m_node->getNetworkID()
-			<< " m_isActive(after)=" << m_isActive << std::endl;
-		if ( m_isActive )
-		{
+				  << " m_isActive(after)=" << m_isActive << std::endl;
+		if (m_isActive) {
 			ZCom_BitStream data;
 			addEvent(&data, Respawn);
 			/*
@@ -440,13 +395,10 @@ void NetWorm::respawn()
 	}
 }
 
-void NetWorm::dig()
-{
-	if ( m_isAuthority && m_node )
-	{
+void NetWorm::dig() {
+	if (m_isAuthority && m_node) {
 		BaseWorm::dig();
-		if ( m_isActive )
-		{
+		if (m_isActive) {
 			ZCom_BitStream data;
 			addEvent(&data, Dig);
 			game.level.vectorEncoding.encode<Vec>(data, pos);
@@ -456,24 +408,21 @@ void NetWorm::dig()
 	}
 }
 
-void NetWorm::die()
-{
-	if ( m_isAuthority && m_node )
-	{
+void NetWorm::die() {
+	if (m_isAuthority && m_node) {
 		std::string killerName;
-		if (m_lastHurt)               killerName = m_lastHurt->m_name;
-		else if (m_lastHurtShooterID) killerName = Network::findSavedName(m_lastHurtShooterID);
-		m_lastHurtName = killerName;    // so BaseWorm::die uses it consistently
+		if (m_lastHurt)
+			killerName = m_lastHurt->m_name;
+		else if (m_lastHurtShooterID)
+			killerName = Network::findSavedName(m_lastHurtShooterID);
+		m_lastHurtName = killerName; // so BaseWorm::die uses it consistently
 
 		ZCom_BitStream data;
 		addEvent(&data, Die);
-		if ( m_lastHurt )
-		{
-			data.addInt( static_cast<int>( m_lastHurt->getNodeID() ), 32 );
-		}
-		else
-		{
-			data.addInt( INVALID_NODE_ID, 32 );
+		if (m_lastHurt) {
+			data.addInt(static_cast<int>(m_lastHurt->getNodeID()), 32);
+		} else {
+			data.addInt(INVALID_NODE_ID, 32);
 		}
 		int wcount = (int)game.weaponList.size();
 		Encoding::encode(data, m_lastHurtWeapon + 1, wcount + 1); // -1 -> 0 sentinel
@@ -483,46 +432,37 @@ void NetWorm::die()
 	}
 }
 
-void NetWorm::changeWeaponTo( unsigned int weapIndex )
-{
-	if ( m_node )
-	{
+void NetWorm::changeWeaponTo(unsigned int weapIndex) {
+	if (m_node) {
 		ZCom_BitStream data;
 		addEvent(&data, ChangeWeapon);
 		Encoding::encode(data, weapIndex, m_weapons.size());
 		m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_OWNER_2_AUTH | ZCOM_REPRULE_AUTH_2_PROXY, &data);
-		BaseWorm::changeWeaponTo( weapIndex );
+		BaseWorm::changeWeaponTo(weapIndex);
 	}
 }
 
-void NetWorm::setWeapon( size_t index, WeaponType* type )
-{
-	if ( !network.isClient() )
-	{
-		BaseWorm::setWeapon( index, type );
-		if ( m_node )
-		{
+void NetWorm::setWeapon(size_t index, WeaponType *type) {
+	if (!network.isClient()) {
+		BaseWorm::setWeapon(index, type);
+		if (m_node) {
 			ZCom_BitStream data;
 			addEvent(&data, SetWeapon);
 			Encoding::encode(data, index, game.options.maxWeapons);
-			if ( type )
-			{
+			if (type) {
 				data.addBool(true);
 				Encoding::encode(data, type->getIndex(), game.weaponList.size());
-			}else
+			} else
 				data.addBool(false);
 			m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, &data);
 		}
 	}
 }
 
-void NetWorm::clearWeapons()
-{
-	if ( !network.isClient() )
-	{
+void NetWorm::clearWeapons() {
+	if (!network.isClient()) {
 		BaseWorm::clearWeapons();
-		if ( m_node )
-		{
+		if (m_node) {
 			ZCom_BitStream data;
 			addEvent(&data, ClearWeapons);
 			m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, &data);
@@ -530,65 +470,57 @@ void NetWorm::clearWeapons()
 	}
 }
 
-void NetWorm::damage( float amount, BasePlayer* damager, DamageCause const& cause )
-{
-	if ( m_isAuthority )
-	{
-		BaseWorm::damage( amount, damager, cause );
+void NetWorm::damage(float amount, BasePlayer *damager, DamageCause const &cause) {
+	if (m_isAuthority) {
+		BaseWorm::damage(amount, damager, cause);
 	}
 }
 
-void NetWorm::finalize()
-{
+void NetWorm::finalize() {
 	BaseWorm::finalize();
-	delete m_node; m_node = 0;
-	delete m_interceptor; m_interceptor = 0;
+	delete m_node;
+	m_node = 0;
+	delete m_interceptor;
+	m_interceptor = 0;
 }
 
-NetWormInterceptor::NetWormInterceptor( NetWorm* parent )
-{
+NetWormInterceptor::NetWormInterceptor(NetWorm *parent) {
 	m_parent = parent;
 }
 
-bool NetWormInterceptor::inPreUpdateItem (ZCom_Node *_node, ZCom_ConnID _from, eZCom_NodeRole _remote_role, ZCom_Replicator *_replicator, zU32 _estimated_time_sent)
-{
-	switch ( _replicator->getSetup()->getInterceptID() )
-	{
-		case NetWorm::PlayerID:
-		{
-			ZCom_NodeID recievedID = *static_cast<zU32*>(_replicator->peekData());
-			list<BasePlayer*>::iterator playerIter;
-			for ( playerIter = game.players.begin(); playerIter != game.players.end(); playerIter++)
-			{
-				if ( (*playerIter)->getNodeID() == recievedID )
-				{
+bool NetWormInterceptor::inPreUpdateItem(ZCom_Node *_node, ZCom_ConnID _from, eZCom_NodeRole _remote_role,
+										 ZCom_Replicator *_replicator, zU32 _estimated_time_sent) {
+	switch (_replicator->getSetup()->getInterceptID()) {
+		case NetWorm::PlayerID: {
+			ZCom_NodeID recievedID = *static_cast<zU32 *>(_replicator->peekData());
+			list<BasePlayer *>::iterator playerIter;
+			for (playerIter = game.players.begin(); playerIter != game.players.end(); playerIter++) {
+				if ((*playerIter)->getNodeID() == recievedID) {
 					(*playerIter)->assignWorm(m_parent);
 				}
 			}
-		}
-		break;
-		/*case NetWorm::Position:
-		{
-			Vec recievedPos = *static_cast<Vec*>(_replicator->peekData());
-			Vec speedPrediction = (recievedPos - m_parent->lastPosUpdate) / m_parent->timeSinceLastUpdate;
-			m_parent->lastPosUpdate = recievedPos;
-			m_parent->timeSinceLastUpdate = 0;
-			m_parent->spd = m_parent->spd*0.2 + speedPrediction*0.8;
-			return true;
-		} break;*/
+		} break;
+			/*case NetWorm::Position:
+			{
+				Vec recievedPos = *static_cast<Vec*>(_replicator->peekData());
+				Vec speedPrediction = (recievedPos - m_parent->lastPosUpdate) / m_parent->timeSinceLastUpdate;
+				m_parent->lastPosUpdate = recievedPos;
+				m_parent->timeSinceLastUpdate = 0;
+				m_parent->spd = m_parent->spd*0.2 + speedPrediction*0.8;
+				return true;
+			} break;*/
 	}
 	return true;
 }
 
-bool NetWormInterceptor::outPreUpdateItem (ZCom_Node* node, ZCom_ConnID from, eZCom_NodeRole remote_role, ZCom_Replicator* replicator)
-{
+bool NetWormInterceptor::outPreUpdateItem(ZCom_Node *node, ZCom_ConnID from, eZCom_NodeRole remote_role,
+										  ZCom_Replicator *replicator) {
 
-	switch ( replicator->getSetup()->getInterceptID() )
-	{
+	switch (replicator->getSetup()->getInterceptID()) {
 		case NetWorm::Position:
-			if(!m_parent->m_isActive) // Prevent non-active worms from replicating position
+			if (!m_parent->m_isActive) // Prevent non-active worms from replicating position
 				return false;
-		break;
+			break;
 	}
 
 	return true;

@@ -23,15 +23,15 @@
 ├─────────────────────────┴─────────────────────┴───────────────────┤
 │                   Abstraction Layer                                 │
 │                                                                     │
-│  allegro_compat.h/cpp  — BITMAP, blit, drawing, color, timer       │
+│  allegro_compat.h/cpp  — SDL3-backed BITMAP compat, blit, drawing, color, timer        │
 │  network_compat.h       — ZoidCom API compat layer (ENet-backed, Net/)    │
-│  fmod_compat.h/cpp      — FMOD stub (stubbed out)                    │
+│  fmod_compat.h/cpp      — FMOD→SDL3_mixer compat adapter  │
 ├──────────────────────────────────────────────────────────────────────┤
 │                     Platform Layer                                    │
 │                                                                       │
 │  SDL3 (video, events, input, timer)                                   │
 │  ENet (UDP networking)  │  SDL3_mixer (audio)  │  libpng/zlib         │
-│  Boost (filesystem, pool, random, crc)          │  Lua 5.1 (bundled) │
+│  Boost (filesystem, pool, random, crc)          │  LuaJIT (system)   │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 

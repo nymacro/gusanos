@@ -12,12 +12,9 @@ struct BITMAP;
 class Worm;
 class PlayerOptions;
 
-class Player : public BasePlayer
-{
-public:
-	
-	enum Actions
-	{
+class Player : public BasePlayer {
+  public:
+	enum Actions {
 		LEFT = 0,
 		RIGHT,
 		UP,
@@ -30,21 +27,20 @@ public:
 		NINJAROPE,
 		ACTION_COUNT,
 	};
-			
-	Player(boost::shared_ptr<PlayerOptions> options, BaseWorm* worm);
+
+	Player(boost::shared_ptr<PlayerOptions> options, BaseWorm *worm);
 	~Player();
-	
+
 	void subThink();
 #ifndef DEDSERV
 	void render();
 
-	void assignViewport(Viewport* Viewport);
+	void assignViewport(Viewport *Viewport);
 #endif
-	void actionStart( Actions action, float intensity = 1.0f );
-	void actionStop( Actions action );
-	
-private:
-	
+	void actionStart(Actions action, float intensity = 1.0f);
+	void actionStop(Actions action);
+
+  private:
 	bool aimingUp;
 	bool aimingDown;
 	bool changing;
@@ -55,8 +51,8 @@ private:
 	bool m_actionActive[ACTION_COUNT];
 	float m_actionIntensity[ACTION_COUNT];
 #ifndef DEDSERV
-	Viewport* m_viewport;
+	Viewport *m_viewport;
 #endif
 };
 
-#endif  // _WORM_H_
+#endif // _WORM_H_

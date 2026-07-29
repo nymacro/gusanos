@@ -20,16 +20,32 @@
  * - Stick: LEFT_STICK/L3, RIGHT_STICK/R3
  * - Stick dirs: LSTICK_LEFT/RIGHT/UP/DOWN, RSTICK_LEFT/RIGHT/UP/DOWN
  */
-enum GamepadInput
-{
-	GP_DPAD_UP = 0,   GP_DPAD_DOWN,  GP_DPAD_LEFT,   GP_DPAD_RIGHT,
-	GP_A,             GP_B,           GP_X,           GP_Y,           /* Face buttons */
-	GP_BACK,          GP_GUIDE,       GP_START,
-	GP_LEFT_STICK,    GP_RIGHT_STICK, /* Stick buttons */
-	GP_LB,            GP_RB,          /* Shoulders */
-	GP_LT,            GP_RT,          /* Triggers via axis */
-	GP_LSTICK_LEFT,   GP_LSTICK_RIGHT, GP_LSTICK_UP,   GP_LSTICK_DOWN,
-	GP_RSTICK_LEFT,   GP_RSTICK_RIGHT, GP_RSTICK_UP,   GP_RSTICK_DOWN,
+enum GamepadInput {
+	GP_DPAD_UP = 0,
+	GP_DPAD_DOWN,
+	GP_DPAD_LEFT,
+	GP_DPAD_RIGHT,
+	GP_A,
+	GP_B,
+	GP_X,
+	GP_Y, /* Face buttons */
+	GP_BACK,
+	GP_GUIDE,
+	GP_START,
+	GP_LEFT_STICK,
+	GP_RIGHT_STICK, /* Stick buttons */
+	GP_LB,
+	GP_RB, /* Shoulders */
+	GP_LT,
+	GP_RT, /* Triggers via axis */
+	GP_LSTICK_LEFT,
+	GP_LSTICK_RIGHT,
+	GP_LSTICK_UP,
+	GP_LSTICK_DOWN,
+	GP_RSTICK_LEFT,
+	GP_RSTICK_RIGHT,
+	GP_RSTICK_UP,
+	GP_RSTICK_DOWN,
 	/* End marker */
 	GP_INPUT_COUNT
 };
@@ -40,24 +56,20 @@ constexpr int GP_INPUT_COUNT_PER_PAD = GP_INPUT_COUNT;
 constexpr int GP_MAX_CODES = GAMEPAD_KEY_BASE + MAX_GAMEPADS * GP_INPUT_COUNT_PER_PAD;
 
 /* Resolution helpers */
-int gamepadName2Int(const std::string& name);
-void appendGamepadBindNames(std::vector<std::string>& names);
+int gamepadName2Int(const std::string &name);
+void appendGamepadBindNames(std::vector<std::string> &names);
 std::string gamepadBindName(int slot, GamepadInput input);
 
-class GamepadHandler
-{
-public:
-	struct StopEarly
-	{
+class GamepadHandler {
+  public:
+	struct StopEarly {
 		typedef bool result_type;
 
-		template<typename InputIterator>
-		bool operator()(InputIterator first, InputIterator last) const
-		{
+		template <typename InputIterator>
+		bool operator()(InputIterator first, InputIterator last) const {
 			// Stop at the first slot returning false
-			for(; first != last; ++first)
-			{
-				if(!*first)
+			for (; first != last; ++first) {
+				if (!*first)
 					return false;
 			}
 
@@ -90,9 +102,9 @@ public:
 	// Carries a normalized (0..1) magnitude for analog stick directions.
 	boost::signals2::signal<void(int, float)> analogInput;
 
-private:
+  private:
 	/* SDL handles */
-	SDL_Gamepad* m_pad[MAX_GAMEPADS];
+	SDL_Gamepad *m_pad[MAX_GAMEPADS];
 	SDL_JoystickID m_instance[MAX_GAMEPADS]; /* Instance IDs from SDL_GetGamepads */
 
 	/* Previous state storage for diffing */
