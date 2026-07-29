@@ -13,6 +13,14 @@ class NodeRegistry {
 	void remove(ZCom_Node *node);
 	void clear();
 
+	/// Re-key an already-registered node to newNodeID: erases the old ID from
+	/// the ID index, updates the node's ID, and inserts the new ID. The list
+	/// iterator (m_byPtr) stays valid; only m_byId changes. Used by the
+	/// unique-node link path to adopt a server-announced nodeID for a proxy
+	/// that was registered under a local m_nextNodeID. Returns false if the
+	/// node isn't registered; true (no-op) if old==new.
+	bool rekey(ZCom_Node *node, uint32_t newNodeID);
+
 	ZCom_Node *find(uint32_t nodeID) const;
 	bool contains(const ZCom_Node *node) const;
 	std::size_t size() const;

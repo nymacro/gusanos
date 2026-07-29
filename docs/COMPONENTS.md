@@ -346,6 +346,23 @@ from the original ZoidCom API so game code requires no rewriting.
 override virtual callback methods with game-specific logic: connection requests,
 data delivery, Zoid level transitions, player creation, and node announcements.
 
+### Terrain Destruction Replication (`Goop/game.cpp`, `Goop/level.cpp`)
+
+Terrain destruction rides on the `Game` *unique* node (registered with
+`registerNodeUnique`), which the ENet compat layer announces to clients via
+`MSG_NODE_ANNOUNCE_UNIQUE` (see `Net/net_control.cpp`). Two event kinds share the
+Game node's event channel:
+
+- `eHole` — live destruction during play. The authority broadcasts it
+  (`sendEvent` with `ZCOM_REPRULE_AUTH_2_ALL`) from `Game::applyLevelEffect`;
+  proxies decode and apply it via `Level::applyEffect`.
+- `eTerrainSnapshot` — full 1bpp RLE destruction mask sent to a late-joining
+  client on its `eZCom_EventInit` (authority → that peer via `sendEventDirect`),
+  so it catches up to the current terrain state without replaying history.
+
+The destruction mask + RLE codec live on `Level` (`markDestroyed` /
+`encodeDestructionMaskRLE` / `applyDestructionMaskRLE`).
+
 ### Encoding (`Goop/encoding.h`)
 
 Bit-level serialization utilities for network streaming:

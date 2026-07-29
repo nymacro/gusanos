@@ -67,6 +67,8 @@ Level::Level() {
 #endif
 	material = NULL;
 
+	m_destructionMask.clear();
+
 	// Rock
 	m_materialList[0].worm_pass = false;
 	m_materialList[0].particle_pass = false;
@@ -134,6 +136,8 @@ void Level::unload() {
 #endif
 	destroy_bitmap(material);
 	material = NULL;
+
+	m_destructionMask.clear();
 
 	vectorEncoding = Encoding::VectorEncoding();
 }
@@ -326,6 +330,7 @@ bool Level::applyEffect(LevelEffect *effect, int drawX, int drawY) {
 				if (isBlack && getMaterial(drawX + x, drawY + y).destroyable) {
 					returnValue = true;
 					putMaterial(1, drawX + x, drawY + y);
+					markDestroyed(drawX + x, drawY + y);
 					checkWBorders(drawX + x, drawY + y);
 #ifndef DEDSERV
 					putpixel(image, drawX + x, drawY + y, getpixel(background, drawX + x, drawY + y));
@@ -409,6 +414,7 @@ const string &Level::getName() {
 void Level::loaderSucceeded() {
 	loaded = true;
 	m_water.clear();
+	m_destructionMask.assign((static_cast<size_t>(material->w) * material->h + 7) / 8, 0);
 	for (int y = 0; y < material->h; ++y)
 		for (int x = 0; x < material->w; ++x) {
 			if (unsafeGetMaterial(x, y).flows && !unsafeGetMaterial(x, y).is_stagnated_water) {
@@ -458,4 +464,108 @@ void Level::loaderSucceeded() {
 
 	if (!m_config)
 		m_config = new LevelConfig(); // Default config
+}
+
+void Level::markDestroyed(unsigned x, unsigned y) {
+	if (!material)
+		return;
+	unsigned w = static_cast<unsigned>(material->w);
+	unsigned h = static_cast<unsigned>(material->h);
+	if (x >= w || y >= h)
+		return;
+	size_t bit = size_t(y) * w + x;
+	m_destructionMask[bit >> 3] |= uint8_t(1u << (bit & 7));
+}
+
+bool Level::encodeDestructionMaskRLE(ZCom_BitStream &out) const {
+	if (!material || m_destructionMask.empty())
+		return false;
+
+	unsigned w = static_cast<unsigned>(material->w);
+	unsigned h = static_cast<unsigned>(material->h);
+	size_t totalPixels = size_t(w) * h;
+
+	// Compose the RLE payload: 1 start-value bit, then alternating run lengths
+	// encoded with Elias-delta. Run lengths are >= 1 (Elias-delta encodes n>=1).
+	ZCom_BitStream rlePayload;
+	bool startValue = (m_destructionMask[0] >> 0) & 1;
+	rlePayload.addBool(startValue);
+
+	bool curValue = startValue;
+	size_t run = 0;
+	for (size_t i = 0; i < totalPixels; ++i) {
+		bool bit = (m_destructionMask[i >> 3] >> (i & 7)) & 1;
+		if (bit == curValue) {
+			++run;
+		} else {
+			Encoding::encodeEliasDelta(rlePayload, static_cast<unsigned int>(run));
+			curValue = bit;
+			run = 1;
+		}
+	}
+	if (run > 0)
+		Encoding::encodeEliasDelta(rlePayload, static_cast<unsigned int>(run));
+
+	// Mode 0 = RLE, Mode 1 = raw (1 bit per pixel). Pick the smaller encoding.
+	if (rlePayload.getBitCount() <= static_cast<zU32>(totalPixels)) {
+		out.addBool(false); // RLE mode
+		out.addBitStream(&rlePayload);
+	} else {
+		out.addBool(true); // raw mode
+		for (size_t i = 0; i < totalPixels; ++i) {
+			bool bit = (m_destructionMask[i >> 3] >> (i & 7)) & 1;
+			out.addBool(bit);
+		}
+	}
+	return true;
+}
+
+void Level::applyDestructionMaskRLE(ZCom_BitStream &in) {
+	if (!material)
+		return;
+
+	unsigned w = static_cast<unsigned>(material->w);
+	unsigned h = static_cast<unsigned>(material->h);
+	size_t totalPixels = size_t(w) * h;
+	if (totalPixels == 0)
+		return;
+
+	bool rleMode = !in.getBool(); // false bit == RLE mode
+	if (rleMode) {
+		bool value = in.getBool();
+		size_t consumed = 0;
+		while (consumed < totalPixels) {
+			unsigned int run = Encoding::decodeEliasDelta(in);
+			if (run == 0)
+				break;
+			for (unsigned int k = 0; k < run && consumed < totalPixels; ++k) {
+				if (value) {
+					unsigned x = static_cast<unsigned>(consumed % w);
+					unsigned y = static_cast<unsigned>(consumed / w);
+					putMaterial(1, x, y);
+					checkWBorders(x, y);
+#ifndef DEDSERV
+					putpixel(image, x, y, getpixel(background, x, y));
+#endif
+					markDestroyed(x, y);
+				}
+				++consumed;
+			}
+			value = !value;
+		}
+	} else {
+		for (size_t i = 0; i < totalPixels; ++i) {
+			bool bit = in.getBool();
+			if (bit) {
+				unsigned x = static_cast<unsigned>(i % w);
+				unsigned y = static_cast<unsigned>(i / w);
+				putMaterial(1, x, y);
+				checkWBorders(x, y);
+#ifndef DEDSERV
+				putpixel(image, x, y, getpixel(background, x, y));
+#endif
+				markDestroyed(x, y);
+			}
+		}
+	}
 }

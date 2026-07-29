@@ -37,6 +37,21 @@ void NodeRegistry::clear() {
 	m_byId.clear();
 }
 
+bool NodeRegistry::rekey(ZCom_Node *node, uint32_t newNodeID) {
+	if (!node)
+		return false;
+	auto ptrIt = m_byPtr.find(node);
+	if (ptrIt == m_byPtr.end())
+		return false; // not registered
+	uint32_t oldID = node->getNetworkID();
+	if (oldID == newNodeID)
+		return true;
+	m_byId.erase(oldID);
+	node->setNodeID(newNodeID);
+	m_byId[newNodeID] = node;
+	return true;
+}
+
 ZCom_Node *NodeRegistry::find(uint32_t nodeID) const {
 	auto it = m_byId.find(nodeID);
 	if (it == m_byId.end())

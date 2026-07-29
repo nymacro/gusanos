@@ -388,6 +388,8 @@ void ZCom_Control::Shutdown() {
 	m_pendingAnnounce.clear();
 	m_pendingReplicas.clear();
 	m_pendingNodeEvents.clear();
+	m_uniqueByClass.clear();
+	m_pendingUniqueAnnounce.clear();
 	m_pendingFileOffers.clear();
 	m_fileTransfers.clear();
 }
@@ -477,8 +479,25 @@ bool ZCom_Control::registerNode(ZCom_Node *node) {
 	// Deliver any buffered file-transfer offers for this node
 	deliverPendingFileOffers(node);
 
-	if (node->isUnique())
+	if (node->isUnique()) {
+		// Track this class's local unique node so a MSG_NODE_ANNOUNCE_UNIQUE
+		// arriving later (or already buffered) can link to it by class.
+		m_uniqueByClass[node->getClassID()] = node;
+
+		// If a unique-node announce arrived before this local proxy was
+		// registered (the common game ordering: server announces at connect
+		// time; the client registers its proxy later in ZCom_cbZoidResult),
+		// adopt the server-announced nodeID now and replay buffered traffic.
+		auto it = m_pendingUniqueAnnounce.find(node->getClassID());
+		if (it != m_pendingUniqueAnnounce.end()) {
+			PendingUniqueAnnounce pending = std::move(it->second);
+			m_pendingUniqueAnnounce.erase(it);
+			linkUniqueNode(node, node->getClassID(), pending.net_id, pending.role, pending.connID);
+		}
+		// Unique nodes are never announced via the dynamic pending-announce
+		// path; the server announces them through the connect-spawn loop.
 		return true;
+	}
 
 	// Defer announcement to ZCom_processOutput() so a subsequent setOwner()
 	// (same tick, e.g. server.cpp PLAYER_REQUEST) is reflected as a single
@@ -531,6 +550,94 @@ void ZCom_Control::sendNodeAnnouncement(uint32_t connID, ZCom_Node *node, int ro
 	if (node->getEventNotification()) {
 		node->pushEvent(eZCom_EventInit, static_cast<eZCom_NodeRole>(role), connID, nullptr);
 	}
+}
+
+void ZCom_Control::sendUniqueAnnouncement(uint32_t connID, ZCom_Node *node) {
+	// Announce a unique node to a peer. Same body layout as MSG_NODE_ANNOUNCE
+	// (net_control.cpp:507-520) but a distinct msgType so the existing dynamic
+	// announce parser and all dynamic tests are untouched. Unique nodes have
+	// no owner today, so the announced (local-to-receiver) role is Proxy.
+	if (!m_host || !node)
+		return;
+
+	int role = eZCom_RoleProxy;
+
+	ZCom_BitStream pkt;
+	pkt.addInt(MSG_NODE_ANNOUNCE_UNIQUE, 8);
+	pkt.addInt(node->getClassID(), 8);
+	pkt.addInt(node->getNetworkID(), 16);
+	pkt.addInt(role, 8);
+
+	ZCom_BitStream *ad = node->buildAnnounceData(connID, static_cast<eZCom_NodeRole>(role));
+	if (ad && ad->getDataLength() > 0) {
+		pkt.addInt(static_cast<int>(ad->getDataLength()), 16);
+		for (size_t i = 0; i < ad->getDataLength(); ++i)
+			pkt.addInt(ad->getData()[i], 8);
+	} else {
+		pkt.addInt(0, 16);
+	}
+
+	ENetPacket *packet = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
+	ENetPeer *peer = findPeer(connID);
+	if (peer)
+		enet_peer_send(peer, 0, packet);
+	else
+		enet_packet_destroy(packet);
+	// eEvent_Init is pushed by the caller (connect-spawn loop), not here.
+}
+
+void ZCom_Control::linkUniqueNode(ZCom_Node *node, uint32_t classID, uint32_t serverNodeID, int role,
+								  uint32_t connID) {
+	if (!node)
+		return;
+
+	// 1. Re-key the node's ID to the server-announced ID. The node was
+	//    registered under a local m_nextNodeID; adopt the server's ID so
+	//    MSG_REPLICATORS / MSG_NODE_EVENT addressed by serverNodeID resolve.
+	//    Also migrate any traffic buffered under the old local ID (safety
+	//    net; the local ID is never on the wire so this is usually a no-op).
+	if (m_nodeRegistry.contains(node)) {
+		uint32_t oldID = node->getNetworkID();
+		if (oldID != serverNodeID) {
+			m_nodeRegistry.rekey(node, serverNodeID);
+			auto repIt = m_pendingReplicas.find(oldID);
+			if (repIt != m_pendingReplicas.end()) {
+				auto pr = std::move(repIt->second);
+				m_pendingReplicas.erase(repIt);
+				m_pendingReplicas[serverNodeID] = std::move(pr);
+			}
+			auto evIt = m_pendingNodeEvents.find(oldID);
+			if (evIt != m_pendingNodeEvents.end()) {
+				auto vec = std::move(evIt->second);
+				m_pendingNodeEvents.erase(evIt);
+				m_pendingNodeEvents[serverNodeID] = std::move(vec);
+			}
+		}
+	} else {
+		node->setNodeID(serverNodeID);
+	}
+	// Keep the class->node map pointing at the (now re-keyed) node.
+	m_uniqueByClass[classID] = node;
+
+	// 2. Adopt the announced role (Proxy for unique nodes).
+	node->setRole(static_cast<eZCom_NodeRole>(role));
+
+	// 3. The sender of the announce is the authority for this node (matches
+	//    the dynamic handler at net_control.cpp:1107).
+	m_peerRole[connID][serverNodeID] = eZCom_RoleAuthority;
+
+	// 4. Dedupe so a re-announce is a no-op.
+	m_announcedNodes[connID].insert(serverNodeID);
+
+	NET_LOG("linkUniqueNode: classID=" << classID << " (" << ZCom_getClassName(classID) << ")"
+									   << " serverNodeID=" << serverNodeID << " role=" << role
+									   << " connID=" << connID);
+
+	// 5. Replay any traffic buffered under serverNodeID (replicators / events
+	//    that arrived while the proxy was not yet linked).
+	replayPendingReplicators(node);
+	replayPendingNodeEvents(node);
+	deliverPendingFileOffers(node);
 }
 
 void ZCom_Control::clearAnnouncedNode(uint32_t nodeID) {
@@ -619,6 +726,15 @@ void ZCom_Control::removeNode(ZCom_Node *node) {
 	for (auto &pair : m_peerMap) {
 		m_announcedNodes[pair.first].erase(nid);
 		m_peerRole[pair.first].erase(nid);
+	}
+	// Unique-node bookkeeping: drop the class->node map entry (only if it
+	// still points at this node) and any buffered announce for this class.
+	if (node->isUnique()) {
+		uint32_t classID = node->getClassID();
+		auto it = m_uniqueByClass.find(classID);
+		if (it != m_uniqueByClass.end() && it->second == node)
+			m_uniqueByClass.erase(it);
+		m_pendingUniqueAnnounce.erase(classID);
 	}
 }
 
@@ -857,14 +973,35 @@ void ZCom_Control::processENetEvent(ENetEvent &event) {
 			if (ZCom_cbConnectionRequest(connID, request, reply)) {
 				// Send reply data back to client as MSG_CONNECTION_REPLY
 				sendConnectionReply(event.peer, reply, true);
-				// Sync existing nodes to the new client (skip unique nodes — registered locally)
-				m_nodeRegistry.forEach([&](ZCom_Node *node) {
-					if (node->isUnique())
-						return;
-					// Track per-peer so re-announcements are skipped
+			// Sync existing nodes to the new client. Dynamic nodes are
+			// announced via MSG_NODE_ANNOUNCE; unique nodes (Game/Updater)
+			// are announced via MSG_NODE_ANNOUNCE_UNIQUE so the client links
+			// its already-registered counterpart by class.
+			m_nodeRegistry.forEach([&](ZCom_Node *node) {
+				if (node->isUnique()) {
+					// Unique authority node: announce to the new peer. The
+					// client links by class to its already-registered (or
+					// soon-to-be-registered) proxy, adopting this nodeID.
 					if (m_announcedNodes[connID].count(node->getNetworkID()))
 						return;
 					m_announcedNodes[connID].insert(node->getNetworkID());
+					int role = eZCom_RoleProxy; // unique nodes have no owner today
+					m_peerRole[connID][node->getNetworkID()] = static_cast<eZCom_NodeRole>(role);
+					sendUniqueAnnouncement(connID, node);
+					// Push eEvent_Init so the authority's per-new-client logic
+					// fires (e.g. Game::gameNetworkInit). Previously dead for
+					// unique nodes.
+					if (node->getEventNotification())
+						node->pushEvent(eZCom_EventInit, static_cast<eZCom_NodeRole>(role), connID, nullptr);
+					// Force a full replicator pack so the new peer receives the
+					// current state (worm_gravity/teamPlay) on the next output.
+					node->forceReplicationUpdate();
+					return;
+				}
+				// Track per-peer so re-announcements are skipped
+				if (m_announcedNodes[connID].count(node->getNetworkID()))
+					return;
+				m_announcedNodes[connID].insert(node->getNetworkID());
 
 					// Determine role for this client: Owner if node is owned by them, otherwise Proxy
 					int role = eZCom_RoleProxy;
@@ -1076,64 +1213,104 @@ void ZCom_Control::processENetEvent(ENetEvent &event) {
 				break;
 			}
 
-			// Handle node announcement — dispatch to ZCom_cbNodeRequest_Dynamic
-			if (msgType == MSG_NODE_ANNOUNCE) {
-				streamData.getInt(8); // consume msgType
-				uint32_t classID = streamData.getInt(8);
-				uint32_t net_id = streamData.getInt(16);
-				int role = streamData.getInt(8);
-				int announceLen = streamData.getInt(16);
+		// Handle unique-node announcement — link the local unique counterpart
+		// by class (Zoidcom unique-replication contract: the client counterpart
+		// is expected to be registered already, or buffered until it is).
+		if (msgType == MSG_NODE_ANNOUNCE_UNIQUE) {
+			streamData.getInt(8); // consume msgType
+			uint32_t classID = streamData.getInt(8);
+			uint32_t net_id = streamData.getInt(16);
+			int role = streamData.getInt(8);
+			int announceLen = streamData.getInt(16);
+			std::vector<uint8_t> announceData;
+			if (announceLen > 0) {
+				announceData.resize(announceLen);
+				for (int i = 0; i < announceLen; ++i)
+					announceData[i] = static_cast<uint8_t>(streamData.getInt(8));
+			}
 
-				// If node already exists locally, update its role (handles re-announcements from setOwner)
-				ZCom_Node *existingNode = ZCom_getNode(net_id);
-				if (existingNode) {
-					existingNode->setRole(static_cast<eZCom_NodeRole>(role));
-					// The sender of an announcement is the authority for this node.
-					m_peerRole[connID][net_id] = eZCom_RoleAuthority;
-					NET_LOG("Updating role for existing nodeID=" << net_id << " to " << role);
-					enet_packet_destroy(event.packet);
-					break;
-				}
+			NET_LOG("Received MSG_NODE_ANNOUNCE_UNIQUE classID="
+					<< classID << " (" << ZCom_getClassName(classID) << ")"
+					<< " net_id=" << net_id << " role=" << role << " announceLen=" << announceLen);
 
-				// Skip duplicate announcements to this peer
-				if (m_announcedNodes[connID].count(net_id)) {
-					NET_LOG("Skipping duplicate MSG_NODE_ANNOUNCE for connID=" << connID << " net_id=" << net_id);
-					enet_packet_destroy(event.packet);
-					break;
-				}
-				m_announcedNodes[connID].insert(net_id);
-				// The sender of an announcement is the authority for this node;
-				// the announced role is the local peer's role (Owner/Proxy).
+			auto it = m_uniqueByClass.find(classID);
+			if (it != m_uniqueByClass.end() && it->second != nullptr) {
+				// Local proxy already registered (rare reverse order, e.g.
+				// synthetic tests): re-key it to the server nodeID now.
+				linkUniqueNode(it->second, classID, net_id, role, connID);
+			} else {
+				// Common case: announce arrived before the proxy registered
+				// (server announces at connect; client registers its proxy
+				// later in ZCom_cbZoidResult). Buffer by class until then.
+				auto &p = m_pendingUniqueAnnounce[classID];
+				p.net_id = net_id;
+				p.role = role;
+				p.connID = connID;
+				p.announceData = std::move(announceData);
+			}
+			// Unique nodes are app-silent: no ZCom_cbNodeRequest_Dynamic.
+			enet_packet_destroy(event.packet);
+			break;
+		}
+
+		// Handle node announcement — dispatch to ZCom_cbNodeRequest_Dynamic
+		if (msgType == MSG_NODE_ANNOUNCE) {
+			streamData.getInt(8); // consume msgType
+			uint32_t classID = streamData.getInt(8);
+			uint32_t net_id = streamData.getInt(16);
+			int role = streamData.getInt(8);
+			int announceLen = streamData.getInt(16);
+
+			// If node already exists locally, update its role (handles re-announcements from setOwner)
+			ZCom_Node *existingNode = ZCom_getNode(net_id);
+			if (existingNode) {
+				existingNode->setRole(static_cast<eZCom_NodeRole>(role));
+				// The sender of an announcement is the authority for this node.
 				m_peerRole[connID][net_id] = eZCom_RoleAuthority;
-
-				NET_LOG("Received MSG_NODE_ANNOUNCE classID=" << classID << " (" << ZCom_getClassName(classID) << ")"
-															  << " net_id=" << net_id << " role=" << role
-															  << " announceLen=" << announceLen);
-
-				std::unique_ptr<ZCom_BitStream> announceData;
-				if (announceLen > 0) {
-					std::vector<uint8_t> buf(announceLen);
-					for (int i = 0; i < announceLen; ++i)
-						buf[i] = streamData.getInt(8);
-					announceData = std::make_unique<ZCom_BitStream>(buf.data(), buf.size());
-				}
-
-				// Set the node-request context so that registerNodeDynamic /
-				// registerRequestedNode calls made inside the callback auto-assign
-				// the announced role to the new local node.
-				m_requestCtx.active = true;
-				m_requestCtx.connID = connID;
-				m_requestCtx.role = role;
-				m_requestCtx.net_id = net_id;
-
-				ZCom_cbNodeRequest_Dynamic(connID, classID, announceData.get(), role, net_id);
-
-				m_requestCtx.active = false;
-
-				// announceData (unique_ptr) frees at scope end
+				NET_LOG("Updating role for existing nodeID=" << net_id << " to " << role);
 				enet_packet_destroy(event.packet);
 				break;
 			}
+
+			// Skip duplicate announcements to this peer
+			if (m_announcedNodes[connID].count(net_id)) {
+				NET_LOG("Skipping duplicate MSG_NODE_ANNOUNCE for connID=" << connID << " net_id=" << net_id);
+				enet_packet_destroy(event.packet);
+				break;
+			}
+			m_announcedNodes[connID].insert(net_id);
+			// The sender of an announcement is the authority for this node;
+			// the announced role is the local peer's role (Owner/Proxy).
+			m_peerRole[connID][net_id] = eZCom_RoleAuthority;
+
+			NET_LOG("Received MSG_NODE_ANNOUNCE classID=" << classID << " (" << ZCom_getClassName(classID) << ")"
+														  << " net_id=" << net_id << " role=" << role
+														  << " announceLen=" << announceLen);
+
+			std::unique_ptr<ZCom_BitStream> announceData;
+			if (announceLen > 0) {
+				std::vector<uint8_t> buf(announceLen);
+				for (int i = 0; i < announceLen; ++i)
+					buf[i] = streamData.getInt(8);
+				announceData = std::make_unique<ZCom_BitStream>(buf.data(), buf.size());
+			}
+
+			// Set the node-request context so that registerNodeDynamic /
+			// registerRequestedNode calls made inside the callback auto-assign
+			// the announced role to the new local node.
+			m_requestCtx.active = true;
+			m_requestCtx.connID = connID;
+			m_requestCtx.role = role;
+			m_requestCtx.net_id = net_id;
+
+			ZCom_cbNodeRequest_Dynamic(connID, classID, announceData.get(), role, net_id);
+
+			m_requestCtx.active = false;
+
+			// announceData (unique_ptr) frees at scope end
+			enet_packet_destroy(event.packet);
+			break;
+		}
 
 			// Handle disconnect reason data (sent before disconnect)
 			if (msgType == MSG_DISCONNECT_DATA) {

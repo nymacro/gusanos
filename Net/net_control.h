@@ -12,6 +12,7 @@
 #include <string>
 #include <cstdint>
 #include <fstream>
+#include <unordered_map>
 #include <enet/enet.h>
 
 // C1: map a Zoidcom send mode to ENet packet flags (ReliableUnordered ->
@@ -64,15 +65,18 @@ static const int MSG_FILE_DATA = 109;		   // sender -> receiver: file chunk
 static const int MSG_FILE_ABORT = 110;		   // either side: abort
 static const int MSG_FILE_COMPLETE = 111;	   // sender -> receiver: all chunks sent
 static const int MSG_DOWNSTREAM_REQUEST = 112; // peer asks us to cap our upstream to it (T1.1)
+static const int MSG_NODE_ANNOUNCE_UNIQUE = 113; // server -> client: announce a unique node (class-based linking)
 
 // Wire-protocol version. Stamped by the server into MSG_CONNECTION_REPLY and
 // checked by the client; a mismatch refuses the connection with
 // eZCom_ConnWrongVersion. Bump this whenever the wire format changes
 // (e.g. string encoding, replicator slot tagging, new channel semantics).
 // Current version 2 adds the MSG_DOWNSTREAM_REQUEST control message (T1.1).
+// Version 3 adds MSG_NODE_ANNOUNCE_UNIQUE so unique nodes (Game/Updater)
+// replicate to clients; old builds can't connect to new ones.
 // Future Tier-2/3 wire-format changes (T2.6/T2.7/T3.2) must bump this further
 // and gate new behavior on it.
-static const int PROTOCOL_VERSION = 2;
+static const int PROTOCOL_VERSION = 3;
 
 // Per-connection emulation state (T1.2 lag/loss). Bandwidth limiting is handled
 // entirely by ENet (enet_host_bandwidth_limit); the former app-level limiter was
@@ -133,6 +137,12 @@ class ZCom_Control {
 	void announceNodeWithOwner(ZCom_Node *node); // announce with owner-aware roles
 	void clearAnnouncedNode(uint32_t nodeID);	 // clear per-peer tracking for re-announce
 	void flushPendingAnnounces();				 // flush deferred node announcements to peers
+
+	// Unique-node replication: announce a unique node to a peer over the wire
+	// (MSG_NODE_ANNOUNCE_UNIQUE) and link a locally-registered unique proxy
+	// node to a server-announced class/nodeID. See net_control.cpp.
+	void sendUniqueAnnouncement(uint32_t connID, ZCom_Node *node);
+	void linkUniqueNode(ZCom_Node *node, uint32_t classID, uint32_t serverNodeID, int role, uint32_t connID);
 
 	// Enum types (re-exported from network_compat.h)
 	using eZCom_SendMode = ::eZCom_SendMode; // alias to file-scope enum (net_types.h)
@@ -327,6 +337,27 @@ class ZCom_Control {
 		zU32 estimatedTimeSent = 0; // ENet-RTT estimate, for replayed events
 	};
 	std::map<uint32_t, std::vector<PendingNodeEvent>> m_pendingNodeEvents;
+
+	/// ClassID -> the local unique node (authority on the server, proxy on the
+	/// client). Populated when a unique node is registered; lets the
+	/// MSG_NODE_ANNOUNCE_UNIQUE handler find the client-side counterpart by
+	/// class (Zoidcom's unique-replication contract links by class, not by ID).
+	std::unordered_map<uint32_t, ZCom_Node *> m_uniqueByClass;
+
+	/// A unique-node announcement that arrived before the local unique proxy
+	/// was registered. Buffered by class until registerNode()/registerNodeUnique()
+	/// creates the counterpart, which then adopts the server-assigned nodeID
+	/// (mirroring the m_pendingReplicas / m_pendingNodeEvents buffer-then-replay
+	/// pattern). In the real game the announce always arrives first (server
+	/// announces at connect time; the client registers its proxy later in
+	/// ZCom_cbZoidResult), so this is the common path.
+	struct PendingUniqueAnnounce {
+		uint32_t net_id = 0;
+		int role = 0;
+		uint32_t connID = 0;
+		std::vector<uint8_t> announceData;
+	};
+	std::unordered_map<uint32_t, PendingUniqueAnnounce> m_pendingUniqueAnnounce;
 
 	/// Replay buffered node events for a newly registered node.
 	void replayPendingNodeEvents(ZCom_Node *node);

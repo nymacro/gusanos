@@ -80,12 +80,6 @@ struct Options {
 	int showMapDebug;
 };
 
-struct LevelEffectEvent {
-	LevelEffectEvent(int index_, int x_, int y_) : index(index_), x(x_), y(y_) {}
-	int index;
-	int x, y;
-};
-
 struct ScreenMessage {
 	enum Type {
 		Death,

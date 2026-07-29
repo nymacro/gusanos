@@ -72,6 +72,7 @@ enum NetEvents {
 	eHole = 0,
 	// Add here
 	LuaEvent,
+	eTerrainSnapshot,
 	// RegisterLuaEvents, //oobsol33t
 	NetEventsCount,
 };
@@ -79,8 +80,6 @@ enum NetEvents {
 void addEvent(ZCom_BitStream *data, NetEvents event) {
 	Encoding::encode(*data, static_cast<int>(event), NetEventsCount);
 }
-
-std::list<LevelEffectEvent> appliedLevelEffects;
 
 std::string nextMod;
 fs::path m_modPath;
@@ -507,16 +506,20 @@ void Game::think() {
 												}
 												break;
 							*/
-						case LuaEvent: {
-							int index = data->getInt(8);
-							DLOG("Got lua event index " << index);
-							if (LuaEventDef *event = network.indexToLuaEvent(Network::LuaEventGroup::Game, index)) {
-								event->call(data.get());
-							}
-						} break;
+					case LuaEvent: {
+						int index = data->getInt(8);
+						DLOG("Got lua event index " << index);
+						if (LuaEventDef *event = network.indexToLuaEvent(Network::LuaEventGroup::Game, index)) {
+							event->call(data.get());
+						}
+					} break;
 
-						case NetEventsCount:
-							break;
+					case eTerrainSnapshot: {
+						level.applyDestructionMaskRLE(*data);
+					} break;
+
+					case NetEventsCount:
+						break;
 					}
 				}
 				break;
@@ -526,15 +529,13 @@ void Game::think() {
 				EACH_CALLBACK(i, gameNetworkInit) {
 					(lua.call(*i), conn_id)();
 				}
-
-				list<LevelEffectEvent>::iterator iter = appliedLevelEffects.begin();
-				for (; iter != appliedLevelEffects.end(); ++iter) {
-					ZCom_BitStream data;
-					addEvent(&data, eHole);
-					Encoding::encode(data, iter->index, levelEffectList.size());
-					level.intVectorEncoding.encode(data, BaseVec<int>(iter->x, iter->y));
-
-					m_node->sendEventDirect(eZCom_ReliableOrdered, &data, conn_id);
+				// Authority: a new peer just got this node. Send it the current
+				// destruction state as one RLE snapshot so late joiners catch up.
+				if (m_isAuthority && level.isLoaded()) {
+					ZCom_BitStream snap;
+					addEvent(&snap, eTerrainSnapshot);
+					if (level.encodeDestructionMaskRLE(snap))
+						m_node->sendEventDirect(eZCom_ReliableOrdered, &snap, conn_id);
 				}
 			} break;
 
@@ -547,15 +548,13 @@ void Game::think() {
 void Game::applyLevelEffect(LevelEffect *effect, int x, int y) {
 	if (!network.isClient()) {
 		if (level.applyEffect(effect, x, y) && m_node && network.isHost()) {
+			// Broadcast the live destruction event on the (unique, now
+			// replicated) Game node so every proxy applies the same effect.
 			ZCom_BitStream data;
-
 			addEvent(&data, eHole);
-			Encoding::encode(data, effect->getIndex(), levelEffectList.size());
+			Encoding::encode(data, static_cast<int>(effect->getIndex()), levelEffectList.size());
 			level.intVectorEncoding.encode(data, BaseVec<int>(x, y));
-
 			m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, &data);
-
-			appliedLevelEffects.push_back(LevelEffectEvent(effect->getIndex(), x, y));
 		}
 	}
 }
@@ -658,8 +657,6 @@ void Game::reset(ResetReason reason) {
 	}
 	objects.clear();
 #endif
-
-	appliedLevelEffects.clear();
 
 	level.unload();
 

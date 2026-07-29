@@ -138,25 +138,40 @@ bool WeaponType::load(fs::path const &filename) {
 	for (; i; ++i) {
 		std::vector<OmfgScript::TokenBase *> const &p = i.params();
 		switch (i.type()) {
-			case EventID::PrimaryShoot:
-				primaryShoot = new Event(i.actions());
+			case EventID::PrimaryShoot: {
+				Event *e = new Event(i.actions());
+				delete primaryShoot;
+				primaryShoot = e;
 				break;
+			}
 
-			case EventID::PrimaryPress:
-				primaryPressed = new Event(i.actions());
+			case EventID::PrimaryPress: {
+				Event *e = new Event(i.actions());
+				delete primaryPressed;
+				primaryPressed = e;
 				break;
+			}
 
-			case EventID::PrimaryRelease:
-				primaryReleased = new Event(i.actions());
+			case EventID::PrimaryRelease: {
+				Event *e = new Event(i.actions());
+				delete primaryReleased;
+				primaryReleased = e;
 				break;
+			}
 
-			case EventID::OutOfAmmo:
-				outOfAmmo = new Event(i.actions());
+			case EventID::OutOfAmmo: {
+				Event *e = new Event(i.actions());
+				delete outOfAmmo;
+				outOfAmmo = e;
 				break;
+			}
 
-			case EventID::ReloadEnd:
-				reloadEnd = new Event(i.actions());
+			case EventID::ReloadEnd: {
+				Event *e = new Event(i.actions());
+				delete reloadEnd;
+				reloadEnd = e;
 				break;
+			}
 
 			case EventID::Timer:
 				timer.push_back(

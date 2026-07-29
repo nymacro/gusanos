@@ -9,6 +9,7 @@
 #include "encoding.h"
 
 #include "allegro_compat.h"
+#include <cstdint>
 #include <string>
 #include <vector>
 #include <list>
@@ -140,6 +141,16 @@ class Level {
 	// applies the effect and returns true if it actually changed something on the map
 	bool applyEffect(LevelEffect *effect, int x, int y);
 
+	// 1-bit-per-pixel "destroyed" mask, OR-set on every carved pixel. Used to
+	// snapshot the current destruction state to late-joining clients.
+	void markDestroyed(unsigned x, unsigned y);
+	// Encode the mask into `out` using an RLE scheme (with a raw-bit fallback
+	// when RLE would be larger). Returns true if the mask is non-empty.
+	bool encodeDestructionMaskRLE(ZCom_BitStream &out) const;
+	// Decode a mask produced by encodeDestructionMaskRLE and re-apply the same
+	// carve the host performed for every set bit.
+	void applyDestructionMaskRLE(ZCom_BitStream &in);
+
 	void loaderSucceeded();
 
 #ifndef DEDSERV
@@ -176,6 +187,10 @@ class Level {
 
   private:
 	void checkWBorders(int x, int y);
+
+	// 1bpp packed mask over the material bitmap (size ceil(W*H/8)). Cleared in
+	// unload(), (re)allocated in loaderSucceeded(). Water sim does not touch it.
+	std::vector<uint8_t> m_destructionMask;
 
 	array<Material, 256> m_materialList;
 
