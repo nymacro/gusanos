@@ -14,6 +14,8 @@
 #include "util/text.h"
 #include "util/angle.h"
 #include "util/vec.h"
+#include "util/game_rng.h"
+#include "network.h"
 
 #include "util/log.h"
 #include "base_object.h"
@@ -123,13 +125,13 @@ void ShootParticles::run(ActionParams const &params) {
 		int dir = params.object->getDir();
 		Angle baseAngle(params.object->getAngle() + angleOffset * dir);
 
-		int realAmount = amount + int(rnd() * amountVariation);
+		int realAmount = amount + int(grnd() * amountVariation);
 		for (int i = 0; i < realAmount; ++i) {
 			Angle angle = baseAngle;
 			if (distribution)
-				angle += distribution * midrnd();
+				angle += distribution * gmidrnd();
 			Vec direction(angle);
-			Vec spd(direction * (speed + midrnd() * speedVariation));
+			Vec spd(direction * (speed + gmidrnd() * speedVariation));
 			if (motionInheritance) {
 				spd += params.object->spd * motionInheritance;
 				// angle = spd.getAngle(); // Need to recompute angle // <basara> No you dont
@@ -167,13 +169,13 @@ void UniformShootParticles::run(ActionParams const &params) {
 		int dir = params.object->getDir();
 		Angle angle(params.object->getAngle() + (angleOffset * dir) - (distribution * 0.5f));
 
-		int realAmount = amount + int(rnd() * amountVariation);
+		int realAmount = amount + int(grnd() * amountVariation);
 
 		AngleDiff angleIncrease(distribution / realAmount);
 
 		for (int i = 0; i < realAmount; ++i, angle += angleIncrease) {
 			Vec direction(angle);
-			Vec spd(direction * (speed + midrnd() * speedVariation));
+			Vec spd(direction * (speed + gmidrnd() * speedVariation));
 			if (motionInheritance) {
 				spd += params.object->spd * motionInheritance;
 				// angle = spd.getAngle(); // Need to recompute angle
@@ -320,7 +322,16 @@ Damage::Damage(vector<OmfgScript::TokenBase *> const &params) {
 }
 
 void Damage::run(ActionParams const &params) {
-	float damageAmount = m_damage + rnd() * m_damageVariation;
+	// Damage application (and its variation RNG draw) is authority-only.
+	// NetWorm::damage already no-ops on non-authority, but other targets
+	// (e.g. Particle::damage) would apply on every peer; more importantly the
+	// variation draw here would consume the seeded gameplay RNG context on
+	// clients for a value they must never use. Skip the whole thing on clients
+	// so they neither apply nor consume RNG for damage. Damage numbers stay
+	// server-authoritative; the goal is identical *particles* on all peers.
+	if (Network::isClient())
+		return;
+	float damageAmount = m_damage + grnd() * m_damageVariation;
 	if (m_maxDistance > 0) {
 		float distance = (params.object->pos - params.object2->pos).length();
 		if (distance < m_maxDistance)
@@ -461,7 +472,7 @@ DelayFire::DelayFire(vector<OmfgScript::TokenBase *> const &params) {
 
 void DelayFire::run(ActionParams const &params) {
 	if (params.weapon) {
-		params.weapon->delay(static_cast<int>(delayTime + rnd() * delayTimeVariation));
+		params.weapon->delay(static_cast<int>(delayTime + grnd() * delayTimeVariation));
 	}
 }
 
@@ -516,7 +527,7 @@ AddAngleSpeed::AddAngleSpeed(vector<OmfgScript::TokenBase *> const &params) {
 
 void AddAngleSpeed::run(ActionParams const &params) {
 	if (params.object) {
-		params.object->addAngleSpeed(speed * params.object->getDir() + speedVariation * rnd());
+		params.object->addAngleSpeed(speed * params.object->getDir() + speedVariation * grnd());
 	}
 }
 
@@ -537,8 +548,8 @@ void AddSpeed::run(ActionParams const &params) {
 	int dir = params.object->getDir();
 	Angle angle(params.object->getAngle() + offs * dir);
 	if (offsVariation)
-		angle += offsVariation * midrnd();
-	params.object->spd += Vec(angle, speed + midrnd() * speedVariation);
+		angle += offsVariation * gmidrnd();
+	params.object->spd += Vec(angle, speed + gmidrnd() * speedVariation);
 }
 
 AddSpeed::~AddSpeed() {}

@@ -6,6 +6,7 @@
 #include "util/vec.h"
 #include "util/angle.h"
 #include "util/log.h"
+#include "util/game_rng.h"
 #include "timer_event.h"
 #include "sprite_set.h"
 #include "sprite.h"
@@ -95,11 +96,25 @@ void Weapon::think(bool isFocused, size_t index) {
 		if (primaryShooting && ammo > 0) {
 			if (m_type->primaryShoot) {
 				if (m_owner->getRole() != eZCom_RoleProxy || !m_type->syncHax) {
+					// Seed a deterministic gameplay RNG for this burst from the
+					// worm's network id and its per-worm monotonic action
+					// counter. The authority and the owning client predict with
+					// the same counter (confirmed via SHOOT), so their spawned
+					// particles match byte-for-byte; proxies reproduce the burst
+					// from the seq carried in the SHOOT event. See game_rng.h.
+					uint32_t seq = m_owner->fireActionSeq();
+					GameRng rg;
+					rg.seed(mix32(m_owner->fireSeedNodeID(), seq));
+					GameplayRngScope scope(rg);
 					m_type->primaryShoot->run(m_owner, NULL, NULL, this);
+					m_owner->advanceFireActionSeq();
 					if (m_owner->getRole() == eZCom_RoleAuthority && m_type->syncHax) {
 						ZCom_BitStream data;
 						Encoding::encode(data, SHOOT, EventsCount);
-						m_owner->sendWeaponMessage(index, &data, ZCOM_REPRULE_AUTH_2_PROXY);
+						data.addInt(seq, 32); // pre-increment action sequence
+						// AUTH_2_ALL so the owner receives its own confirmed SHOOT
+						// for counter reconciliation (it does not re-run the fire).
+						m_owner->sendWeaponMessage(index, &data, ZCOM_REPRULE_AUTH_2_ALL);
 					}
 				}
 			}
@@ -210,8 +225,23 @@ void Weapon::recieveMessage(ZCom_BitStream *data) {
 		} break;
 
 		case SHOOT: {
-			m_type->primaryShoot->run(m_owner, NULL, NULL, this);
-			ammo--;
+			// Deterministic fire reproduction. The authority packed the
+			// pre-increment action sequence; peers seed the burst RNG from it.
+			uint32_t seq = data->getInt(32);
+			eZCom_NodeRole role = m_owner->getRole();
+			if (role == eZCom_RoleProxy) {
+				GameRng rg;
+				rg.seed(mix32(m_owner->fireSeedNodeID(), seq));
+				GameplayRngScope scope(rg);
+				m_type->primaryShoot->run(m_owner, NULL, NULL, this);
+				ammo--;
+				m_owner->reconcileFireActionSeq(seq + 1);
+			} else if (role == eZCom_RoleOwner) {
+				// Owner reconciliation: the owner already predicted this fire in
+				// think(); the server's seq is authoritative. Correct any drift
+				// and do NOT re-run (would double-spawn / double-decrement ammo).
+				m_owner->reconcileFireActionSeq(seq + 1);
+			}
 		} break;
 
 		case OutOfAmmoCheck: {

@@ -203,7 +203,11 @@ struct CrashHandlerSetup {
 
 int main(int argc, char **argv) try {
 	console.registerVariables()("CL_SHOWFPS", &showFps, 1)("CL_SHOWDEBUG", &showDebug, 0)(
-		"CL_SHOWGAMEPADINPUTS", &showGamepadInputs, 0)("CL_SHOWPARTICLES", &g_drawParticleWorldOverlay, 0);
+		"CL_SHOWGAMEPADINPUTS", &showGamepadInputs, 0)
+#ifndef DEDSERV
+		("CL_SHOWPARTICLES", &g_drawParticleWorldOverlay, 0)
+#endif
+		;
 
 	game.init(argc, argv);
 
