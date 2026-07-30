@@ -16,6 +16,7 @@
 #include "posspd_replicator.h"
 #include "encoding.h"
 #include "gconsole.h"
+#include "util/game_rng.h"
 
 #include <math.h>
 #include <vector>
@@ -219,7 +220,13 @@ void NetWorm::think() {
 						case Dig: {
 							Vec digPos = game.level.vectorEncoding.decode<Vec>(*data);
 							Angle digAngle = Angle((int)data->getInt(Angle::prec));
+							uint32_t seq = data->getInt(32);
+							// Reproduce the authority's seeded dig burst.
+							GameRng rg;
+							rg.seed(mix32(fireSeedNodeID(), seq));
+							GameplayRngScope scope(rg);
 							BaseWorm::dig(digPos, digAngle);
+							reconcileFireActionSeq(seq + 1);
 						} break;
 						case Die: {
 							m_lastHurt = game.findPlayerWithID(data->getInt(32));
@@ -229,7 +236,13 @@ void NetWorm::think() {
 								m_lastHurtName = s;
 							else
 								m_lastHurtName.clear();
+							uint32_t seq = data->getInt(32);
+							// Reproduce the authority's seeded death burst.
+							GameRng rg;
+							rg.seed(mix32(fireSeedNodeID(), seq));
+							GameplayRngScope scope(rg);
 							BaseWorm::die();
+							reconcileFireActionSeq(seq + 1);
 						} break;
 						case ChangeWeapon: {
 							// size_t weapIndex = data->getInt(Encoding::bitsOf(game.weaponList.size() - 1));
@@ -397,12 +410,22 @@ void NetWorm::respawn() {
 
 void NetWorm::dig() {
 	if (m_isAuthority && m_node) {
-		BaseWorm::dig();
 		if (m_isActive) {
+			// Deterministic dig burst: seed the gameplay RNG from the worm's
+			// network id and its per-worm action counter so the dig particle
+			// (and any creation-script sub-spawns) reproduce identically on
+			// every peer. See game_rng.h.
+			uint32_t seq = m_actionSeq;
+			GameRng rg;
+			rg.seed(mix32(fireSeedNodeID(), seq));
+			GameplayRngScope scope(rg);
+			BaseWorm::dig();
+			++m_actionSeq;
 			ZCom_BitStream data;
 			addEvent(&data, Dig);
 			game.level.vectorEncoding.encode<Vec>(data, pos);
 			data.addInt(int(getAngle()), Angle::prec);
+			data.addInt(seq, 32); // pre-increment action sequence
 			m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, &data);
 		}
 	}
@@ -427,8 +450,18 @@ void NetWorm::die() {
 		int wcount = (int)game.weaponList.size();
 		Encoding::encode(data, m_lastHurtWeapon + 1, wcount + 1); // -1 -> 0 sentinel
 		data.addString(killerName.c_str());
+		uint32_t seq = m_actionSeq;
+		data.addInt(seq, 32); // pre-increment action sequence
 		m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, &data);
+		// Deterministic death burst: seed the gameplay RNG from the worm's
+		// network id and its per-worm action counter so the death particle
+		// (and the wormDeath Lua callback's particle spawns) reproduce
+		// identically on every peer. See game_rng.h.
+		GameRng rg;
+		rg.seed(mix32(fireSeedNodeID(), seq));
+		GameplayRngScope scope(rg);
 		BaseWorm::die();
+		++m_actionSeq;
 	}
 }
 

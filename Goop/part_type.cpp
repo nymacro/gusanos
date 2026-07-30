@@ -14,6 +14,7 @@
 #include "util/vec.h"
 #include "util/angle.h"
 #include "util/log.h"
+#include "util/game_rng.h"
 #include "parser.h"
 #include "detect_event.h"
 #include "timer_event.h"
@@ -83,7 +84,7 @@ BaseObject *newParticle_Particle(PartType *type, Vec pos_ = Vec(0.f, 0.f), Vec s
 template <class T>
 BaseObject *newParticle_SimpleParticle(PartType *type, Vec pos_ = Vec(0.f, 0.f), Vec spd_ = Vec(0.f, 0.f), int dir = 1,
 									   BasePlayer *owner = NULL, Angle angle = Angle(0)) {
-	int timeout = type->simpleParticle_timeout + rndInt(type->simpleParticle_timeoutVariation);
+	int timeout = type->simpleParticle_timeout + grndInt(type->simpleParticle_timeoutVariation);
 
 	BaseObject *particle = new T(pos_, spd_, owner, timeout, type->gravity, type->colour);
 

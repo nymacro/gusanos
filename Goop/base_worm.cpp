@@ -74,6 +74,10 @@ BaseWorm::BaseWorm()
 	m_lastHurtName.clear();
 	m_weapons.resize(game.options.maxWeapons);
 	for (size_t i = 0; i < m_weapons.size(); ++i) {
+		// Loadout is server-authoritative and replicated via the SYNC event
+		// (NetWorm::sendSyncMessage), which overwrites this per-peer pick
+		// before gameplay; only the authority's draw matters, so the legacy
+		// rndInt (not grndInt) is intentionally safe here.
 		m_weapons[i] = new Weapon(game.weaponList[rndInt(game.weaponList.size())], this);
 		m_weaponCount++;
 	}

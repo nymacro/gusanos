@@ -15,6 +15,7 @@
 #include "../part_type.h"
 #include "../weapon_type.h"
 #include "../glua.h"
+#include "util/game_rng.h"
 
 // TEMP:
 #include "../sprite_set.h"
@@ -385,7 +386,7 @@ int l_load_particle(lua_State *L) {
 */
 int l_weapon_random(lua_State *L) {
 	LuaContext context(L);
-	WeaponType *p = game.weaponList[rndInt(game.weaponList.size())];
+	WeaponType *p = game.weaponList[grndInt(game.weaponList.size())];
 	// context.pushFullReference(*p, WeaponTypeMetaTable);
 	p->pushLuaReference();
 	return 1;

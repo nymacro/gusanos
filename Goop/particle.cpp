@@ -279,6 +279,9 @@ void Particle::think() {
 	if (deleteMe)
 		return;
 
+	// Note: m_health is not replicated and Damage::run is authority-only, so
+	// the death branch (and its gameplay RNG draws) effectively never fires on
+	// clients; particles are cosmetic there and removed via eZCom_EventRemoved.
 	for (int i = 0; i < m_type->repeat; ++i) {
 		if (m_health <= 0 && m_type->death) {
 			m_type->death->run(this);

@@ -100,6 +100,18 @@ class BaseWorm : public BaseObject {
 		return isAuthority();
 	}
 
+	// Deterministic fire/dig/die burst seeding support.
+	// The authority and the owning client predict a spawn burst under a seeded
+	// gameplay RNG derived from (wormNodeID, actionSequence); the server
+	// confirms the per-worm monotonic action counter via the SHOOT / Dig / Die
+	// events so every peer reproduces identical particles. Base (non-networked)
+	// worms have no node/counter and return 0 / no-op, which leaves the legacy
+	// global RNG path in effect (see game_rng.h).
+	virtual uint32_t fireSeedNodeID() const { return 0; }
+	virtual uint32_t fireActionSeq() const { return 0; }
+	virtual void advanceFireActionSeq() {}
+	virtual void reconcileFireActionSeq(uint32_t /*seq*/) {}
+
 	virtual void damage(float amount, BasePlayer *damager, DamageCause const &cause);
 
 	// This are virtual so that NetWorm can know about them and tell others over the network.

@@ -15,6 +15,7 @@
 #include "../game.h"
 #include "../glua.h"
 #include "util/log.h"
+#include "util/game_rng.h"
 
 #include <cmath>
 #include <iostream>
@@ -83,11 +84,11 @@ int shootFromObject(lua_State *L, BaseObject *object) {
 
 	BaseObject *last = 0;
 
-	int realAmount = amount + rndInt(amountVariation); // int(rnd()*amountVariation);
+	int realAmount = amount + grndInt(amountVariation); // int(rnd()*amountVariation);
 	for (int i = 0; i < realAmount; ++i) {
-		Angle angle = baseAngle + distribution * midrnd();
+		Angle angle = baseAngle + distribution * gmidrnd();
 		Vec direction(angle);
-		Vec spd(direction * (speed + midrnd() * speedVariation));
+		Vec spd(direction * (speed + gmidrnd() * speedVariation));
 		if (motionInheritance) {
 			spd += object->spd * motionInheritance;
 			angle = spd.getAngle(); // Need to recompute angle

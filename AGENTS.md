@@ -87,6 +87,28 @@ the main thread in `Network::update()`.
   `makeReference()` / `deleteThis()` for lifetime management (ref-counted).
 - Lua bindings are registered in `Goop/lua/bindings.cpp` via `registerLuaBindings()`.
 
+### Deterministic Gameplay RNG
+
+Gameplay-critical random draws (weapon fire particle counts/angles/speeds, dig
+and death bursts, explosion timeouts) must be deterministic across peers so
+spawned particles match byte-for-byte. The authority seeds a per-burst
+`GameRng` from `mix32(wormNodeID, actionSequence)` and runs the action under a
+`GameplayRngScope` (RAII swap of the `g_gameplayRng` pointer); every peer re-runs
+the same action from the sequence shipped in the SHOOT/Dig/Die event. See
+`Utility/util/game_rng.{h,cpp}`. C++ gameplay code uses `grnd`/`gmidrnd`/
+`grndInt` (not the legacy `rnd`/`midrnd`/`rndInt`): they draw from the active
+scope when one is set and fall back to the legacy global stream otherwise.
+Particle lifetime (think()-time sub-spawns) is deliberately left on the legacy
+cosmetic stream.
+
+**Lua scripts:** for any gameplay-affecting roll, use the bound `randomint`/
+`randomfloat` functions — not `math.random`. The bindings route through
+`grndInt`/`grnd`, so a draw made inside a `GameplayRngScope` (particle creation
+scripts, the `wormDeath` callback fired during the scoped death burst, in-burst
+Lua) is deterministic across peers; `math.random` is the LuaJIT stdlib, is never
+seeded by the game, and stays non-deterministic. Out-of-scope `randomint`/
+`randomfloat` draws fall back to the legacy stream and are cosmetic.
+
 ### Memory Management
 
 - Game entities (`BaseObject` subclasses) use `operator new(size_t)` to allocate

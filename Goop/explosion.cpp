@@ -1,6 +1,7 @@
 #include "explosion.h"
 
 #include "util/vec.h"
+#include "util/game_rng.h"
 #include "game.h"
 #include "base_object.h"
 #include "base_worm.h"
@@ -30,7 +31,7 @@ Explosion::Explosion(ExpType *type, const Vec &_pos, BasePlayer *owner) : BaseOb
 #ifndef DEDSERV
 	m_alpha = m_type->alpha;
 
-	m_timeout = m_type->timeout + (int)(rnd() * (m_type->timeoutVariation + 1));
+	m_timeout = m_type->timeout + (int)(grnd() * (m_type->timeoutVariation + 1));
 	// I add +1 or variation will always be 0 if the value of timeout variation is 1
 
 	if (m_type->destAlpha >= 0) {

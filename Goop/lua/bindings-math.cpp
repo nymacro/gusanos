@@ -8,6 +8,7 @@
 #include "util/vec.h"
 #include "util/angle.h"
 #include "util/math_func.h"
+#include "util/game_rng.h"
 
 #include <cmath>
 #include <cstdio>
@@ -72,8 +73,11 @@ int l_randomint(lua_State *L) {
 	int l = lua_tointeger(L, 1);
 	int u = lua_tointeger(L, 2);
 
+	// grndInt honours the active GameplayRngScope, so draws made inside a worm
+	// burst (fire/dig/die, particle creation scripts, the wormDeath callback)
+	// are deterministic across peers; out-of-scope draws fall back to legacy.
 	// lua_pushnumber(L, l + (unsigned int)(rndgen()) % (u - l + 1));
-	lua_pushinteger(L, l + rndInt(u - l + 1));
+	lua_pushinteger(L, l + grndInt(u - l + 1));
 
 	return 1;
 }
@@ -86,7 +90,8 @@ int l_randomfloat(lua_State *L) {
 	lua_Number l = luaL_checknumber(L, 1);
 	lua_Number u = luaL_checknumber(L, 2);
 
-	lua_pushnumber(L, l + rnd() * (u - l));
+	// See l_randomint: honours the active GameplayRngScope for determinism.
+	lua_pushnumber(L, l + grnd() * (u - l));
 
 	return 1;
 }
