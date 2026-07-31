@@ -1,0 +1,11 @@
+# libFuzzer dictionary for HTTP header parsing (http_fuzz_parseheaders)
+http10="HTTP/1.0"
+http11="HTTP/1.1"
+status200="200 OK"
+contentlen="Content-Length"
+useragent="User-Agent"
+host="Host"
+colon=":"
+crlf="\x0d\x0a"
+sp=" "
+zero="0"

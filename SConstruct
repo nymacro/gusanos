@@ -2,6 +2,7 @@ import re
 import os
 import subprocess
 import json
+import shutil
 
 exp = Split('env')
 sconscript = [
@@ -45,6 +46,42 @@ def getObjects(env, directory='.'):
             for i in os.listdir(directory)
             if sourcePattern.search(i)]
 
+def detectClang(env):
+    """Return (cc, cxx) absolute paths to a clang toolchain, or None.
+
+    Used by fuzz SConscripts to force a clang/libFuzzer toolchain independent
+    of the project's default gcc toolchain. If CXX already resolves to a
+    clang binary, that is used; otherwise PATH is searched for clang++ /
+    clang++-NN (highest version wins).
+    """
+    def basename(p):
+        return os.path.basename(p) if p else ''
+
+    cxx = env.get('CXX')
+    cxx_path = shutil.which(cxx) if cxx else None
+    if cxx_path and 'clang' in basename(cxx_path):
+        cc = env.get('CC')
+        cc_path = shutil.which(cc) if cc else None
+        if not cc_path:
+            cc_path = cxx_path.replace('clang++', 'clang')
+        return (cc_path, cxx_path)
+
+    # Search PATH for clang++ / clang++-NN; prefer the highest version.
+    cands = []
+    for d in os.environ.get('PATH', '').split(os.pathsep):
+        if not d or not os.path.isdir(d):
+            continue
+        for f in os.listdir(d):
+            m = re.match(r'^clang\+\+(?:-(\d+))?$', f)
+            if m:
+                cands.append((int(m.group(1) or 0), os.path.join(d, f)))
+    if not cands:
+        return None
+    cands.sort(key=lambda t: t[0], reverse=True)
+    cxxp = cands[0][1]
+    ccp = cxxp.replace('clang++', 'clang')
+    return (ccp, cxxp)
+
 # Initialize Environment
 env = Environment(ENV=os.environ.copy())
 
@@ -52,6 +89,7 @@ env = Environment(ENV=os.environ.copy())
 env.AddMethod(getBinName)
 env.AddMethod(getLibName)
 env.AddMethod(getObjects)
+env.AddMethod(detectClang)
 
 # Generate compile_commands.json for IDE/LSP support
 env.Tool('compilation_db')
@@ -67,6 +105,7 @@ env['MY_BUILD'] = ARGUMENTS.get('build', 'release')
 env['MY_SUBFOLDER'] = os.path.join(env['MY_CONF'], env['MY_BUILD'])
 env['NO_PARSERS'] = ARGUMENTS.get('no-parsers', False)
 env['BUILD_TESTS'] = ARGUMENTS.get('build-tests', '1') != '0'
+env['FUZZ'] = ARGUMENTS.get('fuzz', '0') != '0'
 env['CCCOMSTR'] = 'Compiling $TARGET'
 env['CXXCOMSTR'] = 'Compiling $TARGET'
 env['LINKCOMSTR'] = 'Linking $TARGET'

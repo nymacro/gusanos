@@ -40,7 +40,13 @@ void Request::addHeader(std::string const &header) {
 		if (istrCmp("Content-Length", header.begin(), header.begin() + p)) {
 			if (b == std::string::npos)
 				return;
-			dataLength = lexical_cast<size_t>(header.substr(b));
+			// Defensive parse: a malformed (non-numeric or overflowing)
+			// Content-Length must not abort header processing. Leave
+			// dataLength at its previous value on failure.
+			try {
+				dataLength = lexical_cast<size_t>(header.substr(b));
+			} catch (boost::bad_lexical_cast const &) {
+			}
 		}
 	}
 }

@@ -1,4 +1,5 @@
 Import('env')
+import os
 
 env.StaticLibrary(env.getLibName('omfghttp'), env.getObjects())
 
@@ -18,3 +19,28 @@ if env['BUILD_TESTS'] and env['MY_BUILD'] == 'debug':
         testEnv.getBinName('http_tests'),
         testEnv.getObjects('tests')
     )
+
+# Build http fuzz targets (libFuzzer) when tests and fuzzing are enabled.
+# Requires clang; auto-detected via env.detectClang(). Targets are isolated
+# in their own .../fuzz build directory so they never disturb the gcc builds.
+if env['BUILD_TESTS'] and env.get('FUZZ'):
+    clang = env.detectClang()
+    if not clang:
+        print('Warning: clang not found; skipping http fuzz targets '
+              '(install clang or build with CC=clang CXX=clang++).')
+    else:
+        f = env.Clone()
+        f['CC'], f['CXX'] = clang
+        f['MY_SUBFOLDER'] = env['MY_SUBFOLDER'] + '/fuzz'   # isolated build dir
+        f.Append(CCFLAGS=Split('-g -fno-omit-frame-pointer '
+                              '-fsanitize=fuzzer-no-link,address,undefined'),
+                 LINKFLAGS=Split('-fsanitize=fuzzer,address,undefined'),
+                 CPPPATH=['#http'])
+        lib_objs = f.getObjects()                            # http.cpp, sockets.cpp, tcp.cpp
+        fuzz_dir = os.path.join('fuzz', '.build', f['MY_SUBFOLDER'])
+        f.VariantDir(fuzz_dir, 'fuzz', duplicate=0)
+        # Harness sources are fuzz_http_<thing>.cpp; binaries are http_fuzz_<thing>.
+        for src, bin_name in [('fuzz_http_parseheaders', 'http_fuzz_parseheaders'),
+                              ('fuzz_http_urlencode', 'http_fuzz_urlencode')]:
+            f.Program(f.getBinName(bin_name),
+                      lib_objs + [f.Object(os.path.join(fuzz_dir, src + '.cpp'))])

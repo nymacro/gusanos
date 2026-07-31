@@ -60,6 +60,48 @@ Both tools operate on the project’s own sources under `Goop/`, `Net/`, `Consol
 
 `scons tidy` only runs on C++ files that are present in `compile_commands.json`. Run a normal build first to ensure the database is up to date.
 
+## Fuzz testing
+
+libFuzzer harnesses exercise the `Net` and `http` libraries with uncontrolled
+input. They are built only when both `build-tests=1` and `fuzz=1` are passed,
+and require clang/libFuzzer; clang is auto-detected (e.g. `clang++-22`) when
+bare `clang++` is absent from PATH. Targets live under `Net/fuzz/` and
+`http/fuzz/` and are isolated in their own `.../fuzz` build directory so they
+do not disturb the gcc debug/release/test builds.
+
+```bash
+# Build fuzz targets (requires clang/libFuzzer):
+scons build=debug build-tests=1 fuzz=1 CC=clang CXX=clang++
+# clang auto-detected if bare clang++ is absent (e.g. clang++-22).
+
+# Run a harness (each is a long-running libFuzzer binary):
+bin/posix/net_fuzz_bitstream -max_total_time=60 Net/fuzz/corpus/bitstream/
+bin/posix/net_fuzz_bitstream_roundtrip -max_total_time=60 \
+    -dict=Net/fuzz/net.dict Net/fuzz/corpus/bitstream_roundtrip/
+bin/posix/net_fuzz_address -max_total_time=60 Net/fuzz/corpus/address/
+bin/posix/http_fuzz_parseheaders -max_total_time=60 \
+    -dict=http/fuzz/http.dict http/fuzz/corpus/parseheaders/
+bin/posix/http_fuzz_urlencode -max_total_time=60 http/fuzz/corpus/urlencode/
+```
+
+Harnesses:
+
+- `net_fuzz_bitstream` — deserializes raw attacker bytes through the
+  `ZCom_BitStream` read API.
+- `net_fuzz_bitstream_roundtrip` — property test: writes typed values
+  (int/bool/string/buffer), serializes, deserializes, and aborts on any
+  round-trip mismatch. Floats are excluded (lossy fixed-point encoding).
+- `net_fuzz_address` — exercises `ZCom_Address`'s offline API (setIP/getters/
+  `toString`/`getAddressIP`/`computeHashKey`/copy/compare). `setAddress()` is
+  not fuzzed because it does synchronous DNS resolution.
+- `http_fuzz_parseheaders` / `http_fuzz_urlencode` — HTTP header parsing and
+  URL-encoding.
+
+Resolved finding: `http_fuzz_parseheaders` found a `boost::bad_lexical_cast`
+abort on a malformed (non-numeric or overflowing) `Content-Length` header in
+`Request::addHeader` (`http/http.cpp`). This is now fixed — the cast is wrapped
+in a `try`/`catch` that ignores invalid values. All five harnesses run clean.
+
 ## Output Layout
 
 ```
