@@ -229,9 +229,9 @@ need edge-anchored rendering. Drawn via `draw()` or `drawCut()` with a
 `BlitterContext`.
 
 > **Coordinate convention note**: dynamic particles (worms, weapons,
-> bullets, blood) follow the engine's center-pivot default. Map-authored
-> `put_particle` calls are an exception: by default they interpret `(x, y)`
-> as the sprite's **top-left** (see `obj-format.md` § Map Config).
+> bullets, blood) and map-authored `put_particle` calls all anchor at the
+> sprite's own **pivot point** (default = center) as marked in the sprite
+> image, following the engine's default pivot.
 
 ### SpriteSet (`Goop/sprite_set.cpp` + `sprite_set.h`)
 

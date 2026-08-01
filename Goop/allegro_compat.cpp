@@ -63,7 +63,20 @@ BITMAP *load_bitmap(const char *filename, RGB *pal) {
 	// Convert to current color depth if needed (Allegro behavior)
 	int target_depth = current_color_depth;
 	int src_bpp = SDL_BITSPERPIXEL(surf->format);
-	if (src_bpp != target_depth && target_depth != 0) {
+	// The engine's pixel helpers (getpixel/putpixel/makecol, allegro_compat.h)
+	// assume canonical formats — ARGB8888 at 32-bit, RGB565 at 16-bit — the same
+	// formats create_bitmap_ex uses. IMG_Load can return other layouts (e.g.
+	// ABGR8888) at a matching depth, so convert those too; otherwise per-pixel
+	// color reads come out channel-swapped (e.g. sprite-sheet pivot markers no
+	// longer compare equal to makecol(255, 0, 0)).
+	SDL_PixelFormat target_format;
+	if (target_depth == 32)
+		target_format = SDL_PIXELFORMAT_ARGB8888;
+	else if (target_depth == 16)
+		target_format = SDL_PIXELFORMAT_RGB565;
+	else
+		target_format = SDL_PIXELFORMAT_INDEX8;
+	if (target_depth != 0 && (src_bpp != target_depth || surf->format != target_format)) {
 		if (target_depth == 8) {
 			SDL_Surface *idx8 = SDL_CreateSurface(surf->w, surf->h, SDL_PIXELFORMAT_INDEX8);
 			if (idx8) {
@@ -189,12 +202,6 @@ BITMAP *load_bitmap(const char *filename, RGB *pal) {
 			}
 		} else {
 			// Use SDL_ConvertSurface for 16 or 32 bit targets
-			SDL_PixelFormat target_format;
-			if (target_depth == 32)
-				target_format = SDL_PIXELFORMAT_ARGB8888;
-			else
-				target_format = SDL_PIXELFORMAT_RGB565;
-
 			SDL_Surface *converted = SDL_ConvertSurface(surf, target_format);
 			if (converted) {
 				SDL_DestroySurface(surf);

@@ -49,7 +49,7 @@ struct SpawnPoint {
 };
 
 struct LevelConfig {
-	LevelConfig() : gameStart(0), gameEnd(0), darkMode(false), centerAlignedParticles(false) {}
+	LevelConfig() : gameStart(0), gameEnd(0), darkMode(false) {}
 
 	~LevelConfig() {
 		delete gameStart;
@@ -60,11 +60,6 @@ struct LevelConfig {
 	Event *gameStart;
 	Event *gameEnd;
 	bool darkMode;
-	// When true, PutParticle positions are interpreted as the sprite's center,
-	// matching the original Gusanos 0.9 convention. When false (default), they
-	// are interpreted as the sprite's top-left, which matches the level.png
-	// coordinate space map authors use.
-	bool centerAlignedParticles;
 };
 
 class Level {
