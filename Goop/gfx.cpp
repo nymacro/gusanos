@@ -9,6 +9,7 @@
 #include "game.h"
 #include "mouse.h"
 #include "sprite_set.h"
+#include "xbrz.h"
 #endif
 #include <boost/assign/list_inserter.hpp>
 using namespace boost::assign;
@@ -19,6 +20,7 @@ using namespace boost::assign;
 #include <list>
 #include <vector>
 #include <stdexcept>
+#include <cstring>
 
 using namespace std;
 
@@ -31,7 +33,10 @@ bool m_initialized = false;
 enum Filters {
 	NEAREST = 0, // Nearest
 	LINEAR = 1,	 // Smooth
-	PIXELART = 2 // Nearest with better scaling
+	PIXELART = 2, // Nearest with better scaling
+	XBRZ2X = 3,
+	XBRZ3X = 4,
+	XBRZ4X = 5,
 };
 #ifndef SDL_SCALEMODE_PIXELART
 #define SDL_SCALEMODE_PIXELART SDL_SCALEMODE_NEAREST
@@ -48,6 +53,23 @@ int m_driver = 0;
 int m_bitdepth = 32;
 
 BITMAP *m_doubleResBuffer = 0;
+
+std::vector<uint32_t> m_xbrzDst; // 320f x 240f xBRZ output staging
+std::vector<uint32_t> m_xbrzSrc; // contiguous row staging (only if pitch != 320*4)
+int m_xbrzFactor = 0;			 // 0 = disabled; 2/3/4 = xBRZ scale factor
+
+int xbrzFactorOf(int filter) {
+	switch (filter) {
+		case XBRZ2X:
+			return 2;
+		case XBRZ3X:
+			return 3;
+		case XBRZ4X:
+			return 4;
+		default:
+			return 0;
+	}
+}
 
 string screenShot(const list<string> &args) {
 	// TODO: Implement SDL3 screenshot
@@ -72,11 +94,20 @@ void doubleRes_callback(int oldValue) {
 	}
 }
 
-void filter_callback(const int newValue) {
+void filter_callback(const int oldValue) {
 	if (!gfx || !gfx.screenTexture)
 		return;
 
-	switch (newValue) {
+	// Entering or leaving an xBRZ mode needs a full rebuild (window size,
+	// logical presentation, texture at the scaled resolution) via
+	// doubleResChange(). EnumVariable invokes this with the *old* value;
+	// m_filter already holds the new one.
+	if (xbrzFactorOf(oldValue) > 0 || xbrzFactorOf(m_filter) > 0) {
+		gfx.doubleResChange();
+		return;
+	}
+
+	switch (m_filter) {
 		case NEAREST:
 			SDL_SetTextureScaleMode(gfx.screenTexture, SDL_SCALEMODE_NEAREST);
 			break;
@@ -160,7 +191,8 @@ void Gfx::registerInConsole() {
 	{
 		EnumVariable::MapType videoFilters;
 
-		insert(videoFilters)("NEAREST", NEAREST)("LINEAR", LINEAR)("PIXELART", PIXELART);
+		insert(videoFilters)("NEAREST", NEAREST)("LINEAR", LINEAR)("PIXELART", PIXELART)("XBRZ2X", XBRZ2X)(
+			"XBRZ3X", XBRZ3X)("XBRZ4X", XBRZ4X);
 
 		console.registerVariable(new EnumVariable("VID_FILTER", &m_filter, PIXELART, videoFilters, filter_callback));
 	}
@@ -203,7 +235,19 @@ void Gfx::loadResources() {
 void Gfx::updateScreen() {
 	// Upload buffer to texture
 	if (buffer && screenTexture) {
-		SDL_UpdateTexture(screenTexture, NULL, buffer->pixels, buffer->sdl_surface->pitch);
+		if (m_xbrzFactor > 0) {
+			const uint32_t *src = static_cast<uint32_t *>(buffer->pixels);
+			if (buffer->sdl_surface->pitch != 320 * 4) {
+				// Row copy into a contiguous staging buffer for xbrz::scale.
+				for (int y = 0; y < 240; ++y)
+					memcpy(&m_xbrzSrc[y * 320], buffer->line[y], 320 * 4);
+				src = m_xbrzSrc.data();
+			}
+			xbrz::scale(m_xbrzFactor, src, m_xbrzDst.data(), 320, 240, xbrz::ColorFormat::argbUnbuffered);
+			SDL_UpdateTexture(screenTexture, NULL, m_xbrzDst.data(), 320 * m_xbrzFactor * 4);
+		} else {
+			SDL_UpdateTexture(screenTexture, NULL, buffer->pixels, buffer->sdl_surface->pitch);
+		}
 	}
 
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -230,7 +274,14 @@ void Gfx::fullscreenChange() {
 }
 
 void Gfx::doubleResChange() {
-	if (m_doubleRes) {
+	int f = xbrzFactorOf(m_filter);
+
+	if (f > 0) {
+		// An active xBRZ filter forces the window to the xBRZ-native size;
+		// VID_DOUBLERES only matters for the non-xBRZ filters below.
+		m_vwidth = 320 * f;
+		m_vheight = 240 * f;
+	} else if (m_doubleRes) {
 		m_vwidth = 640;
 		m_vheight = 480;
 	} else {
@@ -239,7 +290,6 @@ void Gfx::doubleResChange() {
 	}
 
 	// Note: NVidia GPU requires new texture even if just changing vsync
-	// Keep render logical presentation in place
 	SDL_SetRenderVSync(renderer, m_vsync);
 
 	if (!window) {
@@ -251,20 +301,43 @@ void Gfx::doubleResChange() {
 		if (!renderer)
 			throw std::runtime_error("Couldn't create SDL3 renderer");
 
-		SDL_SetRenderLogicalPresentation(renderer, 320, 240, SDL_LOGICAL_PRESENTATION_LETTERBOX);
 		SDL_SetRenderVSync(renderer, m_vsync);
 	} else {
 		SDL_SetWindowSize(window, m_vwidth, m_vheight);
 	}
 
+	// Re-apply on every call so runtime filter changes take effect. The logical
+	// space matches the texture size: 320x240 normally, 320f x 240f for xBRZ
+	// (1:1 pixels); letterbox keeps the 4:3 aspect on window resize.
+	if (f > 0)
+		SDL_SetRenderLogicalPresentation(renderer, 320 * f, 240 * f, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+	else
+		SDL_SetRenderLogicalPresentation(renderer, 320, 240, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+
 	if (screenTexture)
 		SDL_DestroyTexture(screenTexture);
-	screenTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 320, 240);
+	screenTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
+									  f > 0 ? 320 * f : 320, f > 0 ? 240 * f : 240);
 
-	// Apply filter setting to newly created texture
+	// Apply filter setting to newly created texture. xBRZ output is already
+	// smooth; NEAREST avoids double-smoothing on the final GPU scale.
 	if (screenTexture) {
-		SDL_ScaleMode mode = (m_filter == LINEAR) ? SDL_SCALEMODE_LINEAR : SDL_SCALEMODE_NEAREST;
+		SDL_ScaleMode mode = SDL_SCALEMODE_NEAREST;
+		if (f == 0)
+			mode = (m_filter == LINEAR) ? SDL_SCALEMODE_LINEAR : SDL_SCALEMODE_NEAREST;
 		SDL_SetTextureScaleMode(screenTexture, mode);
+	}
+
+	// (Re)allocate xBRZ staging buffers when the factor changes.
+	if (m_xbrzFactor != f) {
+		m_xbrzFactor = f;
+		if (f > 0) {
+			m_xbrzDst.resize(320 * f * 240 * f);
+			m_xbrzSrc.resize(320 * 240);
+		} else {
+			m_xbrzDst.clear();
+			m_xbrzSrc.clear();
+		}
 	}
 }
 

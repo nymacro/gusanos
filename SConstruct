@@ -16,6 +16,7 @@ sconscript = [
     'luaapi',
     'lighter',
     'http',
+    'Vendor/xBRZ_1.9',
 ]
 
 def is_List(e):
@@ -167,7 +168,7 @@ if os.path.exists(brew_prefix):
         env['ENV']['PATH'] = brew_bin + os.pathsep + env['ENV']['PATH']
 
 env.Append(
-    CPPPATH=Split('. #http #luaapi #Console #GUI #Utility #OmfgScript #Goop #Net'),
+    CPPPATH=Split('. #http #luaapi #Console #GUI #Utility #OmfgScript #Goop #Net #Vendor/xBRZ_1.9'),
     LIBPATH=[os.path.join('#lib', env['MY_SUBFOLDER']), os.path.join('#lib', env['MY_CONF'])],
     # -fno-diagnostics-show-caret 
     CCFLAGS=Split('-pipe -fno-diagnostics-show-option -Wfatal-errors -Wall -Wno-unused -Wno-register -Wno-implicit-fallthrough'),
