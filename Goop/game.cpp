@@ -843,6 +843,8 @@ bool Game::changeLevelCmd(const std::string &levelName) {
 
 bool Game::reloadModWithoutMap() {
 	unload();
+	m_modName = nextMod;
+	m_modPath = nextMod;
 	level.setName("");
 	refreshResources("default");
 	loadMod(false);

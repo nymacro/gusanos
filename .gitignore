@@ -35,11 +35,14 @@ GUI/detail/gss-grammar.h
 Net/Reference/**
 docs/zoidcom/**
 # Mod folders
-default
-baseg3
-promode
-portal
-classic
+default/
+baseg3/
+promode/
+portal/
+classic/
+beyondx/
+projectx/
+wm/
 # Generated build artifacts (scons)
 compile_commands.json
 config.log
