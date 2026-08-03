@@ -32,8 +32,21 @@ lib/**
 .*
 OmfgScript/omfg_script_parser.h
 GUI/detail/gss-grammar.h
-Net/Reference/**
-docs/zoidcom/**
+Net/Reference/
+docs/zoidcom/
+# Mod folders
+default/
+baseg3/
+promode/
+portal/
+classic/
+beyondx/
+projectx/
+wm/
+133/
+doom/
+rtypezx/
+telek/
 # Generated build artifacts (scons)
 compile_commands.json
 config.log

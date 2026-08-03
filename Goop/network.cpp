@@ -247,6 +247,15 @@ void registerClasses() // Factorization of class registering in client and serve
 	Particle::classID = m_control->ZCom_registerClass("particle", ZCOM_CLASSFLAG_ANNOUNCEDATA);
 }
 
+void onMasterServerChange(std::string const &oldValue) {
+	if (masterServer.host == oldValue)
+		return;
+
+	// Force a re-resolve on the next request: HTTP::Host caches the resolved
+	// address (hp) and only re-resolves when hp is null or options.changed.
+	masterServer.options.changed = true;
+}
+
 std::string setProxy(std::list<std::string> const &args) {
 	if (args.size() >= 2) {
 		auto i = args.begin();
@@ -323,19 +332,28 @@ void Network::shutDown() {
 }
 
 void Network::registerInConsole() {
-	console.registerVariables()("NET_SERVER_PORT", &m_serverPort, 9898)(
-		"NET_SERVER_NAME", &serverName, "Unnamed server")("NET_SERVER_DESC", &serverDesc, "")(
-		"NET_REGISTER", &registerGlobally, 1)("NET_SIM_LAG", &network.simLag, 0)("NET_SIM_LOSS", &network.simLoss, -1.f)
+	console.registerVariables()
+		("NET_SERVER_PORT", &m_serverPort, 9898)
+		("NET_SERVER_NAME", &serverName, "Unnamed server")
+		("NET_SERVER_DESC", &serverDesc, "")
+		("NET_REGISTER", &registerGlobally, 1)
+		("NET_MASTER_SERVER", &masterServer.host, "comser.liero.org.pl", onMasterServerChange)
+		("NET_SIM_LAG", &network.simLag, 0)("NET_SIM_LOSS", &network.simLoss, -1.f)
 		// Upstream bandwidth cap (bytes/sec). 0 = unlimited. The transport
 		// layer (ENet, via enet_host_bandwidth_limit) still throttles when set,
 		// but it queues reliable packets instead of dropping them. A low,
 		// non-zero default previously starved MSG_REPLICATORS position updates
 		// (the app-level limiter destroyed them) causing networked rubber-banding.
-		("NET_UP_LIMIT", &network.upLimit, 0)("NET_DOWN_BPP", &network.downBPP, 200)(
-			"NET_DOWN_PPS", &network.downPPS, 20)("NET_CHECK_CRC", &network.checkCRC, 1)("NET_LOG", &logZoidcom, 0)(
-			"NET_AUTODOWNLOADS", &network.autoDownloads, 1);
+		("NET_UP_LIMIT", &network.upLimit, 0)
+		("NET_DOWN_BPP", &network.downBPP, 200)
+		("NET_DOWN_PPS", &network.downPPS, 20)
+		("NET_CHECK_CRC", &network.checkCRC, 1)
+		("NET_LOG", &logZoidcom, 0)
+		("NET_AUTODOWNLOADS", &network.autoDownloads, 1);
 
-	console.registerCommands()("NET_SET_PROXY", setProxy)("DISCONNECT", disconnectCmd);
+	console.registerCommands()
+		("NET_SET_PROXY", setProxy)
+		("DISCONNECT", disconnectCmd);
 }
 
 ZCom_ConnID Network::getServerID() {

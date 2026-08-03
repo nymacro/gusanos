@@ -58,13 +58,13 @@ Weapon-specific patterns:
 
 | Command | Parameters | Description |
 |---|---|---|
-| `use_ammo(count)` | `count`: ammo to consume (positive integer) | Deplete ammo. When ammo reaches 0, the `out_of_ammo` event fires. |
-| `delay_fire(delay)` | `delay`: ticks to wait before firing | Stops the weapon from firing until `delay` ticks pass. Used for charge-up weapons. |
-| `shoot_particles(type, count, inheritance, speed, speedVar, distribution, angleOffs, distOffs)` | see obj-format.md | Fires the actual projectile(s). Named params: `distribution = ...`, `distance_offs = ...`. |
-| `play_sound(file, loudness, pitch, var)` | same as obj-format.md | Play a firing sound from the worm's position. |
-| `play_global_sound(file, vol, volVar, pitch, pitchVar)` | same as obj-format.md | Play a non-positional weapon sound. |
-| `add_speed(speed, var, angle, angleVar)` | same as obj-format.md | Apply recoil to the worm. |
-| `show_firecone(frames, distance, spriteFile)` | `frames`: duration. `distance`: draw distance. `spriteFile`: optional override sprite. | Display the weapon's muzzle flash. |
+| `use_ammo(amount)` | `amount`: ammo to consume (positive integer) | Deplete ammo. When ammo reaches 0, the `out_of_ammo` event fires. |
+| `delay_fire(time, time_var)` | `time`: ticks to wait before firing. `time_var`: random ±. | Stops the weapon from firing until `time` ticks pass. Used for charge-up weapons. |
+| `shoot_particles(type, amount, speed, speed_var, motion_inheritance, amount_var, distribution, angle_offs, distance_offs)` | see obj-format.md | Fires the actual projectile(s). |
+| `play_sound(sound, loudness, pitch, pitch_var)` | same as obj-format.md | Play a firing sound from the worm's position. |
+| `play_global_sound(sound, volume, volume_var, pitch, pitch_var)` | same as obj-format.md | Play a non-positional weapon sound. |
+| `add_speed(amount, amount_var, offs, offs_var)` | same as obj-format.md | Apply recoil to the worm. |
+| `show_firecone(sprite, frames, draw_distance)` | `sprite`: sprite filename. `frames`: duration. `draw_distance`: render distance. | Display the weapon's muzzle flash. |
 
 ---
 

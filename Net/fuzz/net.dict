@@ -1,0 +1,3 @@
+# Minimal libFuzzer dictionary for ZCom_BitStream (net_fuzz_bitstream)
+zero="\x00"
+ff="\xff"

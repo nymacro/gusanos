@@ -37,8 +37,8 @@ scons build=dedserv-debug
 # Clean
 scons -c
 
-# Force-parser regeneration
-scons no-parsers=0
+# Skip parser regeneration (parsers regenerate by default; any value disables it)
+scons no-parsers=1
 ```
 
 ## Code quality targets
@@ -60,6 +60,48 @@ Both tools operate on the project’s own sources under `Goop/`, `Net/`, `Consol
 
 `scons tidy` only runs on C++ files that are present in `compile_commands.json`. Run a normal build first to ensure the database is up to date.
 
+## Fuzz testing
+
+libFuzzer harnesses exercise the `Net` and `http` libraries with uncontrolled
+input. They are built only when both `build-tests=1` and `fuzz=1` are passed,
+and require clang/libFuzzer; clang is auto-detected (e.g. `clang++-22`) when
+bare `clang++` is absent from PATH. Targets live under `Net/fuzz/` and
+`http/fuzz/` and are isolated in their own `.../fuzz` build directory so they
+do not disturb the gcc debug/release/test builds.
+
+```bash
+# Build fuzz targets (requires clang/libFuzzer):
+scons build=debug build-tests=1 fuzz=1 CC=clang CXX=clang++
+# clang auto-detected if bare clang++ is absent (e.g. clang++-22).
+
+# Run a harness (each is a long-running libFuzzer binary):
+bin/posix/net_fuzz_bitstream -max_total_time=60 Net/fuzz/corpus/bitstream/
+bin/posix/net_fuzz_bitstream_roundtrip -max_total_time=60 \
+    -dict=Net/fuzz/net.dict Net/fuzz/corpus/bitstream_roundtrip/
+bin/posix/net_fuzz_address -max_total_time=60 Net/fuzz/corpus/address/
+bin/posix/http_fuzz_parseheaders -max_total_time=60 \
+    -dict=http/fuzz/http.dict http/fuzz/corpus/parseheaders/
+bin/posix/http_fuzz_urlencode -max_total_time=60 http/fuzz/corpus/urlencode/
+```
+
+Harnesses:
+
+- `net_fuzz_bitstream` — deserializes raw attacker bytes through the
+  `ZCom_BitStream` read API.
+- `net_fuzz_bitstream_roundtrip` — property test: writes typed values
+  (int/bool/string/buffer), serializes, deserializes, and aborts on any
+  round-trip mismatch. Floats are excluded (lossy fixed-point encoding).
+- `net_fuzz_address` — exercises `ZCom_Address`'s offline API (setIP/getters/
+  `toString`/`getAddressIP`/`computeHashKey`/copy/compare). `setAddress()` is
+  not fuzzed because it does synchronous DNS resolution.
+- `http_fuzz_parseheaders` / `http_fuzz_urlencode` — HTTP header parsing and
+  URL-encoding.
+
+Resolved finding: `http_fuzz_parseheaders` found a `boost::bad_lexical_cast`
+abort on a malformed (non-numeric or overflowing) `Content-Length` header in
+`Request::addHeader` (`http/http.cpp`). This is now fixed — the cast is wrapped
+in a `try`/`catch` that ignores invalid values. All five harnesses run clean.
+
 ## Output Layout
 
 ```
@@ -68,16 +110,21 @@ bin/posix/
 └── gusanos-ded     — dedicated server (dedserv/dedserv-debug)
 
 lib/posix/release/
-├── libomfggui.a
-├── libomfghttp.a
 ├── libomfgconsole.a
-├── libomfgscript.a
-├── libglua.a
+├── libomfggui.a
 ├── libomfgutil.a
-└── libgusanos.a
+├── libomfgscript.a
+├── libomfghttp.a
+├── libglua.a
+├── libomfgnet.a
+├── libomfgxbrz.a
+└── librenderLoaders.a
 
 lib/posix/debug/
 └── (same libs, debug variant)
+
+Note: `Goop/SConscript` builds the `gusanos` / `gusanos-ded` programs directly
+(no `libgusanos.a`); the libraries above are its link inputs.
 ```
 
 ## Build Targets
@@ -90,9 +137,12 @@ lib/posix/debug/
 | `Utility/util/SConscript` | `libomfgutil.a` | `Utility/util/` |
 | `OmfgScript/SConscript` | `libomfgscript.a` | `OmfgScript/` |
 | `http/SConscript` | `libomfghttp.a` | `http/` |
-| `luaapi/SConscript` | `libglua.a` | `luaapi/` (LuaJIT wrapper) |
+| `luaapi/SConscript` | `libglua.a` | `luaapi/luaapi/` (LuaJIT wrapper) |
+| `Net/SConscript` | `libomfgnet.a` | `Net/` (ZoidCom-on-ENet compat layer) |
+| `Vendor/xBRZ_1.9/SConscript` | `libomfgxbrz.a` | `Vendor/xBRZ_1.9/` (xBRZ pixel scaler) |
 | `liero2gus/SConscript` | `liero2gus` | `liero2gus/` |
-| `lighter/SConscript` | `lighter` | `lighter/`, `lighter/loaders/` |
+| `lighter/SConscript` | `lighter` | `lighter/` |
+| `lighter/loaders/SConscript` | `librenderLoaders.a` | `lighter/loaders/` |
 | `parsergen/SConscript` | `parsergen` | `parsergen/` |
 
 ## Build Configuration
@@ -106,7 +156,9 @@ lib/posix/debug/
 | `dedserv` | `-O3 -g` | `NDEBUG`, `DEDSERV` |
 | `dedserv-debug` | `-Og -g -fno-omit-frame-pointer` | `DEBUG`, `DEDSERV`, `LOG_RUNTIME` |
 
-All builds use `-std=c++17`, `-Wall -Wno-reorder`, and define `_GNU_SOURCE`,
+All builds use `-std=c++17` and the shared base CCFLAGS
+`-pipe -fno-diagnostics-show-option -Wfatal-errors -Wall -Wno-unused -Wno-register
+-Wno-implicit-fallthrough`, and define `_GNU_SOURCE`,
 `BOOST_TIMER_ENABLE_DEPRECATED`.
 
 ### Library Detection
@@ -117,14 +169,19 @@ Libraries detected via `pkg-config`:
 - `luajit`
 
 Boost libraries detected via `CheckLib`:
-- `boost_filesystem`, `boost_system`
+- `boost_filesystem` only (in Boost 1.70+ `boost_system` is merged into
+  `boost_filesystem`, so it is no longer linked separately)
 
 ## Parser Generation
 
-Two parsers are generated at build time:
+Two parsers are generated at build time (guarded by `NO_PARSERS`; regenerated
+by default, pass `no-parsers=1` to skip and use the committed headers):
 
-1. **Console grammar** (`Console/console-grammar.h`) — parses console commands
-2. **OmfgScript grammar** (`OmfgScript/omfg_script_parser.h`) — parses GUI style sheets
+1. **OmfgScript grammar** (`OmfgScript/omfg_script_parser.h` from `omfg_script_parser.pg`) — parses gameplay object/weapon/exp definitions
+2. **GSS grammar** (`GUI/detail/gss-grammar.h` from `detail/gss-grammar.pg`) — parses GUI style sheets
+
+`Console/console-grammar.h` is a hand-maintained committed header — it is **not**
+generated (no `.pg` file, no `Parser()` call in `Console/SConscript`).
 
 Process:
 1. `parsergen` tool is built first

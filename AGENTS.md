@@ -174,6 +174,31 @@ console.registerVariables()
 2. Fire it with `EACH_CALLBACK(i, MyNewCallback) { ... }`
 3. Expose it in Lua bindings via `luaCallbacks.bind("myNewCallback", ref)` in the bindings init code.
 
+### Running fuzz tests
+
+libFuzzer harnesses for the `Net` and `http` libraries live under `Net/fuzz/`
+and `http/fuzz/`. They build only with clang and require both `build-tests=1`
+and `fuzz=1`; clang is auto-detected (e.g. `clang++-22`) when bare `clang++`
+is absent from PATH.
+
+```bash
+scons build=debug build-tests=1 fuzz=1
+bin/posix/net_fuzz_bitstream -max_total_time=60 Net/fuzz/corpus/bitstream/
+bin/posix/net_fuzz_bitstream_roundtrip -max_total_time=60 \
+    -dict=Net/fuzz/net.dict Net/fuzz/corpus/bitstream_roundtrip/
+bin/posix/net_fuzz_address -max_total_time=60 Net/fuzz/corpus/address/
+bin/posix/http_fuzz_parseheaders -max_total_time=60 -dict=http/fuzz/http.dict \
+    http/fuzz/corpus/parseheaders/
+bin/posix/http_fuzz_urlencode -max_total_time=60 http/fuzz/corpus/urlencode/
+```
+
+Five harnesses: `net_fuzz_bitstream` (raw deserialize),
+`net_fuzz_bitstream_roundtrip` (serialize/deserialize property test),
+`net_fuzz_address` (offline `ZCom_Address` API; `setAddress` excluded — it does
+synchronous DNS), and `http_fuzz_parseheaders` / `http_fuzz_urlencode`. The
+`http_fuzz_parseheaders` finding (a `boost::bad_lexical_cast` abort on malformed
+`Content-Length`) is fixed; all harnesses run clean.
+
 ## Build Verification
 
 ```bash

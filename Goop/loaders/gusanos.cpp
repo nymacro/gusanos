@@ -85,7 +85,6 @@ LevelConfig *loadConfig(fs::path const &filename) {
 	}
 
 	returnConf->darkMode = parser.getBool("dark_mode");
-	returnConf->centerAlignedParticles = parser.getBool("center_aligned_particles");
 
 	OmfgScript::Parser::EventIter i(parser);
 	for (; i; ++i) {

@@ -1,4 +1,5 @@
 Import('env')
+import os
 
 env.StaticLibrary(env.getLibName('omfgnet'), env.getObjects())
 
@@ -19,3 +20,42 @@ if env['BUILD_TESTS'] and env['MY_BUILD'] == 'debug':
         testEnv.getBinName('net_tests'),
         testEnv.getObjects('tests')
     )
+
+# Build Net fuzz targets (libFuzzer) when tests and fuzzing are enabled.
+# Requires clang; auto-detected via env.detectClang(). Only net_bitstream.cpp
+# is compiled for the bitstream harnesses (the canonical deserializer for all
+# incoming Net traffic) to keep them offline and free of enet/global init.
+# The net_address harness additionally links enet (used by getAddressIP/
+# toString via enet_address_get_host_ip); setAddress() is not fuzzed because
+# it performs synchronous DNS resolution.
+if env['BUILD_TESTS'] and env.get('FUZZ'):
+    clang = env.detectClang()
+    if not clang:
+        print('Warning: clang not found; skipping Net fuzz targets '
+              '(install clang or build with CC=clang CXX=clang++).')
+    else:
+        f = env.Clone()
+        f['CC'], f['CXX'] = clang
+        f['MY_SUBFOLDER'] = env['MY_SUBFOLDER'] + '/fuzz'
+        f.Append(CCFLAGS=Split('-g -fno-omit-frame-pointer '
+                              '-fsanitize=fuzzer-no-link,address,undefined'),
+                 LINKFLAGS=Split('-fsanitize=fuzzer,address,undefined'),
+                 CPPPATH=['#Net'])
+        net_dir = os.path.join('.build', f['MY_SUBFOLDER'])
+        f.VariantDir(net_dir, '.', duplicate=0)
+        fuzz_dir = os.path.join('fuzz', '.build', f['MY_SUBFOLDER'])
+        f.VariantDir(fuzz_dir, 'fuzz', duplicate=0)
+
+        # --- bitstream harnesses (share net_bitstream.cpp; no enet) ---
+        bs_obj = f.Object(os.path.join(net_dir, 'net_bitstream.cpp'))
+        for src, bin_name in [('fuzz_bitstream', 'net_fuzz_bitstream'),
+                              ('fuzz_bitstream_roundtrip', 'net_fuzz_bitstream_roundtrip')]:
+            f.Program(f.getBinName(bin_name),
+                      [bs_obj, f.Object(os.path.join(fuzz_dir, src + '.cpp'))])
+
+        # --- net_address harness (needs enet for address formatting) ---
+        af = f.Clone()
+        af.Append(LIBS=['enet'], LINKFLAGS=['-pthread'])
+        af.Program(af.getBinName('net_fuzz_address'),
+                   [af.Object(os.path.join(net_dir, 'net_address.cpp')),
+                    af.Object(os.path.join(fuzz_dir, 'fuzz_address.cpp'))])

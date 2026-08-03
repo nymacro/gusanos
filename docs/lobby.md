@@ -12,6 +12,8 @@ The lobby covers three phases: **server discovery** (HTTP), **connection** (reli
 
 ### Client → Master Server: List Request
 
+`POST gusserv.php` (`application/x-www-form-urlencoded`) via `Network::fetchServerList()`:
+
 | Parameter | Value | Notes |
 |---|---|---|
 | `action` | `"list"` | |
@@ -127,6 +129,7 @@ Handled by `onServerRemoved()`, which unconditionally sets `serverAdded = false`
 | Variable | Default | Effect |
 |---|---|---|
 | `NET_REGISTER` | `1` | `0` disables all master-server contact (add/update/remove). |
+| `NET_MASTER_SERVER` | `"comser.liero.org.pl"` | Hostname of the master server contacted for add/update/remove. |
 | `NET_SERVER_NAME` | `"Unnamed server"` | `title` |
 | `NET_SERVER_DESC` | `""` | `desc` |
 | `NET_SERVER_PORT` | `9898` | `port` (also the ZoidCom listen port) |
@@ -257,48 +260,94 @@ Timeout shows "CONNECTION TIMEDOUT" → `ServerQuit`.
 
 ## Wire Format Summary
 
-```
-Lobby flow:
+All master-server requests use HTTP **POST** (`application/x-www-form-urlencoded`)
+to `gusserv.php`; the master derives each server's IP from the TCP source address
+and never receives an `ip` field.
 
-  Host                              Master       Client
-    │                                  │            │
-    │  POST gusserv.php?action=add      │            │
-    │    title/desc/port/protocol/     │            │
-    │    mod/map (HTTP)                 │            │
-    │←──────── OK ──────────────────────│            │
-    │  (serverAdded = true)             │            │
-    │                                  │            │
-    │  ... heartbeat every 18000 ticks ...           │
-    │  POST action=update (port) ──────→│            │
-    │                                  │            │
-    │                                  │  fetch_server_list()
-    │                                  │←── list (pipe-delimited) ──│  HTTP GET gusserv.php?action=list&protocol=2
-    │                                  │── server list ──→│  pipe-delimited response
-    │                                  │            │
-    │               Client connects to host IP:port (from list)            │
-    │                                  │            │
-    │  ZCom_Connect(addr)           │  TCP-like handshake over ENet
-    │←──── mod + map strings ───────│  connection reply (accepted) or 8-bit reason (rejected)
-    │                                  │            │
-    │  if banned/retry → abort      │
-    │  if accepted:                  │
-    │    load mod + map              │
-    │    run init scripts            │
-    │                                  │            │
-    │←─── Lua event registry ───────│  per-group event count + names
-    │                                  │            │
-    │  ConsistencyInfo ────────────→│  protocol version + CRCs
-    │                                  │            │
-    │  ZCom_requestZoidMode(1) ────→│
-    │←─── ZoidMode accepted ────────│
-    │                                  │            │
-    │  PLAYER_REQUEST ─────────────→│  name + colour + team + uniqueID
-    │                                  │  server creates worm + player, sets owner
-    │←─── auto-replication ─────────│  ZoidCom syncs nodes to client
-    │                                  │            │
-    │         ... gameplay ...       │
-    │                                  │            │
-    │  ZCom_Disconnect(reason) ────→│  8-bit DConnEvents
-    │                                  │            │
-    │  on shutdown: POST action=remove (port) ─────→│
+### Part A — Discovery & registration (Host ↔ Master ↔ Client)
+
+```
+  Host                       Master                 Client
+    │                           │                       │
+    │  POST action=add          │                       │
+    │    title/desc/port/       │                       │
+    │    protocol/mod/map       │                       │
+    │──────────────────────────→│                       │
+    │←────────── OK ────────────│                       │
+    │  (serverAdded = true)     │                       │
+    │                           │                       │
+    │  ... heartbeat every 18000 ticks (~5 min @ 60 Hz) ...
+    │  POST action=update       │                       │
+    │    (port)                 │                       │
+    │──────────────────────────→│                       │
+    │                           │                       │
+    │                           │   POST action=list     │
+    │                           │     protocol=2         │
+    │                           │←───────────────────────│
+    │                           │   pipe-delimited list  │
+    │                           │   ip^title^desc^       │
+    │                           │   mod^map per entry    │
+    │                           │──────────────────────→│
+    │                           │                       │
+    │   Client dials Host ip:port (taken from a list entry)
+    │                           │                       │
+    │  ... on shutdown ...      │                       │
+    │  POST action=remove (port)│                       │
+    │──────────────────────────→│                       │
+```
+
+### Part B — Connection handshake & player registration (Host ↔ Client)
+
+Once the client knows the Host's `ip:port`, all further lobby traffic is
+reliable-ordered UDP over ENet (`eZCom_ReliableOrdered`); the master server is
+no longer involved.
+
+```
+  Host                                                    Client
+    │                                                         │
+    │←──────────── ZCom_Connect(addr) ────────────────────────│
+    │   (no custom request payload)                           │
+    │                                                         │
+    │  ZCom_cbConnectionRequest:                              │
+    │    banned  → reply Banned(2, 8 bits), reject            │
+    │    retry   → reply Retry(1, 8 bits),  reject            │
+    │    pre-shutdown → reply Refused(0, 8 bits), reject      │
+    │    else    → reply mod + map strings, accept            │
+    │────────────────────────────────────────────────────────→│
+    │                                                         │
+    │  if rejected: client reads 8-bit reason                │
+    │    Retry(1)    → reconnect in 50 ticks                 │
+    │    Banned(2)   → "YOU ARE BANNED FROM THIS SERVER"      │
+    │    Refused(0)  → "COULDNT ESTABLISH CONNECTION"         │
+    │  if accepted:                                          │
+    │    hasMod?  no → ErrorModNotFound                       │
+    │    hasLevel? no → request updater (ZoidMode 2) or       │
+    │                  ErrorMapNotFound                       │
+    │    else: set mod, changeLevel, runInitScripts, then:    │
+    │                                                         │
+    │←──────── ConsistencyInfo (tag 12, 8 bits) ─────────────│
+    │           protocol(32) + CRC data                      │
+    │  server checks protocol==2 and (if NET_CHECK_CRC) CRCs │
+    │    mismatch → disconnect IncompatibleProtocol/Data     │
+    │                                                         │
+    │←──────── ZCom_requestZoidMode(1) ──────────────────────│
+    │                                                         │
+    │  ZCom_cbConnectionSpawned: send Lua event registry      │
+    │    tag LuaEvents(0, encode width 2), per group         │
+    │    (Game/Player/Worm/Particle): count(8) + name(string) │
+    │────────────────────────────────────────────────────────→│
+    │                                                         │
+    │←──────── PLAYER_REQUEST (tag 10, 8 bits) ──────────────│
+    │           name(string)+colour(24)+team(s8)+uniqueID(32)│
+    │  server: addWorm+addPlayer, restore/generate uniqueID, │
+    │          set colour/team/name, setOwnerId, assignWorm  │
+    │  (no explicit reply; nodes auto-replicate via ZoidCom)  │
+    │──────── auto-replication (worm/player nodes) ──────────→│
+    │                                                         │
+    │                    ... gameplay ...                      │
+    │                                                         │
+    │←──────── ZCom_Disconnect(8-bit DConnEvents) ───────────│
+    │  Kick(0) / ServerMapChange(1) / Quit(2) /               │
+    │  IncompatibleData(3) / IncompatibleProtocol(4)         │
+    │  timeout → "CONNECTION TIMEDOUT" → ServerQuit          │
 ```

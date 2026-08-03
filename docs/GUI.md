@@ -208,7 +208,7 @@ Container widget. Renders background/skin/sprite but suppresses text rendering
 
 ### List (`list.h/cpp`)
 
-Tag label: `"list""
+Tag label: `"list"
 
 Multi-column, tree-capable list widget backed by an intrusive linked list
 (`LList<ListNode>`).

@@ -229,9 +229,9 @@ need edge-anchored rendering. Drawn via `draw()` or `drawCut()` with a
 `BlitterContext`.
 
 > **Coordinate convention note**: dynamic particles (worms, weapons,
-> bullets, blood) follow the engine's center-pivot default. Map-authored
-> `put_particle` calls are an exception: by default they interpret `(x, y)`
-> as the sprite's **top-left** (see `obj-format.md` § Map Config).
+> bullets, blood) and map-authored `put_particle` calls all anchor at the
+> sprite's own **pivot point** (default = center) as marked in the sprite
+> image, following the engine's default pivot.
 
 ### SpriteSet (`Goop/sprite_set.cpp` + `sprite_set.h`)
 
@@ -346,6 +346,16 @@ from the original ZoidCom API so game code requires no rewriting.
 override virtual callback methods with game-specific logic: connection requests,
 data delivery, Zoid level transitions, player creation, and node announcements.
 
+### NetWorm (`Goop/net_worm.h` + `net_worm.cpp`)
+
+`NetWorm` extends `BaseWorm` and is the networked representation of a worm. It
+owns a `ZCom_Node`, declares replication items (`PlayerID`, `Position`, `AIM`)
+and net events (`PosCorrection`, `Respawn`, `Dig`, `Die`, `ChangeWeapon`,
+`WeaponMessage`, `SetWeapon`, `ClearWeapons`, `SYNC`, `LuaEvent`), and performs
+owner-side position correction with a render-snap threshold
+(`RENDER_SNAP_THRESHOLD`) so teleports (spawn, server correction, level change)
+snap instead of interpolating.
+
 ### Terrain Destruction Replication (`Goop/game.cpp`, `Goop/level.cpp`)
 
 Terrain destruction rides on the `Game` *unique* node (registered with
@@ -380,10 +390,8 @@ rule-based broadcasting (AUTH_2_ALL, OWNER_2_AUTH, etc.).
 | File | Purpose |
 |---|---|
 | `posspd_replicator.h/cpp` | Position + speed replication |
-| `vector_replicator.h/cpp` | Generic vector replication |
+| `vector_replicator.h` | Generic `Vec` replication (header-only; uses `Encoding::VectorEncoding`) |
 | `stl_str_replicator.h/cpp` | String replication |
-| `net_bitstream.h/cpp` | Bit-level network I/O |
-| `net_worm.h/cpp` | Worm network state |
 
 ### `Net/` — ENet Implementation
 

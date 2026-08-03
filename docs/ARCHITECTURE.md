@@ -64,7 +64,7 @@ gusanos.cpp
 ## Object Ownership & Lifetimes
 
 ```
-main()
+Global singletons (extern globals; static storage duration, program lifetime)
   ├── game (Game)              — owns Level, objects Grid, players list, weapon list
   ├── gfx (Gfx)                — owns window, renderer, screenTexture, buffer BITMAP
   ├── network (Network)        — ENet-backed ZoidCom compatibility layer
@@ -79,30 +79,44 @@ main()
 All major subsystems are global singletons declared `extern` in their headers
 and defined in their `.cpp` files.
 
-## Main Game Loop (gusanos.cpp:201-451)
+## Main Game Loop (`gusanos.cpp`, lines 238–538)
 
 ```
 while (!quit || !network.isDisconnected())
-  ── Logic tick (capped at 100 Hz via timer) ──
+  ── Logic tick (capped at 100 Hz; LOGIC_DELTA = 10 ms) ──
     1. Delete flagged objects (deleteMe == true)
-    2. Think: every object → every player → Game::think()
-    3. Updater::think() — file transfer progress
-    4. Sfx::think() — channel management (MUST precede player delete)
-    5. Delete flagged players + cleanup
-    6. Network::update()
-    7. Console input + mouse poll + console think
-    8. Sprite animation (spriteList.think())
-    9. Lua afterUpdate callbacks
-  ── Render (uncapped) ──
-    For each player:
-      player->render() → viewport->render(player)
+    2. If level loaded: think every object (Grid + relocate, then flush
+       newly spawned objects), then think every player
+    3. Game::think()
+    4. Updater::think() — file transfer progress
+    5. Sfx::think() — channel management  [client only, #ifndef DEDSERV]
+    6. Delete flagged players + local-player cleanup
+    7. Network::update() — poll ENet
+    8. console.checkInput() + mouseHandler.poll() + gamepadHandler.poll()
+       + console.think()  [input polls client only; console.think() always]
+    9. spriteList.think() — sprite animation
+   10. Lua afterUpdate callbacks
+  ── Render (uncapped; entire block is #ifndef DEDSERV) ──
+    if level loaded:
+      For each player: player->render() → viewport->render(player)
         - Level::draw() (terrain)
-        - Draw all objects in viewport range
-        - Draw worm + hud
-    Console::render()
+        - (dark mode: blit lightmap to fade buffer)
+        - Draw all objects (Grid iterator / render layers)
+        - (dark mode: multiply-darkness composite)
+        - wormRender Lua callback (draws every active worm)
+        - viewportRender Lua callback (HUD for the viewport owner)
+      Debug overlay (CL_SHOWDEBUG): object/player/ping/Lua-mem counts
+      Screen messages (chat/death) with fade-out
+    else:
+      clear_bitmap(gfx.buffer)
     OmfgGUI::menu.render()
+    console.render(gfx.buffer)
+    Gamepad input overlay (CL_SHOWGAMEPADINPUTS)
+    FPS counter (CL_SHOWFPS)
+    "Quitting..." text while shutting down
     Lua afterRender callbacks
-    Gfx::updateScreen() (buffer → texture → SDL_Render)
+    In-game cursor sprite (OS cursor is hidden in-window)
+    Gfx::updateScreen() (buffer → screenTexture → SDL_Render)
 ```
 
 ## Threading Model
@@ -162,11 +176,14 @@ virtual callback methods (`ZCom_cbDataReceived`, `ZCom_cbConnectionRequest`,
 
 ### Remaining work
 
-The transport and replication infrastructure is complete. Remaining game-level
-features include:
+The transport, replication, and file-transfer infrastructure is complete.
+File transfer is implemented in `Updater` (`Goop/updater.cpp`) via
+`ZCom_Node::sendFile`, with both sender- and receiver-side
+`eZCom_EventFile_Complete` / `eZCom_EventFile_Aborted` handling and a test pin
+in `Net/tests/test_filetransfer_channel.cpp`. Remaining game-level features
+include:
 - Snapshot interpolation for client-side prediction
 - Movement replication with server validation
-- File transfer (ENet stream-based, not yet implemented)
 
 ## Resource Lifecycle
 

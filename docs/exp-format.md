@@ -15,7 +15,7 @@ to a moving particle. They live under `default/objects/`. Parsed by
 |---|---|---|---|
 | `sprite` | string | `""` | Filename of a PNG sprite sheet for the explosion. Loaded relative to default/objects/. |
 | `invisible` | bool | `false` | When true, the explosion is not drawn. |
-| `render_layer` | int | `9` (WormRenderLayer) | Rendering layer in the object grid. |
+| `render_layer` | int | `4` (WormRenderLayer) | Rendering layer in the object grid. |
 | `rock_hidden` | bool | `true` | Whether the explosion is hidden behind foreground terrain rocks. |
 | `blender` | string | `none` | Blending mode: `none`, `add`, `alpha`, `alphach`. |
 | `colour` | `[R,G,B]` | `[255,255,255]` | Base colour tint. |
@@ -68,7 +68,7 @@ The same action system as `.obj` files. See [obj-format.md](obj-format.md) for t
 
 Common patterns in `.exp` files:
 
-*   `play_sound_static([file1.ogg, file2.ogg], loudness, pitch, var)` — play an explosion sound at the explosion's fixed position
+*   `play_sound_static([file1.ogg, file2.ogg], loudness, pitch, pitch_var)` — play an explosion sound at the explosion's fixed position
 *   `apply_map_effect(effect.mfx)` — carve a hole or scorch mark in the terrain
 *   `damp(factor)` / `repel(maxForce, maxDist, minForce)` — push nearby objects away
 *   `damage(amount, variation, maxDist)` — hurt worms/objects within range
