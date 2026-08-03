@@ -37,8 +37,8 @@ scons build=dedserv-debug
 # Clean
 scons -c
 
-# Force-parser regeneration
-scons no-parsers=0
+# Skip parser regeneration (parsers regenerate by default; any value disables it)
+scons no-parsers=1
 ```
 
 ## Code quality targets
@@ -110,16 +110,21 @@ bin/posix/
 └── gusanos-ded     — dedicated server (dedserv/dedserv-debug)
 
 lib/posix/release/
-├── libomfggui.a
-├── libomfghttp.a
 ├── libomfgconsole.a
-├── libomfgscript.a
-├── libglua.a
+├── libomfggui.a
 ├── libomfgutil.a
-└── libgusanos.a
+├── libomfgscript.a
+├── libomfghttp.a
+├── libglua.a
+├── libomfgnet.a
+├── libomfgxbrz.a
+└── librenderLoaders.a
 
 lib/posix/debug/
 └── (same libs, debug variant)
+
+Note: `Goop/SConscript` builds the `gusanos` / `gusanos-ded` programs directly
+(no `libgusanos.a`); the libraries above are its link inputs.
 ```
 
 ## Build Targets
@@ -132,9 +137,12 @@ lib/posix/debug/
 | `Utility/util/SConscript` | `libomfgutil.a` | `Utility/util/` |
 | `OmfgScript/SConscript` | `libomfgscript.a` | `OmfgScript/` |
 | `http/SConscript` | `libomfghttp.a` | `http/` |
-| `luaapi/SConscript` | `libglua.a` | `luaapi/` (LuaJIT wrapper) |
+| `luaapi/SConscript` | `libglua.a` | `luaapi/luaapi/` (LuaJIT wrapper) |
+| `Net/SConscript` | `libomfgnet.a` | `Net/` (ZoidCom-on-ENet compat layer) |
+| `Vendor/xBRZ_1.9/SConscript` | `libomfgxbrz.a` | `Vendor/xBRZ_1.9/` (xBRZ pixel scaler) |
 | `liero2gus/SConscript` | `liero2gus` | `liero2gus/` |
-| `lighter/SConscript` | `lighter` | `lighter/`, `lighter/loaders/` |
+| `lighter/SConscript` | `lighter` | `lighter/` |
+| `lighter/loaders/SConscript` | `librenderLoaders.a` | `lighter/loaders/` |
 | `parsergen/SConscript` | `parsergen` | `parsergen/` |
 
 ## Build Configuration
@@ -148,7 +156,9 @@ lib/posix/debug/
 | `dedserv` | `-O3 -g` | `NDEBUG`, `DEDSERV` |
 | `dedserv-debug` | `-Og -g -fno-omit-frame-pointer` | `DEBUG`, `DEDSERV`, `LOG_RUNTIME` |
 
-All builds use `-std=c++17`, `-Wall -Wno-reorder`, and define `_GNU_SOURCE`,
+All builds use `-std=c++17` and the shared base CCFLAGS
+`-pipe -fno-diagnostics-show-option -Wfatal-errors -Wall -Wno-unused -Wno-register
+-Wno-implicit-fallthrough`, and define `_GNU_SOURCE`,
 `BOOST_TIMER_ENABLE_DEPRECATED`.
 
 ### Library Detection
@@ -159,14 +169,19 @@ Libraries detected via `pkg-config`:
 - `luajit`
 
 Boost libraries detected via `CheckLib`:
-- `boost_filesystem`, `boost_system`
+- `boost_filesystem` only (in Boost 1.70+ `boost_system` is merged into
+  `boost_filesystem`, so it is no longer linked separately)
 
 ## Parser Generation
 
-Two parsers are generated at build time:
+Two parsers are generated at build time (guarded by `NO_PARSERS`; regenerated
+by default, pass `no-parsers=1` to skip and use the committed headers):
 
-1. **Console grammar** (`Console/console-grammar.h`) — parses console commands
-2. **OmfgScript grammar** (`OmfgScript/omfg_script_parser.h`) — parses GUI style sheets
+1. **OmfgScript grammar** (`OmfgScript/omfg_script_parser.h` from `omfg_script_parser.pg`) — parses gameplay object/weapon/exp definitions
+2. **GSS grammar** (`GUI/detail/gss-grammar.h` from `detail/gss-grammar.pg`) — parses GUI style sheets
+
+`Console/console-grammar.h` is a hand-maintained committed header — it is **not**
+generated (no `.pg` file, no `Parser()` call in `Console/SConscript`).
 
 Process:
 1. `parsergen` tool is built first

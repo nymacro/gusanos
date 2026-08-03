@@ -54,7 +54,7 @@ button#ok:active { ... }   /* matches tag=button AND id=ok AND state=active */
 
 Selectors are ranked by specificity and applied lowest-first so that more
 specific rules override less specific ones. The `matchesWindow()` function in
-`GUI/detail/context.cpp:219` computes a numeric score:
+`GUI/detail/context.cpp:218` computes a numeric score:
 
 | Condition | Points |
 |---|---|
@@ -116,26 +116,26 @@ resource name until a successful load.
 ## Lifecycle
 
 1. **Loading:** A GSS source file is loaded via `Context::loadGSS(istream&,
-   filename)` (`gss.cpp:52`). This creates a `GSSImpl` and calls
+   filename)` (`gss.cpp:41`). This creates a `GSSImpl` and calls
    `rule_document()`, which populates `m_gss` (a `GSSselectors` list).
 
 2. **Application:** When `Context::updateGSS()` is called, the root window's
    `doUpdateGSS()` traverses the widget tree and calls `applyGSS()` on every
    window.
 
-3. **Matching:** `Wnd::applyGSS()` (`wnd.cpp:221`) sets the window's `m_state`
+3. **Matching:** `Wnd::applyGSS()` (`wnd.cpp:261`) sets the window's `m_state`
    (based on active/focused status), then calls `applyGSSreally()`. That
-   function (`wnd.cpp:195`) iterates all selectors, calls `matchesWindow()` on
+   function (`wnd.cpp:239`) iterates all selectors, calls `matchesWindow()` on
    each, collects those that match, sorts by specificity (lowest first), and
    calls `applyFormatting()` for each.
 
-4. **Formatting:** `Wnd::applyFormatting()` (`wnd.cpp:237`) walks the property
+4. **Formatting:** `Wnd::applyFormatting()` (`wnd.cpp:275`) walks the property
    map and sets fields on the `m_formatting` struct (colors, dimensions, font,
    background, skin, borders, alpha, blender). Each window type can override
    `applyGSS()` to handle additional widget-specific properties (e.g. `Check`
    inherits it to manage checked/unchecked state).
 
-5. **Placement:** After formatting, `updatePlacement()` (`wnd.cpp:417`)
+5. **Placement:** After formatting, `updatePlacement()` (`wnd.cpp:391`)
    resolves coordinate values (positive = from top/left, negative = from
    bottom/right) against the parent rect, applies padding, and populates the
    free-space allocator for child widgets.

@@ -25,7 +25,7 @@ The engine exposes two special Lua tables with metatable behavior:
 
 | Table | Behavior |
 |---|---|
-| `bindings` | `__newindex` hook: assigning a function binds it to a key action |
+| `bindings` | `__newindex` hook: assigning a function registers it as a Lua callback (see Callback Reference) |
 | `console` | `__index`/`__newindex` hooks: reads and writes engine CVars |
 
 ## Global Functions
@@ -57,16 +57,16 @@ end)
 -- Bindable as: BIND A +P0_lean
 ```
 
-#### `console_key_for_action(action)`
-Returns the SDL3 key name bound to a console action string.
+#### `console_key_for_action(action)` → `int`
+Returns the key code (integer, indexing the `Keys` table) bound to a console action string, or `nil` if unbound.
 
-#### `console_action_for_key(key)`
-Returns the console action bound to a SDL3 key name.
+#### `console_action_for_key(key)` → `string`
+Returns the console action string bound to a key code (integer), or `nil` if unbound.
 
-#### `console_bind(binding_string)`
-Binds a key from Lua. Equivalent to console `BIND` command.
+#### `console_bind(key, action)`
+Binds a key code to a console action string. `key` is an integer key code (e.g. `Keys.F1`); `action` is the console command string to run. Equivalent to the console `BIND` command.
 ```lua
-console_bind("F1 SCREENSHOT")
+console_bind(Keys.F1, "screenshot")
 ```
 
 #### `quit()`
@@ -323,51 +323,57 @@ Destroys this PartType.
 
 ## Network Event System
 
-The engine provides a typed event system for network-synchronized custom events:
+The engine provides a typed event system for network-synchronized custom events (`Goop/lua/bindings-network.cpp`). Events are created with global constructor functions that take a unique name and a handler function. The handler runs on every peer that receives the event.
 
 ### Event Registration
 
 ```lua
--- Register a network game event
-gameEvent = NetworkGameEvent:new("myEvent")
+-- network_game_event(name, handler) -> NetworkGameEvent
+-- handler: function(event, data)
+gameEvent = network_game_event("myEvent", function(event, data)
+    print("Got game event")
+end)
 
--- Register a network player event
-playerEvent = NetworkPlayerEvent:new("myPlayerEvent")
+-- network_player_event(name, handler) -> NetworkPlayerEvent
+-- handler: function(event, player, data)
+playerEvent = network_player_event("myPlayerEvent", function(event, player, data)
+    print("Got player event for", player:name())
+end)
 
--- Register a network worm event
-wormEvent = NetworkWormEvent:new("myWormEvent")
+-- network_worm_event(name, handler) -> NetworkWormEvent
+-- handler: function(event, worm, data)
+wormEvent = network_worm_event("myWormEvent", handler)
+
+-- network_particle_event(name, handler) -> NetworkParticleEvent
+-- handler: function(event, particle, data)
+particleEvent = network_particle_event("myParticleEvent", handler)
 ```
+
+`data` is a `ZCom_BitStream` object. Create one with `new_bitstream()` and fill it with `add_int`, `add_string`, `add_bool`, or `dump`; read it back with `get_int`, `get_string`, `get_bool`, or `undump`.
 
 ### Event Sending
 
 ```lua
--- gameEvent:send([data], [connection], [mode], [rules])
-gameEvent:send("hello")  -- Send to all
+-- NetworkGameEvent:send([data[, connection[, mode[, rules]]]])
+gameEvent:send(bitstream)  -- rules decide recipients
 
--- playerEvent:send(player, [data], [connection], [mode], [rules])
-playerEvent:send(somePlayer, data)
+-- NetworkPlayerEvent:send(player, [data[, ...]])
+playerEvent:send(somePlayer, bitstream)
 
--- wormEvent:send(worm, [data], [connection], [mode], [rules])
-wormEvent:send(someWorm, data)
+-- NetworkWormEvent:send(worm, [data[, ...]])
+wormEvent:send(someWorm, bitstream)
+
+-- NetworkParticleEvent:send(particle, [data[, ...]])
+particleEvent:send(someParticle, bitstream)
 ```
 
 Parameters:
-- `data` — optional string payload
-- `connection` — target connection ID (default: all)
-- `mode` — send mode enum (default: reliable)
-- `rules` — delivery rules
+- `data` — optional `ZCom_BitStream` payload
+- `connection` — target connection ID; `0` means `rules` decides recipients (default `0`)
+- `mode` — `SendMode.ReliableOrdered` (default), `SendMode.ReliableUnordered`, or `SendMode.Unreliable`
+- `rules` — who receives the event when `connection` is `0`. A sum of `RepRule` values: `RepRule.Auth2All` (server→all clients), `RepRule.Auth2Owner` (server→owning client), `RepRule.Auth2Proxy` (server→non-owning clients), `RepRule.Owner2Auth` (owning client→server), `RepRule.None`. A common combination is `RepRule.Owner2Auth + RepRule.Auth2All`.
 
-### Event Receiving
-
-Events are received through the callback system. Register a handler:
-
-```lua
-addEventHandler("gameNetworkInit", function()
-    registerNetworkHandler(myEvent, function(data, connection)
-        print("Got network event:", data)
-    end)
-end)
-```
+The global `AUTH` is `true` on the server (authority) and `false` on clients.
 
 ## Resource Functions
 
@@ -385,72 +391,46 @@ end
 
 ## Event & Timer System
 
-PartType objects can define events and timers in their `.part` Lua scripts:
+Particle (`.obj`), explosion (`.exp`), and weapon (`.wpn`) behavior is defined
+with the engine's **OmfgScript** format (parsed by `OmfgScript::Parser`), not
+Lua. Events are `on <name>(<params>)` blocks containing action commands, e.g.
+`on creation()` / `on ground_collision()` / `on timer(delay, delay_var, max_trigger)`.
+See [`obj-format.md`](obj-format.md) and [`wpn-format.md`](wpn-format.md) for the
+full property and event reference.
 
-```lua
--- Events are triggered by engine conditions
-creation = function(self)
-    print("Particle created at", self:pos())
-end
+Lua is reached from OmfgScript in three ways:
 
-groundCollision = function(self)
-    print("Particle hit the ground")
-end
+- **`run_script(code)`** action — compiles inline Lua code and calls it with
+  `(object, object2)` (see the Action Commands table in obj-format.md).
+- **LazyScript properties** — `network_init`, `light_gen`, and `distort_gen`
+  are strings evaluated as Lua expressions to a function.
+- **Game-loop callbacks** — the global `bindings` table (see the Lua Callback
+  System above) fires Lua functions at fixed points in the loop.
 
-death = function(self)
-    print("Particle destroyed")
-end
+### `TimerEvent` (`Goop/timer_event.h`)
 
--- Timers fire repeatedly
-timer{
-    timeout = 30,  -- Ticks before first fire
-    interval = 60, -- Repeat interval (nil = one-shot)
-    func = function(self)
-        self:push(0, -1)  -- Float upward
-    end
-}
+`TimerEvent` extends `Event` (`Goop/events.h`) and is created from
+`on timer(...)` OmfgScript blocks. It holds `delay`, `delayVariation`,
+`triggerTimes`, and `startDelay`.
 
--- Detect ranges trigger when worms enter a radius
-detect{
-    range = 50,
-    func = function(self, worm)
-        print("Worm detected at", worm:pos())
-    end
-}
+Particle timers (`Goop/part_type.cpp`):
+
+```
+on timer(delay, delay_var, max_trigger)
 ```
 
-Events available in PartType definitions:
+Weapon timers (`Goop/weapon_type.cpp`) add `start_delay` and a separate
+`active_timer` event that only ticks while the weapon is active:
 
-| Event | Fires when |
-|---|---|
-| `creation` | Particle is spawned |
-| `death` | Particle is destroyed |
-| `groundCollision` | Particle hits the terrain |
-
-### Custom Events
-
-PartType also supports custom named events for scripts:
-
-```lua
-customEvent("explode", function(self)
-    -- Custom behavior
-end)
+```
+on timer(delay, delay_var, max_trigger, start_delay)
+on active_timer(delay, delay_var, max_trigger, start_delay)
 ```
 
-## TimerEvent (`Goop/events.h`)
-
-Weapon scripts use `TimerEvent` for timed behavior:
-
-```lua
--- In a weapon .wpn script:
-timer{
-    timeout = 10,   -- Initial delay in ticks
-    interval = 20,  -- Repeating interval (nil for one-shot)
-    func = function(self)
-        -- self = weapon instance
-    end
-}
-```
+The full set of weapon events: `primary_shoot`, `primary_press`,
+`primary_release`, `out_of_ammo`, `reload_end`, `timer`, `active_timer`.
+The full set of particle events: `creation`, `death`, `ground_collision`,
+`timer`, `detect_range`, `custom_event`.
 
 Weapons have three timer lists:
 - `timer` — general timers
@@ -459,76 +439,95 @@ Weapons have three timer lists:
 
 ## Lua Callback System
 
-### Callback Reference (`Goop/glua.h`)
+### Callback Reference (`Goop/glua.h`, `Goop/glua.cpp`)
 
 Callbacks are named points in the game loop where Lua functions can be
-registered. All callback names are exposed in the `addEventHandler()` Lua
-function.
+registered. A callback is registered by assigning a function to the global
+`bindings` table using the exact callback name (case-sensitive), e.g.
+`bindings.afterUpdate = function() ... end`. The accepted names are matched in
+`LuaCallbacks::bind()`.
 
-| Callback Name | Fired When | Parameters |
-|---|---|---|
-| `atGameStart` | Game starts | — |
-| `afterRender` | After frame render | — |
-| `afterUpdate` | After logic update | — |
-| `wormRender` | Before a worm renders | `worm` |
-| `viewportRender` | Before a viewport renders | `viewport, layer` |
-| `wormDeath` | A worm dies | `worm, killer, weapon` |
-| `wormRemoved` | A worm is removed | `worm` |
-| `playerUpdate` | Player updates each tick | `player` |
-| `playerInit` | Player is initialized | `player` |
-| `playerRemoved` | Player is removed | `player` |
-| `playerNetworkInit` | Player network state initialized | `player` |
-| `gameNetworkInit` | Game network state initialized | — |
-| `gameEnded` | Game ends | `reason` (EndReason enum) |
-| `gameError` | A game error occurred | `error` (Error enum) |
-| `localplayerInit` | Local player initialized | `player` |
-| `networkStateChange` | Network connection state changed | `state` |
+| Bind Name | Fired When | Parameters | Returns |
+|---|---|---|---|
+| `afterUpdate` | After each logic update tick | — | — |
+| `afterRender` | After each frame render | — | — |
+| `wormRender` | Per worm/viewport during render | `x, y, worm, viewport, ownerPlayer` | — |
+| `viewportRender` | Per viewport HUD render | `viewport, worm` | — |
+| `wormDeath` | A worm dies | `worm, killer, weaponName` (`killer` may be nil) | — |
+| `wormRemoved` | A worm is removed | `worm` | — |
+| `playerUpdate` | Each tick for every player | `player` | — |
+| `playerInit` | A player is added | `player` | — |
+| `playerRemoved` | A player is removed | `player` | — |
+| `playerNetworkInit` | A player is replicated to a client | `player, connID` | — |
+| `gameNetworkInit` | A new client joins | `connID` | — |
+| `gameEnded` | The game ends (no new game pending) | `reason` (int, `EndReason`) | — |
+| `gameError` | A game error occurs | `error` (int, `Error`) | — |
+| `localplayerInit` | Local player initialized | `player` | — |
+| `localplayerEvent` | Any local-player action (the "any" handler) | `player, action, pressed` | bool: `true` = consume the input |
+| `localplayerLeft` / `localplayerRight` / `localplayerUp` / `localplayerDown` / `localplayerFire` / `localplayerJump` / `localplayerChange` | The matching local-player action | `player, pressed` | bool: `true` = consume the input |
+| `transferUpdate` | File-transfer progress | `path, bps, transferred, size` | — |
+| `transferFinished` | File transfer completed | — | — |
+| `networkStateChange` | Network connection state changed | `state` (`Network` enum) | — |
+
+`atGameStart` exists in the `LuaCallbacks` enum but is **not** registered in
+`bind()` and is never fired, so it cannot currently be used.
 
 ### Local Player Action Callbacks
 
-For each action, indexed from `localplayerEvent` (15):
+Local-player input is surfaced as per-action callbacks (`Goop/player_input.cpp`). Each fires with `(player, pressed)` where `pressed` is `true` on key-down and `false` on key-up. Returning `true` from the handler consumes the input so the engine ignores it. The action order matches the `Player` action enum:
 
-| Callback Index | Equivalent To |
+| Bind Name | Action |
 |---|---|
-| `localplayerEvent + 0` | `localplayerEventAny` (any action) |
-| `localplayerEvent + 1` | Left action |
-| `localplayerEvent + 2` | Right action |
-| `localplayerEvent + 3` | Up action |
-| `localplayerEvent + 4` | Down action |
-| `localplayerEvent + 5` | Fire action |
-| `localplayerEvent + 6` | Jump action |
-| `localplayerEvent + 7` | Change action |
-| `transferUpdate` | Transfer progress update |
-| `transferFinished` | Transfer completed |
+| `localplayerLeft` | Left (`Player.Left`) |
+| `localplayerRight` | Right (`Player.Right`) |
+| `localplayerUp` | Up / aim up (`Player.Up`) |
+| `localplayerDown` | Down / aim down (`Player.Down`) |
+| `localplayerFire` | Fire weapon (`Player.Fire`) |
+| `localplayerJump` | Jump (`Player.Jump`) |
+| `localplayerChange` | Change weapon (`Player.Change`) |
+| `localplayerEvent` | Any of the above — fires for every action with `(player, action, pressed)` |
+
+The `transferUpdate` and `transferFinished` callbacks (file-transfer progress) are separate; see the table above.
 
 ### Using Callbacks in Lua
 
+Register a callback by assigning a function to the `bindings` table. Names are
+case-sensitive and must match exactly.
+
 ```lua
-addEventHandler("afterUpdate", function()
+bindings.afterUpdate = function()
     -- Called every game tick
-end)
+end
 
-addEventHandler("wormDeath", function(worm, killer, weapon)
+bindings.wormDeath = function(worm, killer, weapon)
     print(worm:name() .. " was killed by " .. (killer and killer:name() or "?") .. (weapon ~= "" and " with " .. weapon or ""))
-end)
+end
 
-addEventHandler("gameEnded", function(reason)
+bindings.gameEnded = function(reason)
     if reason == EndReason.ServerQuit then
         print("Server quit")
     end
-end)
+end
+
+-- Input callback that consumes (blocks) the action
+bindings.localplayerJump = function(player, pressed)
+    if pressed and someCondition then
+        return true  -- engine ignores this jump
+    end
+end
 ```
 
-Callback names are case-insensitive and match the enum names from
-`LuaCallbacks` (kebab-case converted to camelCase).
+### How Registration Works
 
-### `addEventHandler(callbackName, function)`
+The global `bindings` table has a `__newindex` metamethod (`l_bind` in
+`Goop/lua/bindings.cpp`) that intercepts every assignment. When you write
+`bindings.<name> = func`, the engine looks up `<name>` in
+`LuaCallbacks::bind()` (`Goop/glua.cpp`) and stores the function in the
+matching callback slot. Unknown names are silently ignored.
 
-Registers a Lua function to be called at the specified callback point.
-
-```lua
-addEventHandler("afterUpdate", myUpdateFunction)
-```
+A global `bind` function is also exported, but it is the same `__newindex`
+handler and expects the `(table, name, func)` metamethod arguments — always use
+the `bindings.<name> = func` form instead.
 
 ## Enumerations
 
@@ -580,18 +579,20 @@ console.SFX_VOLUME = 200
 
 ## The `bindings` Table
 
-The global `bindings` table provides programmatic key binding:
+The global `bindings` table is the registry for **Lua callbacks** (see the
+Lua Callback System above). Assigning a function to a recognized callback name
+registers it; the `__newindex` metamethod routes the assignment to
+`LuaCallbacks::bind()`:
 
 ```lua
--- Assign a function to a key (overrides any command binding)
-bindings["F1"] = function()
-    print("F1 pressed!")
-    return true  -- Return true = consume the key event
-end
-
--- Or clear a binding
-bindings["F1"] = nil
+bindings.afterUpdate = function() ... end   -- register a callback
 ```
+
+Only the callback names recognized by `LuaCallbacks::bind()` have any effect;
+assigning any other name (e.g. `bindings["F1"] = ...`) is silently ignored.
+
+For **key bindings** (mapping a key to a console command), use
+`console_bind(key, action)` instead — the `bindings` table is not for keys.
 
 ## Persistence (`persistence` table)
 
@@ -677,11 +678,11 @@ Weapon event hooks:
 
 ```lua
 -- script/init.lua
-addEventHandler("atGameStart", function()
-    print("Game started!")
-end)
+bindings.localplayerInit = function(player)
+    print("Local player initialized:", player:name())
+end
 
-addEventHandler("afterUpdate", function()
+bindings.afterUpdate = function()
     for player in game_players() do
         local worm = player:worm()
         if worm then
@@ -691,13 +692,13 @@ addEventHandler("afterUpdate", function()
             end
         end
     end
-end)
+end
 
-addEventHandler("wormDeath", function(worm, killer, weapon)
+bindings.wormDeath = function(worm, killer, weapon)
     if killer and killer:is_local() then
         print("You killed " .. worm:name() .. (weapon ~= "" and " with " .. weapon or ""))
     end
-end)
+end
 
 -- Custom console command
 console_register_command("show_scores", function()
@@ -717,11 +718,11 @@ console_register_control("dance", function(player, state)
     end
 end)
 
--- Key binding from Lua
-bindings["F2"] = function()
+-- Key binding from Lua: register a console command, then bind a key to it
+console_register_command("f2_action", function()
     print("F2 pressed!")
-    return true
-end
+end)
+console_bind(Keys.F2, "f2_action")
 ```
 
 ## File References

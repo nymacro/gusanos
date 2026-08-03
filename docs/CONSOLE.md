@@ -55,20 +55,18 @@ console.registerVariable(
 | `VID_BITDEPTH` | int | 32 | Color depth (32-bit forced in SDL3 build) |
 | `VID_DISTORTION_AA` | int | 1 | Distortion anti-aliasing |
 | `VID_HAX_WORMLIGHT` | int | 1 | Enable worm light hack |
-| `VID_FILTER` | enum | NOFILTER | Video filter/magnification algorithm |
+| `VID_FILTER` | enum | PIXELART | Video filter/scaling algorithm (see options below) |
 
-**VID_FILTER options:**
+**VID_FILTER options** (enum defined in `Goop/gfx.cpp`):
 
 | Value | Description |
 |---|---|
-| `NOFILTER` | Nearest-neighbor (no filter) |
-| `NOFILTER2` | Alternative nearest-neighbor |
-| `SCANLINES` | Scanline effect |
-| `SCANLINES2` | Alternative scanline effect |
-| `BILINEAR` | Bilinear filtering |
-| `SUPER2XSAI` | Super 2xSaI interpolation |
-| `SUPEREAGLE` | SuperEagle interpolation |
-| `PIXELATE` | Pixelate effect |
+| `NEAREST` | Nearest-neighbor (no filtering) |
+| `LINEAR` | Bilinear (smooth) filtering |
+| `PIXELART` | Pixel-art scaling — nearest with improved scaling (default) |
+| `XBRZ2X` | xBRZ 2× upscaling |
+| `XBRZ3X` | xBRZ 3× upscaling |
+| `XBRZ4X` | xBRZ 4× upscaling |
 
 #### Audio (`Goop/sfx.cpp`)
 
@@ -277,11 +275,15 @@ SETCONSOLEKEY <keyname>
 
 ### Scripting (`.cfg` files)
 
-Config files are plain text, one command per line. Comments are not supported
-but commands can include Lua expressions via the `=` prefix:
+Config files are plain text, one command per line. Comments begin with `#` —
+everything from `#` to the end of the line is ignored (`#` inside double-quoted
+strings is respected, and a line that is only whitespace plus `#` is treated as
+a full-line comment). Commands may be chained on one line with `;`, and a nested
+command's textual output can be substituted into an identifier or argument with
+`{command args}` (the inner command runs and its return string is spliced in):
 
 ```
-// console.cfg example
+# console.cfg example
 CON_HEIGHT 150
 VID_FULLSCREEN 1
 BIND F9 "MAP map01"

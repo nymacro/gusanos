@@ -32,14 +32,14 @@ C++17 with LuaJIT scripting via pkg-config.
    │ (terrain)  │ │ (dev UI)   │  │ BitStream      │ │ (embedded)   │
    │            │ │            │  │ Replicators    │ │              │
    ├────────────┤ ├────────────┤  ├────────────────┤ ├──────────────┤
-   │ Objects    │ │ Menu/GUI   │  │ Updater        │ │ OmfgScript   │
-   │ Particles  │ │ OmfgGUI    │  │ (file DL)      │ │ (GSS/XML)    │
-   │ Weapons    │ │            │  │                │ │              │
+    │ Objects    │ │ Menu/GUI   │  │ Updater        │ │ OmfgScript   │
+    │ Particles  │ │ OmfgGUI    │  │ (file DL)      │ │ (gameplay)   │
+    │ Weapons    │ │            │  │                │ │              │
    └────────────┘ └────────────┘  └────────────────┘ └──────────────┘
 ```
 
 Most subsystems are global singleton objects: `game`, `gfx`, `network`, `sfx`,
-`console`, `updater`, `luaCallbacks`.
+`console`, `updater`, `lua`, `luaCallbacks`.
 
 ## Docs Index
 
