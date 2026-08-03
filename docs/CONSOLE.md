@@ -83,6 +83,7 @@ console.registerVariable(
 | `NET_SERVER_NAME` | string | "Unnamed server" | Server name (appears in server list) |
 | `NET_SERVER_DESC` | string | "" | Server description |
 | `NET_REGISTER` | int | 1 | Register with master server (1 = yes) |
+| `NET_MASTER_SERVER` | string | "comser.liero.org.pl" | Master server hostname for server listing |
 | `NET_SIM_LAG` | int | 0 | Simulated latency in ms |
 | `NET_SIM_LOSS` | float | -1.0 | Simulated packet loss rate |
 | `NET_UP_LIMIT` | int | 10000 | Upload bandwidth limit (bytes/sec) |

@@ -129,6 +129,7 @@ Handled by `onServerRemoved()`, which unconditionally sets `serverAdded = false`
 | Variable | Default | Effect |
 |---|---|---|
 | `NET_REGISTER` | `1` | `0` disables all master-server contact (add/update/remove). |
+| `NET_MASTER_SERVER` | `"comser.liero.org.pl"` | Hostname of the master server contacted for add/update/remove. |
 | `NET_SERVER_NAME` | `"Unnamed server"` | `title` |
 | `NET_SERVER_DESC` | `""` | `desc` |
 | `NET_SERVER_PORT` | `9898` | `port` (also the ZoidCom listen port) |
