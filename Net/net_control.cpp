@@ -269,7 +269,9 @@ void ZCom_Control::routeNodeEvent(ZCom_NodeID nid, eZCom_NodeRole localRole, zU8
 		else
 			enet_packet_destroy(packet);
 	}
-	enet_host_flush(m_host);
+	// No per-call flush: ENet buffers the queued packets and the single batch
+	// flush in ZCom_processOutput() drains them (one flush/tick instead of one
+	// per routed event), at most one tick of added latency.
 }
 
 void ZCom_Control::ZCom_processInput(eZCom_BlockMode _block) {
@@ -885,6 +887,53 @@ void ZCom_Control::dropPeerState(uint32_t connID) {
 			++i;
 		}
 	}
+
+	// The per-nodeID buffers below are shared across ALL peers (keyed by
+	// nodeID / classID), so a blanket clear() would wipe other clients'
+	// buffered data on a multi-client server. Drop only the entries that came
+	// from the disconnecting peer; otherwise data for a node that never
+	// registers locally accumulates unbounded (latent leak). Consolidated
+	// here so both disconnect paths — the clean DISCONNECT case and the T3.1
+	// over-read close at the bottom of processENetEvent — stay in sync.
+	for (auto it = m_pendingReplicas.begin(); it != m_pendingReplicas.end();) {
+		if (it->second.connID == connID)
+			it = m_pendingReplicas.erase(it);
+		else
+			++it;
+	}
+	for (auto it = m_pendingNodeEvents.begin(); it != m_pendingNodeEvents.end();) {
+		auto &vec = it->second;
+		vec.erase(std::remove_if(vec.begin(), vec.end(),
+								 [&](const PendingNodeEvent &ev) { return ev.connID == connID; }),
+				  vec.end());
+		if (vec.empty())
+			it = m_pendingNodeEvents.erase(it);
+		else
+			++it;
+	}
+	for (auto it = m_pendingUniqueAnnounce.begin(); it != m_pendingUniqueAnnounce.end();) {
+		if (it->second.connID == connID)
+			it = m_pendingUniqueAnnounce.erase(it);
+		else
+			++it;
+	}
+	// Pending file offers are keyed by nodeID -> vector<fileTransID>; the
+	// owning FileTransfer records the peer. Drop offers whose transfer came
+	// from the disconnecting peer. Offers whose transfer is already gone are
+	// harmless: deliverPendingFileOffers skips fids absent from m_fileTransfers.
+	for (auto it = m_pendingFileOffers.begin(); it != m_pendingFileOffers.end();) {
+		auto &fids = it->second;
+		fids.erase(std::remove_if(fids.begin(), fids.end(),
+							  [&](ZCom_FileTransID fid) {
+								  auto ft = m_fileTransfers.find(fid);
+								  return ft != m_fileTransfers.end() && ft->second.peerConnID == connID;
+							  }),
+				   fids.end());
+		if (fids.empty())
+			it = m_pendingFileOffers.erase(it);
+		else
+			++it;
+	}
 }
 
 void ZCom_Control::sendPacket(uint32_t connID, ENetPeer *peer, int channel, ENetPacket *packet, bool critical) {
@@ -1456,26 +1505,10 @@ void ZCom_Control::processENetEvent(ENetEvent &event) {
 			m_waitingForReply.erase(connID);
 			m_announcedNodes.erase(connID);
 			m_peerRole.erase(connID);
-			// M2: the per-nodeID buffers below are shared across ALL peers (keyed
-			// by nodeID), so a blanket clear() would wipe other clients' buffered
-			// data on a multi-client server. Drop only the entries that came from
-			// the disconnecting peer.
-			for (auto it = m_pendingReplicas.begin(); it != m_pendingReplicas.end();) {
-				if (it->second.connID == connID)
-					it = m_pendingReplicas.erase(it);
-				else
-					++it;
-			}
-			for (auto it = m_pendingNodeEvents.begin(); it != m_pendingNodeEvents.end();) {
-				auto &vec = it->second;
-				vec.erase(std::remove_if(vec.begin(), vec.end(),
-										 [&](const PendingNodeEvent &ev) { return ev.connID == connID; }),
-						  vec.end());
-				if (vec.empty())
-					it = m_pendingNodeEvents.erase(it);
-				else
-					++it;
-			}
+			// Per-connID purge of the shared per-nodeID buffers (pending
+			// replicas / events / unique-announces / file-offers) lives in
+			// dropPeerState() so this path and the T3.1 over-read close below
+			// stay in sync.
 			// m_pendingAnnounce holds LOCAL node IDs awaiting outbound announce
 			// to all currently-connected peers; do NOT clear it here, or nodes
 			// registered this tick would never reach the remaining peers.
@@ -1541,15 +1574,16 @@ void ZCom_Control::sendConnectionReply(ENetPeer *peer, ZCom_BitStream &reply, bo
 
 void ZCom_Control::dispatchNodeEvent(uint32_t nodeID, int type, int role, uint32_t connID, ZCom_BitStream *data,
 									 zU32 estimatedTimeSent) {
-	bool found = false;
-	m_nodeRegistry.forEach([&](ZCom_Node *node) {
-		if (node->getNetworkID() == nodeID) {
-			node->pushEvent(static_cast<eZCom_Event>(type), static_cast<eZCom_NodeRole>(role), connID, data,
-							estimatedTimeSent);
-			found = true;
-		}
-	});
-	if (!found && data) {
+	// O(1) lookup by node ID instead of a linear scan over every registered
+	// node on every incoming event. IDs are unique (the registry keys by ID),
+	// so at most one node matches.
+	ZCom_Node *node = m_nodeRegistry.find(nodeID);
+	if (node) {
+		node->pushEvent(static_cast<eZCom_Event>(type), static_cast<eZCom_NodeRole>(role), connID, data,
+						estimatedTimeSent);
+		return;
+	}
+	if (data) {
 		// Node not registered locally yet (e.g. the announcement is still in
 		// flight). Buffer the event so it can be replayed once the node exists.
 		PendingNodeEvent ev;

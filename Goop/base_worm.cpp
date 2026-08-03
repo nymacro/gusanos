@@ -34,15 +34,6 @@
 #include <boost/lexical_cast.hpp>
 using boost::lexical_cast;
 
-/*
-void* BaseWorm::operator new(size_t count)
-{
-	//BaseWorm* p = (BaseWorm *)lua_newuserdata (lua, count);
-	BaseWorm* p = (BaseWorm *)lua.pushObject(LuaBindings::wormMetaTable, count);
-	p->luaReference = lua.createReference();
-	return (void *)p;
-}*/
-
 LuaReference BaseWorm::metaTable;
 
 BaseWorm::BaseWorm()

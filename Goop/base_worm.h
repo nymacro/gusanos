@@ -169,20 +169,6 @@ class BaseWorm : public BaseObject {
 	virtual void sendLuaEvent(LuaEventDef *event, eZCom_SendMode mode, zU8 rules, ZCom_BitStream *userdata,
 							  ZCom_ConnID connID) {}
 
-	/*
-		void* operator new(size_t count);
-
-		void operator delete(void* block)
-		{
-			// Lua frees the memory
-		}
-
-		void* operator new(size_t count, void* space)
-		{
-			return space;
-		}
-	*/
-
   protected:
 	// LuaReference luaReference;
 

@@ -86,9 +86,11 @@ void LuaContext::log(std::ostream &str) {
 	str << info.source << ":" << info.currentline << ": ";
 }
 
-LuaContext::LuaContext() {
-	init();
-}
+// The Lua state is opened explicitly in Game::init() (before LuaBindings::init)
+// instead of during static initialization, so init order is explicit and not
+// dependent on translation-unit static-init order. m_State stays null until
+// then; close() already null-guards on shutdown.
+LuaContext::LuaContext() : m_State(nullptr) {}
 
 LuaContext::LuaContext(LuaContext const &b) : m_State(b.m_State) {}
 

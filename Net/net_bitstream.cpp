@@ -36,7 +36,16 @@ ZCom_BitStream::~ZCom_BitStream() {}
 void ZCom_BitStream::ensureCapacity(size_t neededBits) {
 	size_t neededBytes = (neededBits + 7) / 8;
 	if (neededBytes > m_data.size()) {
-		m_data.resize(neededBytes + 64); // grow with some headroom
+		// Geometric (doubling) growth: building a large stream via repeated
+		// addInt previously did ~N/64 realloc-copies (fixed +64 headroom per
+		// grow). Doubling amortises to O(log n) reallocs. m_writeBit — not
+		// m_data.size() — remains the authoritative length (getDataLength()).
+		size_t newCap = m_data.size();
+		if (newCap < 64)
+			newCap = 64;
+		while (newCap < neededBytes)
+			newCap *= 2;
+		m_data.resize(newCap);
 	}
 }
 

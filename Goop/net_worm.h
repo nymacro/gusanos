@@ -8,6 +8,8 @@
 
 #include "network_compat.h"
 
+#include <memory>
+
 class NetWormInterceptor;
 
 class NetWorm : public BaseWorm {
@@ -68,7 +70,7 @@ class NetWorm : public BaseWorm {
 			m_node->setNetworkID(id);
 	}
 	ZCom_Node *getZNode() {
-		return m_node;
+		return m_node.get();
 	}
 
 	// Deterministic burst seeding (see BaseWorm). NetWorm owns the per-worm
@@ -117,8 +119,14 @@ class NetWorm : public BaseWorm {
 	void addEvent(ZCom_BitStream *data, NetEvents event);
 
 	bool m_isAuthority;
-	ZCom_Node *m_node;
-	NetWormInterceptor *m_interceptor;
+	// Owned via unique_ptr for RAII: the ctor can no longer leak m_node if a
+	// later step throws, and finalize()/dtor share one deletion path.
+	// m_interceptor is declared first so member destruction (reverse order)
+	// destroys m_node before m_interceptor, matching the prior explicit
+	// `delete m_node; delete m_interceptor;` order (ZCom_Node::~ZCom_Node
+	// unregisters and must not outlive the interceptor it may callback into).
+	std::unique_ptr<NetWormInterceptor> m_interceptor;
+	std::unique_ptr<ZCom_Node> m_node;
 	ZCom_NodeID m_playerID; // The id of the owner player node to replicate to all proxys
 
 	uint32_t m_actionSeq = 0; // per-worm monotonic fire/dig/die burst counter

@@ -382,6 +382,7 @@ class Grid : boost::noncopyable {
 		squaresV = (height + squareSide - 1) / squareSide;
 		layers.clear();
 		layers.resize(layerCount, Layer(squaresH * squaresV));
+		m_dirty = false; // fresh layers have no delayed inserts to flush
 
 		for (std::vector<Layer>::iterator l = layers.begin(); l != layers.end(); ++l) {
 			// insertD inserts at the front, so we have to go through the squares in
@@ -599,11 +600,13 @@ class Grid : boost::noncopyable {
 		Layer &layer = layers[colLayer + ColLayerCount * renderLayer];
 		assert((unsigned int)squareIndex < layer.grid.size());
 		layer.insertDelayed(obj);
+		m_dirty = true;
 	}
 
 	void insert(BaseObject *obj, int renderLayer) {
 		Layer &layer = layers[NoColLayer + ColLayerCount * renderLayer];
 		layer.insertDelayedNoCol(obj);
+		m_dirty = true;
 	}
 
 	void insertImmediately(BaseObject *obj, int colLayer, int renderLayer) {
@@ -616,9 +619,14 @@ class Grid : boost::noncopyable {
 	}
 
 	void flush() {
+		// Most ticks insert nothing (objects think in place; only new spawns
+		// delay-insert), so skip the layerCount-wide sweep entirely then.
+		if (!m_dirty)
+			return;
 		for (std::vector<Layer>::iterator i = layers.begin(); i != layers.end(); ++i) {
 			i->flushDelayed();
 		}
+		m_dirty = false;
 	}
 
 	void relocateIfNecessary(iterator o) {
@@ -744,6 +752,7 @@ class Grid : boost::noncopyable {
 	int y2;
 
 	std::vector<Layer> layers;
+	bool m_dirty = false; // set by insert(); cleared by flush()/resize()
 };
 
 /*

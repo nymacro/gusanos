@@ -32,7 +32,7 @@ NetWorm::NetWorm(bool isAuthority) : BaseWorm() {
 	timeSinceLastUpdate = 1;
 
 	m_playerID = INVALID_NODE_ID;
-	m_node = new ZCom_Node();
+	m_node = std::make_unique<ZCom_Node>();
 	if (!m_node) {
 		allegro_message("ERROR: Unable to create worm node.");
 	}
@@ -79,8 +79,8 @@ NetWorm::NetWorm(bool isAuthority) : BaseWorm() {
 
 	m_node->endReplicationSetup();
 
-	m_interceptor = new NetWormInterceptor(this);
-	m_node->setReplicationInterceptor(m_interceptor);
+	m_interceptor = std::make_unique<NetWormInterceptor>(this);
+	m_node->setReplicationInterceptor(m_interceptor.get());
 
 	m_isAuthority = isAuthority;
 	if (isAuthority) {
@@ -94,10 +94,7 @@ NetWorm::NetWorm(bool isAuthority) : BaseWorm() {
 	m_node->applyForZoidLevel(1);
 }
 
-NetWorm::~NetWorm() {
-	delete m_node;
-	delete m_interceptor;
-}
+NetWorm::~NetWorm() = default;
 
 void NetWorm::addEvent(ZCom_BitStream *data, NetWorm::NetEvents event) {
 #ifdef COMPACT_EVENTS
@@ -185,7 +182,7 @@ void NetWorm::think() {
 		return;
 
 	while (m_node->checkEventWaiting()) {
-		std::cout << "[DEBUG] NetWorm::think processing event, isAuthority=" << m_isAuthority << std::endl;
+							DLOG("NetWorm::think processing event, isAuthority=" << m_isAuthority);
 		eZCom_Event type;
 		eZCom_NodeRole remote_role;
 		ZCom_ConnID conn_id;
@@ -211,8 +208,7 @@ void NetWorm::think() {
 							spd = game.level.vectorEncoding.decode<Vec>(*data);
 						} break;
 						case Respawn: {
-							std::cout << "[DEBUG] NetWorm::think Respawn received, calling BaseWorm::respawn"
-									  << std::endl;
+								DLOG("NetWorm::think Respawn received, calling BaseWorm::respawn");
 							Vec newpos = game.level.vectorEncoding.decode<Vec>(*data);
 							BaseWorm::respawn(newpos);
 							health = 100;
@@ -391,11 +387,11 @@ void NetWorm::respawn() {
 		// m_timeSinceDeath > minRespawnTime gate in BaseWorm::respawn().
 		// That gate exists for auto-respawn timing, not for explicit
 		// user-initiated respawn requests (JUMP with inactive worm).
-		std::cout << "[DEBUG] NetWorm::respawn authority nodeID=" << m_node->getNetworkID()
-				  << " m_timeSinceDeath=" << m_timeSinceDeath << " m_isActive(before)=" << m_isActive << std::endl;
+		DLOG("NetWorm::respawn authority nodeID=" << m_node->getNetworkID()
+			  << " m_timeSinceDeath=" << m_timeSinceDeath << " m_isActive(before)=" << m_isActive);
 		BaseWorm::respawn(game.level.getSpawnLocation(m_owner));
-		std::cout << "[DEBUG] NetWorm::respawn authority nodeID=" << m_node->getNetworkID()
-				  << " m_isActive(after)=" << m_isActive << std::endl;
+		DLOG("NetWorm::respawn authority nodeID=" << m_node->getNetworkID()
+			  << " m_isActive(after)=" << m_isActive);
 		if (m_isActive) {
 			ZCom_BitStream data;
 			addEvent(&data, Respawn);
@@ -511,10 +507,8 @@ void NetWorm::damage(float amount, BasePlayer *damager, DamageCause const &cause
 
 void NetWorm::finalize() {
 	BaseWorm::finalize();
-	delete m_node;
-	m_node = 0;
-	delete m_interceptor;
-	m_interceptor = 0;
+	m_node.reset();
+	m_interceptor.reset();
 }
 
 NetWormInterceptor::NetWormInterceptor(NetWorm *parent) {

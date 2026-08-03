@@ -58,8 +58,6 @@ struct LuaCallbacks {
 	std::vector<LuaReference> callbacks[max];
 };
 
-// extern LuaContext lua;
-
 extern LuaCallbacks luaCallbacks;
 /*
 // This is GCC specific, because I can't find a way to do it in standard C++ :/

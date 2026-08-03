@@ -310,7 +310,10 @@ class ZCom_Control {
 	/// Per-connection role each peer holds for each node (Phase D1 routing).
 	/// m_peerRole[connID][nodeID] = the role the peer at connID has for nodeID.
 	/// Set by every announcement path; cleared on disconnect / re-announce.
-	std::map<uint32_t, std::map<uint32_t, eZCom_NodeRole>> m_peerRole;
+	/// connIDs/nodeIDs are dense integer keys with no ordered iteration, so a
+	/// hash map avoids the two RB-tree lookups getPeerRole() did per peer per
+	/// node each tick.
+	std::unordered_map<uint32_t, std::unordered_map<uint32_t, eZCom_NodeRole>> m_peerRole;
 
 	/// Per-connection emulation state (T1.2 lag/loss).
 	std::map<uint32_t, PeerNetState> m_peerState;

@@ -56,7 +56,7 @@ class (lowercase):
 | `sfx` | `Sfx` | `sfx.h` |
 | `console` | `GConsole` | `gconsole.h` |
 | `updater` | `Updater` | `updater.h` |
-| `lua` | `LuaContext` | `luaapi/context.h` |
+| `lua` | `LuaContext` | `luaapi/luaapi/context.h` |
 | `luaCallbacks` | `LuaCallbacks` | `glua.h` |
 
 ### File Structure Conventions
@@ -79,7 +79,7 @@ the main thread in `Network::update()`.
 
 - **LuaJIT** (2.x) is linked via `pkg-config` (`luajit-5.1`).
   The `luaapi/` directory contains the C++ wrapper layer (`LuaContext`, etc.).
-- `LuaContext` (`Goop/luaapi/context.h`) wraps the Lua state. Provides stack
+- `LuaContext` (`luaapi/luaapi/context.h`) wraps the Lua state. Provides stack
   operations, function calls, class bindings, and reference tracking.
 - `LuaCallbacks` (`Goop/glua.h`) defines ~20 callbacks (`afterUpdate`,
   `afterRender`, `wormRender`, `wormDeath`, etc.) fired from the game loop.
