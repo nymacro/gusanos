@@ -1,4 +1,5 @@
 #include "ninjarope.h"
+#include "dedicated.h"
 
 #include "util/vec.h"
 #include "game.h"
@@ -26,13 +27,14 @@ NinjaRope::NinjaRope(PartType *type, BaseObject *worm) : m_worm(worm) {
 
 	m_angle = 0;
 	m_angleSpeed = 0;
-	// m_animator = NULL;
+	m_sprite = nullptr;
+	m_animator = nullptr;
 
-#ifndef DEDSERV
-	m_sprite = m_type->sprite;
+	if (!g_dedicated) {
+		m_sprite = m_type->sprite;
 
-	m_animator = m_type->allocateAnimator();
-#endif
+		m_animator = m_type->allocateAnimator();
+	}
 
 	// Why this?? :OO // Re: Modders may want to make the rope leave trails or sth :o
 	for (auto t : m_type->timer) {

@@ -1,5 +1,7 @@
 #include "game_actions.h"
 
+#include "dedicated.h"
+
 #include "game.h"
 // #include "particle.h"
 #include "part_type.h"
@@ -350,7 +352,7 @@ Remove::~Remove() {}
 /////////////////////////////////////////////////////////////////////////////////////
 
 PlaySound::PlaySound(vector<OmfgScript::TokenBase *> const &params) {
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	if (params[0]->isString()) {
 		sounds.push_back(soundList.load(params[0]->toString()));
 	} else if (params[0]->assertList()) {
@@ -362,18 +364,18 @@ PlaySound::PlaySound(vector<OmfgScript::TokenBase *> const &params) {
 	loudness = params[1]->toDouble(100.0);
 	pitch = params[2]->toDouble(1.0);
 	pitchVariation = params[3]->toDouble(0.0);
-#endif
+	}
 }
 
 void PlaySound::run(ActionParams const &params) {
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	if (!sounds.empty()) {
 		int sound = rndInt(sounds.size());
 		if (sounds[sound]) {
 			sounds[sound]->play2D(params.object, loudness, pitch, pitchVariation);
 		}
 	}
-#endif
+	}
 }
 
 PlaySound::~PlaySound() {}
@@ -383,7 +385,7 @@ PlaySound::~PlaySound() {}
 /////////////////////////////////////////////////////////////////////////////////////
 
 PlaySoundStatic::PlaySoundStatic(vector<OmfgScript::TokenBase *> const &params) {
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	if (params[0]->isString()) {
 		sounds.push_back(soundList.load(params[0]->toString()));
 	} else if (params[0]->assertList()) {
@@ -395,18 +397,18 @@ PlaySoundStatic::PlaySoundStatic(vector<OmfgScript::TokenBase *> const &params) 
 	loudness = params[1]->toDouble(100.0);
 	pitch = params[2]->toDouble(1.0);
 	pitchVariation = params[3]->toDouble(0.0);
-#endif
+	}
 }
 
 void PlaySoundStatic::run(ActionParams const &params) {
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	if (!sounds.empty()) {
 		int sound = rndInt(sounds.size());
 		if (sounds[sound]) {
 			sounds[sound]->play2D(params.object->pos, loudness, pitch, pitchVariation);
 		}
 	}
-#endif
+	}
 }
 
 PlaySoundStatic::~PlaySoundStatic() {}
@@ -416,7 +418,7 @@ PlaySoundStatic::~PlaySoundStatic() {}
 /////////////////////////////////////////////////////////////////////////////////////
 
 PlayGlobalSound::PlayGlobalSound(vector<OmfgScript::TokenBase *> const &params) {
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	if (params[0]->isString()) {
 		sounds.push_back(sound1DList.load(params[0]->toString()));
 	} else if (params[0]->assertList()) {
@@ -429,18 +431,18 @@ PlayGlobalSound::PlayGlobalSound(vector<OmfgScript::TokenBase *> const &params) 
 	volumeVariation = params[2]->toDouble(0.0);
 	pitch = params[3]->toDouble(1.0);
 	pitchVariation = params[4]->toDouble(0.0);
-#endif
+	}
 }
 
 void PlayGlobalSound::run(ActionParams const &params) {
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	if (!sounds.empty()) {
 		int sound = rndInt(sounds.size());
 		if (sounds[sound]) {
 			sounds[sound]->play(volume, pitch, volumeVariation, pitchVariation);
 		}
 	}
-#endif
+	}
 }
 
 PlayGlobalSound::~PlayGlobalSound() {}
@@ -483,19 +485,19 @@ UseAmmo::~UseAmmo() {}
 /////////////////////////////////////////////////////////////////////////////////////
 
 ShowFirecone::ShowFirecone(vector<OmfgScript::TokenBase *> const &params) {
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	sprite = spriteList.load(params[0]->toString());
 	frames = params[1]->toInt(0);
 	drawDistance = params[2]->toDouble(0);
-#endif
+	}
 }
 
 void ShowFirecone::run(ActionParams const &params) {
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	if (BaseWorm *w = dynamic_cast<BaseWorm *>(params.object)) {
 		w->showFirecone(sprite, frames, drawDistance);
 	}
-#endif
+	}
 }
 
 ShowFirecone::~ShowFirecone() {}
@@ -548,11 +550,11 @@ SetAlphaFade::SetAlphaFade(vector<OmfgScript::TokenBase *> const &params) {
 }
 
 void SetAlphaFade::run(ActionParams const &params) {
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	if (params.object) {
 		params.object->setAlphaFade(frames, dest);
 	}
-#endif
+	}
 }
 
 SetAlphaFade::~SetAlphaFade() {}

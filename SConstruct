@@ -102,7 +102,15 @@ def envif(env_name, arguments, arg_name):
 
 # Set custom variables
 env['MY_CONF'] = ARGUMENTS.get('conf', 'posix')
-env['MY_BUILD'] = ARGUMENTS.get('build', 'release')
+_build_arg = ARGUMENTS.get('build', 'release')
+# Dedicated server is now a runtime mode (`gusanos --dedicated`), not a
+# separate compile target. Map the legacy build names to their client
+# equivalents so old `build=dedserv` / `build=dedserv-debug` invocations
+# keep working (same flags + object dir as release/debug) instead of
+# silently producing a flagless binary in a stray object dir.
+if _build_arg in ('dedserv', 'dedserv-debug'):
+    _build_arg = 'release' if _build_arg == 'dedserv' else 'debug'
+env['MY_BUILD'] = _build_arg
 env['MY_SUBFOLDER'] = os.path.join(env['MY_CONF'], env['MY_BUILD'])
 env['NO_PARSERS'] = ARGUMENTS.get('no-parsers', False)
 env['BUILD_TESTS'] = ARGUMENTS.get('build-tests', '1') != '0'
@@ -182,12 +190,6 @@ if env['MY_BUILD'] == 'release':
 elif env['MY_BUILD'] == 'debug':
     env.Append(CCFLAGS=Split('-Og -g -fno-omit-frame-pointer -Wextra'),
                CPPDEFINES=['DEBUG', 'MAP_DOWNLOADING', 'LOG_RUNTIME'])
-elif env['MY_BUILD'] == 'dedserv':
-    env.Append(CCFLAGS=Split('-O3 -g'),
-               CPPDEFINES=['NDEBUG', 'DEDSERV'])
-elif env['MY_BUILD'] == 'dedserv-debug':
-    env.Append(CCFLAGS=Split('-Og -g -fno-omit-frame-pointer'),
-               CPPDEFINES=['DEBUG', 'DEDSERV', 'LOG_RUNTIME'])
 
 # Dependency Detection
 libs = ['sdl3', 'sdl3-mixer', 'sdl3-image', 'sdl3-ttf', 'libenet', 'libpng', 'zlib']

@@ -6,6 +6,7 @@
 #include "viewport.h"
 #endif
 #include "material.h"
+#include "dedicated.h"
 #include "base_player.h"
 #include "sprite_set.h"
 #include "sprite.h"
@@ -173,7 +174,7 @@ void Level::think() {
 		if (m_config && m_config->gameStart)
 			m_config->gameStart->run(0, 0, 0, 0);
 	}
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	for (auto it = m_water.begin(); it != m_water.end();) {
 		if (getMaterialIndex(it->x, it->y) != it->mat) {
 			putpixel_solid(image, it->x, it->y, getpixel(background, it->x, it->y));
@@ -228,7 +229,7 @@ void Level::think() {
 			++it;
 		}
 	}
-#endif
+	}
 }
 
 #ifndef DEDSERV
@@ -332,9 +333,8 @@ bool Level::applyEffect(LevelEffect *effect, int drawX, int drawY) {
 					putMaterial(1, drawX + x, drawY + y);
 					markDestroyed(drawX + x, drawY + y);
 					checkWBorders(drawX + x, drawY + y);
-#ifndef DEDSERV
-					putpixel(image, drawX + x, drawY + y, getpixel(background, drawX + x, drawY + y));
-#endif
+					if (!g_dedicated)
+						putpixel(image, drawX + x, drawY + y, getpixel(background, drawX + x, drawY + y));
 				}
 			}
 	}
@@ -427,7 +427,7 @@ void Level::loaderSucceeded() {
 			}
 		}
 
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	if (!lightmap) {
 		LocalSetColorDepth cd(8);
 		lightmap = create_bitmap(material->w, material->h);
@@ -454,7 +454,7 @@ void Level::loaderSucceeded() {
 		rectfill(watermap, 0, 0, watermap->w, watermap->h, makecol(0, 0, 200));
 		solid_mode();
 	}
-#endif
+	}
 	// Make the domain one pixel larger than the level so that things like ninjarope hook
 	// can get slightly outside the level and attach.
 	vectorEncoding = Encoding::VectorEncoding(Rect(-1, -1, width() + 1, height() + 1), 2048);
@@ -544,9 +544,8 @@ void Level::applyDestructionMaskRLE(ZCom_BitStream &in) {
 					unsigned y = static_cast<unsigned>(consumed / w);
 					putMaterial(1, x, y);
 					checkWBorders(x, y);
-#ifndef DEDSERV
-					putpixel(image, x, y, getpixel(background, x, y));
-#endif
+					if (!g_dedicated)
+						putpixel(image, x, y, getpixel(background, x, y));
 					markDestroyed(x, y);
 				}
 				++consumed;
@@ -561,9 +560,8 @@ void Level::applyDestructionMaskRLE(ZCom_BitStream &in) {
 				unsigned y = static_cast<unsigned>(i / w);
 				putMaterial(1, x, y);
 				checkWBorders(x, y);
-#ifndef DEDSERV
-				putpixel(image, x, y, getpixel(background, x, y));
-#endif
+				if (!g_dedicated)
+					putpixel(image, x, y, getpixel(background, x, y));
 				markDestroyed(x, y);
 			}
 		}

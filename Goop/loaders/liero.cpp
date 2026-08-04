@@ -1,5 +1,6 @@
 #include "liero.h"
 #include "../gfx.h"
+#include "../dedicated.h"
 #include <string>
 #include <vector>
 #include <cstring>
@@ -149,7 +150,7 @@ bool LieroLevelLoader::load(Level *level, fs::path const &path) {
 
 	array<unsigned char, 256 * 3> palette;
 
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	palette = lieroPalette;
 
 	if (fileSize >= width * height + 10 + 256 * 3) {
@@ -164,13 +165,13 @@ bool LieroLevelLoader::load(Level *level, fs::path const &path) {
 		}
 		f.seekg(0, std::ios::beg);
 	}
-#endif
+	}
 
 	level->material = create_bitmap_ex(8, width, height);
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	level->image = create_bitmap(width, height);
 	level->background = create_bitmap(width, height);
-#endif
+	}
 
 	initMaterialMappings();
 
@@ -178,7 +179,7 @@ bool LieroLevelLoader::load(Level *level, fs::path const &path) {
 		for (int x = 0; x < width; x++) {
 			int c = f.get();
 
-#ifndef DEDSERV
+			if (!g_dedicated) {
 			unsigned char const *entry = &palette[c * 3];
 			int imagec = makecol(entry[0], entry[1], entry[2]);
 			putpixel(level->image, x, y, imagec);
@@ -186,7 +187,7 @@ bool LieroLevelLoader::load(Level *level, fs::path const &path) {
 			entry = &palette[(160 + (rndgen() & 3)) * 3];
 			int backgroundc = makecol(entry[0], entry[1], entry[2]);
 			putpixel(level->background, x, y, backgroundc);
-#endif
+			}
 
 			putpixel(level->material, x, y, materialMappings[c]); // TODO
 		}

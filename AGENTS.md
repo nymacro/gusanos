@@ -20,7 +20,7 @@ multiplayer.
 | File | Contents | Read first if... |
 |---|---|---|
 | [README.md](docs/README.md) | Project overview, quick reference, architecture diagram | You need one-paragraph context |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layer diagram, dependency graph, singleton ownership, main loop, build targets, DEDSERV guards, network architecture | You need to understand how subsystems connect |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layer diagram, dependency graph, singleton ownership, main loop, build targets, dedicated (headless) mode, network architecture | You need to understand how subsystems connect |
 | [COMPONENTS.md](docs/COMPONENTS.md) | Per-file/per-class breakdown by subsystem: Core, Entities, Graphics, UI, Network, Audio, Scripting, Input, Utility, Tools | You need to find where something lives |
 | [BUILD.md](docs/BUILD.md) | Build commands, output layout, SConscript targets, compiler flags, parser generation pipeline | You need to build, configure, or add dependencies |
 | [zoidcom-spec.md](docs/zoidcom/spec/zoidcom-spec.md) | Generated specification for Zoidcom-compatible networking. Read-only, never edit | You need to know more about networking in the project |
@@ -36,12 +36,16 @@ multiplayer.
 
 ### Preprocessor Guards
 
-- **`DEDSERV`** — gates all rendering/audio/input code. Defined for dedicated
-  server builds (`build=dedserv` / `build=dedserv-debug`). Every graphics call,
-  sound call, input poll, font draw, and GUI operation must be wrapped in
-  `#ifndef DEDSERV` / `#endif`.
+- **`DEDSERV`** — no longer defined at compile time. Dedicated/headless mode is
+  a runtime flag, `g_dedicated` (default `false` = client; set `true` by passing
+  `--dedicated` on the command line; see `Goop/dedicated.h`). Load-bearing
+  rendering/audio/input code is gated with `if (!g_dedicated)` / `if (g_dedicated)`.
+  Inert structural `#ifndef DEDSERV` guards (member declarations, `#include`
+  lines, `#ifdef DEDSERV #error` stubs, whole-file wrappers) are left in place
+  but are dead — `DEDSERV` is never defined, so `#ifndef DEDSERV` blocks always
+  compile and the client build is unchanged.
 - **`DEBUG`** — debug build only. Enables extra logging and assertions.
-- **`NDEBUG`** — release/dedicated server builds. Disables assertions.
+- **`NDEBUG`** — release builds. Disables assertions.
 
 ### Global Singletons
 
@@ -153,7 +157,7 @@ state (session lifecycle, Lua events, server list, player management).
    function auto-discovers `.cpp` files in `Goop/` and its `lua/`, `blitters/`,
    `loaders/` subdirectories. For other directories, add the `.cpp` to the
    respective `SConscript`.
-3. Wrap rendering/input/audio code in `#ifndef DEDSERV`
+3. Wrap rendering/input/audio code in `if (!g_dedicated)` at runtime (include `Goop/dedicated.h`)
 
 ### Adding a new console variable
 
@@ -219,8 +223,10 @@ scons -c
   the very first include in a translation unit.
 - **Don't use standard mutexes** — the engine is single-threaded. Adding
   threading requires careful audit of global state.
-- **Don't remove `#ifndef DEDSERV` guards** — dedicated server builds depend on
-  them to omit all rendering code.
+- **Don't use `#ifndef DEDSERV` for new code** — dedicated mode is now runtime
+  (`g_dedicated`, set via `--dedicated`); gate new rendering/audio/input code
+  with `if (!g_dedicated)` instead. Existing inert `#ifndef DEDSERV` guards are
+  left in place as dead structural markers and should not be mass-removed.
 
 ## Quick Search Cheatsheet
 
@@ -229,5 +235,5 @@ scons -c
 | Find a class definition | `grep(pattern="class MyClass", path="Goop")` |
 | Find all callers of a function | `grep(pattern="->myMethod\(", path="Goop")` |
 | Find a global singleton declaration | `grep(pattern="extern .* mySingleton", path="Goop")` |
-| Find DEDSERV-guarded sections | `grep(pattern="#ifndef DEDSERV", path="Goop")` |
+| Find dedicated (headless)-gated sections | `grep(pattern="g_dedicated", path="Goop")` |
 | Find Lua binding registrations | `grep(pattern="registerLuaBindings", path="Goop")` |

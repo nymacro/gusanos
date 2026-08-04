@@ -18,6 +18,7 @@
 #include "animators.h"
 #endif
 #include "detect_event.h"
+#include "dedicated.h"
 
 #include <vector>
 
@@ -28,22 +29,28 @@ Explosion::Explosion(ExpType *type, const Vec &_pos, BasePlayer *owner) : BaseOb
 
 	m_type = type;
 
-#ifndef DEDSERV
-	m_alpha = m_type->alpha;
+	if (!g_dedicated) {
+		m_alpha = m_type->alpha;
 
-	m_timeout = m_type->timeout + (int)(grnd() * (m_type->timeoutVariation + 1));
-	// I add +1 or variation will always be 0 if the value of timeout variation is 1
+		m_timeout = m_type->timeout + (int)(grnd() * (m_type->timeoutVariation + 1));
+		// I add +1 or variation will always be 0 if the value of timeout variation is 1
 
-	if (m_type->destAlpha >= 0) {
-		m_fadeSpeed = (m_type->destAlpha - m_alpha) / m_timeout;
-	} else
+		if (m_type->destAlpha >= 0) {
+			m_fadeSpeed = (m_type->destAlpha - m_alpha) / m_timeout;
+		} else
+			m_fadeSpeed = 0;
+
+		if ((m_sprite = m_type->sprite)) {
+			m_animator = new AnimRightOnce(m_sprite, m_timeout + 2);
+		} else
+			m_animator = 0;
+	} else {
+		m_alpha = 0;
+		m_timeout = 0;
 		m_fadeSpeed = 0;
-
-	if ((m_sprite = m_type->sprite)) {
-		m_animator = new AnimRightOnce(m_sprite, m_timeout + 2);
-	} else
+		m_sprite = 0;
 		m_animator = 0;
-#endif
+	}
 
 	if (type->creation) {
 		type->creation->run(this);
@@ -53,18 +60,15 @@ Explosion::Explosion(ExpType *type, const Vec &_pos, BasePlayer *owner) : BaseOb
 		(*t)->check(this);
 	}
 
-#ifdef DEDSERV
-	deleteMe = true; // We have no use of explosions except for the first frame
-#else
-	if (type->invisible)
+	if (g_dedicated)
+		deleteMe = true; // We have no use of explosions except for the first frame
+	else if (type->invisible)
 		deleteMe = true;
-#endif
 }
 
 Explosion::~Explosion() {
-#ifndef DEDSERV
-	delete m_animator;
-#endif
+	if (!g_dedicated)
+		delete m_animator;
 }
 
 #ifndef DEDSERV

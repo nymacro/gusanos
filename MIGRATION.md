@@ -50,7 +50,7 @@ Remove legacy engine directories that are not built by the current SConstruct:
    - Detect: `sdl3`, `SDL3_mixer`, `SDL3_ttf`, `libenet`, `libpng`, `zlib`.
    - Update Boost detection to look for modern library names (e.g., `boost_filesystem`).
 4. **Tooling:** Replace `os.system()` with `subprocess.run()`.
-5. **Dedicated Server:** Ensure `DEDSERV` build only links against non-GUI dependencies where possible, or initializes SDL3 in headless mode (`SDL_INIT_EVENTS` only).
+5. **Dedicated Server:** Dedicated server is now a runtime mode (`--dedicated` → `g_dedicated`) of the single `gusanos` binary, not a separate compile-time build. Headless SDL init is handled by `if (!g_dedicated)` in `gfx.init()` (and related call sites), not by the `DEDSERV` macro.
 
 ## Step 2: Graphics & Input (Allegro 4 → SDL3)
 
@@ -138,7 +138,7 @@ ZoidCom's high-level replication must be replaced by a manual snapshot-based sys
 ## Step 5: Verification & Testing
 
 ### Phase 1: Build & Headless
-- Successfully build `dedserv` target with ENet and Boost.
+- Successfully build the single `gusanos` binary (release/debug) with ENet and Boost, then run headless via `--dedicated`.
 - Verify networking (host/connect) without graphics.
 
 ### Phase 2: Core Rendering

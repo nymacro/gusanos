@@ -1,6 +1,7 @@
 #include "weapon_type.h"
 
 #include "events.h"
+#include "dedicated.h"
 #include "sprite_set.h"
 #include "util/text.h"
 #include "parser.h"
@@ -122,7 +123,7 @@ bool WeaponType::load(fs::path const &filename) {
 	}
 
 	laserSightColour = parser.getProperty("laser_sight_colour", "laser_sight_color")->toColor(255, 0, 0);
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	{
 		OmfgScript::TokenBase *v = parser.getProperty("firecone");
 		if (!v->isDefault())
@@ -132,7 +133,7 @@ bool WeaponType::load(fs::path const &filename) {
 		if (!v->isDefault())
 			skin = spriteList.load(v->toString());
 	}
-#endif
+	}
 
 	OmfgScript::Parser::EventIter i(parser);
 	for (; i; ++i) {

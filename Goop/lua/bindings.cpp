@@ -23,6 +23,7 @@
 
 #include "../gconsole.h"
 #include "../gusanos.h"
+#include "../dedicated.h"
 #ifndef DEDSERV
 #include "../keys.h"
 #include "../menu.h"
@@ -563,11 +564,7 @@ void init() {
 	lua_rawset(context, LUA_GLOBALSINDEX);
 
 	lua_pushstring(context, "DEDSERV");
-#ifdef DEDSERV
-	lua_pushboolean(context, 1);
-#else
-	lua_pushboolean(context, 0);
-#endif
+	lua_pushboolean(context, g_dedicated ? 1 : 0);
 	lua_rawset(context, LUA_GLOBALSINDEX);
 
 #ifndef DEDSERV

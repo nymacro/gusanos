@@ -10,6 +10,7 @@
 #include "particle.h"
 #include "player_options.h"
 #include "player.h"
+#include "dedicated.h"
 #ifndef DEDSERV
 #include "base_animator.h"
 #include "animators.h"
@@ -44,16 +45,17 @@ BaseWorm::BaseWorm()
 #endif
 	  ,
 	  animate(false), movable(false), changing(false), showingWeaponText(false), m_dir(1) {
-#ifndef DEDSERV
-	skin = spriteList.load("skin");
-	skinMask = spriteList.load("skin-mask");
-	m_animator = new AnimLoopRight(skin, 35);
-
+	skin = nullptr;
+	skinMask = nullptr;
 	m_fireconeTime = 0;
 	m_currentFirecone = NULL;
 	m_fireconeAnimator = NULL;
 	m_fireconeDistance = 0;
-#endif
+	if (!g_dedicated) {
+		skin = spriteList.load("skin");
+		skinMask = spriteList.load("skin-mask");
+		m_animator = new AnimLoopRight(skin, 35);
+	}
 
 	m_timeSinceDeath = 0;
 
@@ -419,7 +421,7 @@ void BaseWorm::think() {
 
 		runWeaponThink();
 
-#ifndef DEDSERV
+		if (!g_dedicated) {
 		if (animate)
 			m_animator->tick();
 		else
@@ -434,7 +436,7 @@ void BaseWorm::think() {
 				m_fireconeAnimator->tick();*/
 			m_fireconeAnimator->tick();
 		}
-#endif
+		}
 	} else {
 		if (m_timeSinceDeath > game.options.maxRespawnTime && game.options.maxRespawnTime >= 0) {
 			respawn();

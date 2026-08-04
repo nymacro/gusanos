@@ -1,5 +1,6 @@
 #include "allegro_compat.h"
 
+#include "dedicated.h"
 #include "gconsole.h"
 #include "resource_list.h"
 #include "sprite.h"
@@ -69,16 +70,15 @@ int showGamepadInputs;
 void shutdown() {
 	game.unload();
 	network.shutDown();
-#ifndef DEDSERV
-	OmfgGUI::menu.destroy();
-#endif
+	if (!g_dedicated)
+		OmfgGUI::menu.destroy();
 	console.shutDown();
-#ifndef DEDSERV
-	sfx.shutDown();
+	if (!g_dedicated) {
+		sfx.shutDown();
 
-	/* Shut down gamepad */
-	gamepadHandler.shutDown();
-#endif
+		/* Shut down gamepad */
+		gamepadHandler.shutDown();
+	}
 	gfx.shutDown();
 	lua.close();
 
@@ -202,6 +202,19 @@ struct CrashHandlerSetup {
 #endif
 
 int main(int argc, char **argv) try {
+	// Detect dedicated (headless) mode before any subsystem init so runtime
+	// gating matches the old compile-time DEDSERV selection. Must precede
+	// registerVariables() (CL_SHOWPARTICLES) and game.init() so cvar
+	// registration and config-file selection observe the flag.
+	for (int i = 1; i < argc; ++i) {
+		std::string a = argv[i];
+		if (a == "--dedicated" || a == "-dedicated") {
+			g_dedicated = true;
+		} else if (a.rfind("--dedicated=", 0) == 0) {
+			g_dedicated = a.substr(12) != "0";
+		}
+	}
+
 	console.registerVariables()("CL_SHOWFPS", &showFps, 1)("CL_SHOWDEBUG", &showDebug, 0)(
 		"CL_SHOWGAMEPADINPUTS", &showGamepadInputs, 0)
 #ifndef DEDSERV
@@ -215,9 +228,8 @@ int main(int argc, char **argv) try {
 
 	console.parseLine("BIND F12 SCREENSHOT");
 
-#ifndef DEDSERV
-	OmfgGUI::menu.clear();
-#endif
+	if (!g_dedicated)
+		OmfgGUI::menu.clear();
 	// game.loadMod();
 	game.reloadModWithoutMap();
 	// game.runInitScripts();
@@ -228,11 +240,10 @@ int main(int argc, char **argv) try {
 	int fps = 0;
 	unsigned int logicLast = SDL_GetTicks();
 
-#ifndef DEDSERV
-	console.executeConfig("autoexec.cfg");
-#else
-	console.executeConfig("autoexec-ded.cfg");
-#endif
+	if (g_dedicated)
+		console.executeConfig("autoexec-ded.cfg");
+	else
+		console.executeConfig("autoexec.cfg");
 
 	// main game loop
 	while (!quit || !network.isDisconnected()) {
@@ -282,9 +293,8 @@ int main(int argc, char **argv) try {
 			game.think();
 			updater.think(); // TODO: Move?
 
-#ifndef DEDSERV
-			sfx.think(); // WARNING: THIS �MUST! BE PLACED BEFORE THE OBJECT DELETE LOOP
-#endif
+			if (!g_dedicated)
+				sfx.think(); // WARNING: THIS MUST! BE PLACED BEFORE THE OBJECT DELETE LOOP
 
 			for (auto it = game.players.begin(); it != game.players.end();) {
 				BasePlayer *iter = *it;
@@ -323,12 +333,12 @@ int main(int argc, char **argv) try {
 
 			network.update();
 
-#ifndef DEDSERV
-			console.checkInput();
-			mouseHandler.poll();
-			/* Poll gamepad */
-			gamepadHandler.poll();
-#endif
+			if (!g_dedicated) {
+				console.checkInput();
+				mouseHandler.poll();
+				/* Poll gamepad */
+				gamepadHandler.poll();
+			}
 			console.think();
 
 			spriteList.think();
@@ -343,14 +353,13 @@ int main(int argc, char **argv) try {
 #ifdef WINDOWS
 		Sleep(0);
 #else
-#ifndef DEDSERV
-		SDL_Delay(0);
-#else
-		SDL_Delay(2);
-#endif
+		if (g_dedicated)
+			SDL_Delay(2);
+		else
+			SDL_Delay(0);
 #endif
 
-#ifndef DEDSERV
+if (!g_dedicated) {
 		// Update FPS
 		if (fpsLast + 1000 <= SDL_GetTicks()) {
 			fps = fpsCount;
@@ -559,7 +568,7 @@ int main(int argc, char **argv) try {
 		}
 
 		gfx.updateScreen();
-#endif
+}
 	}
 
 	shutdown();

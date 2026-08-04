@@ -1,5 +1,6 @@
 #include "gfx.h"
 #include "gconsole.h"
+#include "dedicated.h"
 
 #ifndef DEDSERV
 #include "2xsai.h"
@@ -132,7 +133,7 @@ Gfx::Gfx()
 Gfx::~Gfx() {}
 
 void Gfx::init() {
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
 		throw std::runtime_error("Couldn't initialize SDL3");
 	}
@@ -148,13 +149,13 @@ void Gfx::init() {
 		cpu_capabilities |= CPU_MMX;
 	if (SDL_HasSSE())
 		cpu_capabilities |= CPU_SSE;
-#endif
+	}
 
 	m_initialized = true;
 }
 
 void Gfx::shutDown() {
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	if (buffer) {
 		destroy_bitmap(buffer);
 		buffer = 0;
@@ -176,11 +177,11 @@ void Gfx::shutDown() {
 		window = 0;
 	}
 	SDL_Quit();
-#endif
+	}
 }
 
 void Gfx::registerInConsole() {
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	console.registerCommands()("SCREENSHOT", screenShot);
 
 	console.registerVariables()("VID_FULLSCREEN", &m_fullscreen, 0, fullscreen_callback)("VID_DOUBLERES", &m_doubleRes,
@@ -196,11 +197,11 @@ void Gfx::registerInConsole() {
 
 		console.registerVariable(new EnumVariable("VID_FILTER", &m_filter, PIXELART, videoFilters, filter_callback));
 	}
-#endif
+	}
 }
 
 void Gfx::loadResources() {
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	// Clean up a previously loaded cursor (e.g. when reloading a mod)
 	if (cursorSpriteSet) {
 		delete cursorSpriteSet;
@@ -227,7 +228,7 @@ void Gfx::loadResources() {
 			cursorSpriteSet = nullptr;
 		}
 	}
-#endif
+	}
 }
 
 #ifndef DEDSERV

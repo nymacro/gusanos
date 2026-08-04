@@ -44,9 +44,7 @@ class GConsole : public Console {
 #endif
 	void think();
 	int executeConfig(const std::string &filename);
-#ifdef DEDSERV
-	virtual void addLogMsg(const std::string &msg);
-#endif
+	void addLogMsg(const std::string &msg) override;
 
 #ifndef DEDSERV
 	bool eventPrintableChar(char c, int k);

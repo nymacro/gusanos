@@ -154,8 +154,10 @@ Prints to the engine log and in-game console.
 
 ### `DEDSERV` Global
 
-A boolean global `DEDSERV` is set to `true` on dedicated server builds, `false`
-otherwise. Use for conditional rendering/input code.
+A boolean global `DEDSERV` reflects the runtime `g_dedicated` flag: `true` when
+the binary is launched with `--dedicated` (headless server mode), `false`
+otherwise. It is no longer a compile-time constant — the same binary serves both
+modes. Use for conditional rendering/input code.
 
 ### `Keys` Table (client-only)
 
@@ -746,8 +748,11 @@ console_bind(Keys.F2, "f2_action")
 
 | Guard | Scope |
 |---|---|
-| `DEDSERV` | Omitted from dedicated server builds |
 | `NO_DEPRECATED` | Removes deprecated binding aliases |
 
-When `DEDSERV` is true, the global `DEDSERV` Lua variable is `true` and all
-rendering/input/audio bindings are omitted.
+The `DEDSERV` macro is no longer defined at compile time, so the
+`#ifndef DEDSERV` wrappers around rendering/input/audio bindings always
+compile — those bindings are registered in every build. The global `DEDSERV`
+Lua variable instead reflects the runtime `g_dedicated` flag (true when
+launched with `--dedicated`, false otherwise); see the `DEDSERV` Global section
+above.

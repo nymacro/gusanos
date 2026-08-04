@@ -4,6 +4,7 @@
 #include "../glua.h"
 #include "luaapi/context.h"
 #include "../events.h"
+#include "../dedicated.h"
 #ifndef DEDSERV
 #include "../menu.h"
 #endif
@@ -116,7 +117,10 @@ bool GusanosLevelLoader::load(Level *level, fs::path const &path) {
 
 	if (level->material) {
 		level->setEvents(loadConfig(path / "config.cfg"));
-#ifndef DEDSERV
+		if (g_dedicated) {
+			level->loaderSucceeded();
+			return true;
+		}
 		std::string imagePath = (path / "level").string();
 
 		level->image = gfx.loadBitmap(imagePath.c_str(), 0);
@@ -149,11 +153,6 @@ bool GusanosLevelLoader::load(Level *level, fs::path const &path) {
 			level->loaderSucceeded();
 			return true;
 		}
-
-#else
-		level->loaderSucceeded();
-		return true;
-#endif
 	}
 	level->unload();
 	return false;

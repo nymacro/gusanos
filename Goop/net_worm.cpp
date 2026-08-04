@@ -1,5 +1,7 @@
 #include "net_worm.h"
 
+#include "dedicated.h"
+
 #include "util/vec.h"
 #include "util/angle.h"
 #include "util/log.h"
@@ -236,7 +238,7 @@ void NetWorm::think() {
 		// replication/buffer-driven); keep only weapon-think + render ticks.
 		if (m_isActive) {
 			runWeaponThink();
-#ifndef DEDSERV
+			if (!g_dedicated) {
 			// Re-derive walk-animate from the networked move flags, mirroring
 			// processMoveAndDig: animate only when moving in one direction
 			// (both or neither => idle/dig frame).
@@ -253,7 +255,7 @@ void NetWorm::think() {
 				--m_fireconeTime;
 				m_fireconeAnimator->tick();
 			}
-#endif
+			}
 		} else {
 			if (m_timeSinceDeath > game.options.maxRespawnTime && game.options.maxRespawnTime >= 0)
 				respawn();
@@ -262,7 +264,7 @@ void NetWorm::think() {
 	} else {
 		BaseWorm::think();
 	}
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	if (!m_isAuthority && !isLocalAuthority() && network.netInterpEnabled && m_posSnapshotCount > 0) {
 		// Proxy rendering a remote worm: interpolate renderPos between
 		// buffered timestamped snapshots at a delayed render time
@@ -286,7 +288,7 @@ void NetWorm::think() {
 			renderPos = renderPos * (1.0 - fact) + pos * fact;
 		}
 	}
-#endif
+	}
 
 	++timeSinceLastUpdate;
 

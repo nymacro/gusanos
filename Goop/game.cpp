@@ -1,5 +1,6 @@
 #include "game.h"
 
+#include "dedicated.h"
 #include "base_worm.h"
 #include "worm.h"
 #include "part_type.h"
@@ -304,6 +305,8 @@ Game::Game() {
 	deathObject = NULL;
 	loaded = false;
 	m_node = NULL;
+	chatSound = nullptr;
+	infoFont = nullptr;
 }
 
 Game::~Game() {}
@@ -332,14 +335,14 @@ void Game::init(int argc, char **argv) {
 	levelLocator.registerLoader(&LieroXLevelLoader::instance);
 	levelLocator.registerLoader(&LieroLevelLoader::instance);
 
-#ifndef DEDSERV
-	fontLocator.registerLoader(&GusanosFontLoader::instance);
-	fontLocator.registerLoader(&LOSPFontLoader::instance);
-	fontLocator.registerLoader(&LieroFontLoader::instance);
+	if (!g_dedicated) {
+		fontLocator.registerLoader(&GusanosFontLoader::instance);
+		fontLocator.registerLoader(&LOSPFontLoader::instance);
+		fontLocator.registerLoader(&LieroFontLoader::instance);
 
-	xmlLocator.registerLoader(&XMLLoader::instance);
-	gssLocator.registerLoader(&GSSLoader::instance);
-#endif
+		xmlLocator.registerLoader(&XMLLoader::instance);
+		gssLocator.registerLoader(&GSSLoader::instance);
+	}
 
 	scriptLocator.registerLoader(&LuaLoader::instance);
 
@@ -357,11 +360,11 @@ void Game::init(int argc, char **argv) {
 	refreshResources("default");
 
 	console.init();
-#ifndef DEDSERV
-	OmfgGUI::menu.init();
+	if (!g_dedicated) {
+		OmfgGUI::menu.init();
 
-	sfx.registerInConsole();
-#endif
+		sfx.registerInConsole();
+	}
 	gfx.registerInConsole();
 	options.registerInConsole();
 	network.registerInConsole();
@@ -372,28 +375,26 @@ void Game::init(int argc, char **argv) {
 		playerOptions.push_back(options);
 	}
 
-#ifndef DEDSERV
-	console.executeConfig("config.cfg");
-#else
-	console.executeConfig("config-ded.cfg");
-#endif
+	if (g_dedicated)
+		console.executeConfig("config-ded.cfg");
+	else
+		console.executeConfig("config.cfg");
 
 	parseCommandLine(argc, argv);
 
 	gfx.init();
-#ifndef DEDSERV
-	sfx.init();
-	keyHandler.init();
-	mouseHandler.init();
-	gamepadHandler.init();
-	gamepadHandler.registerInConsole();
-#endif
+	if (!g_dedicated) {
+		sfx.init();
+		keyHandler.init();
+		mouseHandler.init();
+		gamepadHandler.init();
+		gamepadHandler.registerInConsole();
+	}
 
 	network.init();
 	registerGameActions();
-#ifndef DEDSERV
-	registerPlayerInput();
-#endif
+	if (!g_dedicated)
+		registerPlayerInput();
 }
 
 void Game::sendLuaEvent(LuaEventDef *event, eZCom_SendMode mode, zU8 rules, ZCom_BitStream *userdata,
@@ -599,12 +600,12 @@ void Game::loadMod(bool doLoadWeapons) {
 	NRPartType = partTypeList.load("ninjarope.obj");
 	deathObject = partTypeList.load("death.obj");
 	digObject = partTypeList.load("wormdig.obj");
-#ifndef DEDSERV
-	chatSound = sound1DList.load("chat.ogg");
-	if (!chatSound)
-		sound1DList.load("chat.wav");
-	infoFont = fontLocator.load("minifont");
-#endif
+	if (!g_dedicated) {
+		chatSound = sound1DList.load("chat.ogg");
+		if (!chatSound)
+			sound1DList.load("chat.wav");
+		infoFont = fontLocator.load("minifont");
+	}
 	if (doLoadWeapons) {
 		loadWeapons();
 		if (weaponList.size() > 0) {
@@ -642,9 +643,8 @@ void Game::reset(ResetReason reason) {
 	// Drop any sound channels that follow object positions before the
 	// objects they reference are deleted, otherwise sfx.think() will
 	// dereference dangling BaseObject* pointers (heap-use-after-free).
-#ifndef DEDSERV
-	sfx.clear();
-#endif
+	if (!g_dedicated)
+		sfx.clear();
 
 	// Delete all players
 	for (list<BasePlayer *>::iterator iter = players.begin(); iter != players.end(); ++iter) {
@@ -675,10 +675,10 @@ void Game::reset(ResetReason reason) {
 void Game::unload() {
 	// cerr << "Unloading..." << endl;
 	loaded = false;
-#ifndef DEDSERV
-	OmfgGUI::menu.destroy();
-	sfx.clear();
-#endif
+	if (!g_dedicated) {
+		OmfgGUI::menu.destroy();
+		sfx.clear();
+	}
 
 	console.clearTemporaries();
 
@@ -714,27 +714,26 @@ void Game::unload() {
 
 	partTypeList.clear();
 	expTypeList.clear();
-#ifndef DEDSERV
-	soundList.clear();
-	sound1DList.clear();
-#endif
+	if (!g_dedicated) {
+		soundList.clear();
+		sound1DList.clear();
+	}
 	spriteList.clear();
 	levelEffectList.clear();
 
-#ifndef DEDSERV
-	fontLocator.clear();
-	xmlLocator.clear();
-	gssLocator.clear();
-#endif
+	if (!g_dedicated) {
+		fontLocator.clear();
+		xmlLocator.clear();
+		gssLocator.clear();
+	}
 	scriptLocator.clear();
 
 	network.clear();
 	lua.reset();
 	luaCallbacks = LuaCallbacks(); // Reset callbacks
 	LuaBindings::init();
-#ifndef DEDSERV
-	OmfgGUI::menu.clear();
-#endif
+	if (!g_dedicated)
+		OmfgGUI::menu.clear();
 }
 
 bool Game::isLoaded() {
@@ -742,21 +741,21 @@ bool Game::isLoaded() {
 }
 
 void Game::refreshResources(fs::path const &levelPath) {
-#ifndef DEDSERV
-	if (fs::is_directory(levelPath / "fonts"))
-		fontLocator.addPath(levelPath / "fonts");
-	fontLocator.addPath(m_defaultPath / "fonts");
-	fontLocator.addPath(fs::path(nextMod) / "fonts");
-	fontLocator.refresh();
+	if (!g_dedicated) {
+		if (fs::is_directory(levelPath / "fonts"))
+			fontLocator.addPath(levelPath / "fonts");
+		fontLocator.addPath(m_defaultPath / "fonts");
+		fontLocator.addPath(fs::path(nextMod) / "fonts");
+		fontLocator.refresh();
 
-	xmlLocator.addPath(m_defaultPath / "gui");
-	xmlLocator.addPath(fs::path(nextMod) / "gui");
-	xmlLocator.refresh();
+		xmlLocator.addPath(m_defaultPath / "gui");
+		xmlLocator.addPath(fs::path(nextMod) / "gui");
+		xmlLocator.refresh();
 
-	gssLocator.addPath(m_defaultPath / "gui");
-	gssLocator.addPath(fs::path(nextMod) / "gui");
-	gssLocator.refresh();
-#endif
+		gssLocator.addPath(m_defaultPath / "gui");
+		gssLocator.addPath(fs::path(nextMod) / "gui");
+		gssLocator.refresh();
+	}
 
 	if (fs::is_directory(levelPath / "scripts"))
 		scriptLocator.addPath(levelPath / "scripts");
@@ -776,17 +775,17 @@ void Game::refreshResources(fs::path const &levelPath) {
 	expTypeList.addPath(fs::path(nextMod) / "objects");
 	expTypeList.addPath(m_defaultPath / "objects");
 
-#ifndef DEDSERV
-	if (fs::is_directory(levelPath / "sounds"))
-		soundList.addPath(levelPath / "sounds");
-	soundList.addPath(fs::path(nextMod) / "sounds");
-	soundList.addPath(m_defaultPath / "sounds");
+	if (!g_dedicated) {
+		if (fs::is_directory(levelPath / "sounds"))
+			soundList.addPath(levelPath / "sounds");
+		soundList.addPath(m_defaultPath / "sounds");
+		soundList.addPath(fs::path(nextMod) / "sounds");
 
-	if (fs::is_directory(levelPath / "sounds"))
-		sound1DList.addPath(levelPath / "sounds");
-	sound1DList.addPath(fs::path(nextMod) / "sounds");
-	sound1DList.addPath(m_defaultPath / "sounds");
-#endif
+		if (fs::is_directory(levelPath / "sounds"))
+			sound1DList.addPath(levelPath / "sounds");
+		sound1DList.addPath(m_defaultPath / "sounds");
+		sound1DList.addPath(fs::path(nextMod) / "sounds");
+	}
 
 	if (fs::is_directory(levelPath / "sprites"))
 		spriteList.addPath(levelPath / "sprites");
@@ -965,10 +964,10 @@ void Game::displayChatMsg(std::string const &owner, std::string const &message) 
 	console.addLogMsg('<' + owner + "> " + message);
 	displayMessage(ScreenMessage(ScreenMessage::Chat, '{' + owner + "}: " + message, 800));
 
-#ifndef DEDSERV
-	if (chatSound)
-		chatSound->play();
-#endif
+	if (!g_dedicated) {
+		if (chatSound)
+			chatSound->play();
+	}
 }
 
 void Game::displayKillMsg(BasePlayer *killed, BasePlayer *killer, std::string const &weaponName,
@@ -1037,15 +1036,15 @@ BasePlayer *Game::addPlayer(PLAYER_TYPE type, int team, BaseWorm *worm) {
 			if (localPlayers.size() >= MAX_LOCAL_PLAYERS)
 				allegro_message("OMFG Too much local players");
 			Player *player = new Player(playerOptions[localPlayers.size()], worm);
-#ifndef DEDSERV
-			Viewport *viewport = new Viewport;
-			if (options.splitScreen) {
-				viewport->setDestination(gfx.buffer, localPlayers.size() * 160, 0, 160, 240);
-			} else {
-				viewport->setDestination(gfx.buffer, 0, 0, 320, 240);
+			if (!g_dedicated) {
+				Viewport *viewport = new Viewport;
+				if (options.splitScreen) {
+					viewport->setDestination(gfx.buffer, localPlayers.size() * 160, 0, 160, 240);
+				} else {
+					viewport->setDestination(gfx.buffer, 0, 0, 320, 240);
+				}
+				player->assignViewport(viewport);
 			}
-			player->assignViewport(viewport);
-#endif
 			players.push_back(player);
 			localPlayers.push_back(player);
 			player->local = true;

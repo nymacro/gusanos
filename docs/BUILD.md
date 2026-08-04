@@ -28,11 +28,11 @@ scons build=debug
 # Release build
 scons
 
-# Dedicated server (headless)
-scons build=dedserv
-
-# Debug dedicated server
-scons build=dedserv-debug
+# Dedicated server (headless) is now a runtime mode of the single binary —
+# build release/debug, then run headless:
+#   bin/posix/gusanos --dedicated
+# (build=dedserv / build=dedserv-debug are accepted as deprecated aliases for
+#  release / debug; same flags and object dir, no DEDSERV define.)
 
 # Clean
 scons -c
@@ -40,6 +40,27 @@ scons -c
 # Skip parser regeneration (parsers regenerate by default; any value disables it)
 scons no-parsers=1
 ```
+
+## Dedicated (Headless) Runtime Mode
+
+There is no separate dedicated-server build. The single `bin/posix/gusanos`
+binary serves both client and server modes; run it headless with:
+
+```bash
+bin/posix/gusanos --dedicated
+```
+
+In dedicated mode (`g_dedicated = true`, see `Goop/dedicated.h`):
+
+- No video, audio, or input is initialized (SDL init is skipped via
+  `if (!g_dedicated)` in `gfx.init()` and related call sites).
+- The server hosts on `NET_SERVER_PORT` (default `9898`).
+- Config files are selected at runtime: `config-ded.cfg` and `autoexec-ded.cfg`
+  (instead of `config.cfg` / `autoexec.cfg`).
+
+`build=dedserv` and `build=dedserv-debug` are accepted as deprecated aliases for
+`release` / `debug`; they map to the same flags and object directory and no
+longer define `DEDSERV`.
 
 ## Code quality targets
 
@@ -106,8 +127,7 @@ in a `try`/`catch` that ignores invalid values. All five harnesses run clean.
 
 ```
 bin/posix/
-├── gusanos         — full game (release/debug)
-└── gusanos-ded     — dedicated server (dedserv/dedserv-debug)
+└── gusanos         — single binary; serves both client and --dedicated (headless) modes
 
 lib/posix/release/
 ├── libomfgconsole.a
@@ -123,7 +143,7 @@ lib/posix/release/
 lib/posix/debug/
 └── (same libs, debug variant)
 
-Note: `Goop/SConscript` builds the `gusanos` / `gusanos-ded` programs directly
+Note: `Goop/SConscript` builds the single `gusanos` program directly
 (no `libgusanos.a`); the libraries above are its link inputs.
 ```
 
@@ -131,7 +151,7 @@ Note: `Goop/SConscript` builds the `gusanos` / `gusanos-ded` programs directly
 
 | SConscript | Library/Program | Source Directory |
 |---|---|---|
-| `Goop/SConscript` | `gusanos` / `gusanos-ded` | `Goop/`, `Goop/lua/`, `Goop/blitters/`, `Goop/loaders/` |
+| `Goop/SConscript` | `gusanos` | `Goop/`, `Goop/lua/`, `Goop/blitters/`, `Goop/loaders/` |
 | `Console/SConscript` | `libomfgconsole.a` | `Console/` |
 | `GUI/SConscript` | `libomfggui.a` | `GUI/`, `GUI/detail/`, `GUI/lua/` |
 | `Utility/util/SConscript` | `libomfgutil.a` | `Utility/util/` |
@@ -153,8 +173,11 @@ Note: `Goop/SConscript` builds the `gusanos` / `gusanos-ded` programs directly
 |---|---|---|
 | `release` | `-O3 -g` | `NDEBUG` |
 | `debug` | `-Og -g -fno-omit-frame-pointer -Wextra` | `DEBUG`, `MAP_DOWNLOADING`, `LOG_RUNTIME` |
-| `dedserv` | `-O3 -g` | `NDEBUG`, `DEDSERV` |
-| `dedserv-debug` | `-Og -g -fno-omit-frame-pointer` | `DEBUG`, `DEDSERV`, `LOG_RUNTIME` |
+
+`DEDSERV` is no longer a defined macro — dedicated/headless mode is selected at
+runtime via `--dedicated` (`g_dedicated`). `build=dedserv` / `build=dedserv-debug`
+are accepted as deprecated aliases for `release` / `debug` (same flags and
+object dir; no `DEDSERV` define).
 
 All builds use `-std=c++17` and the shared base CCFLAGS
 `-pipe -fno-diagnostics-show-option -Wfatal-errors -Wall -Wno-unused -Wno-register
@@ -193,6 +216,6 @@ Process:
 | Variable | Default | Purpose |
 |---|---|---|
 | `MY_CONF` | `posix` | Build configuration variant |
-| `MY_BUILD` | `release` | Build type (release/debug/dedserv/dedserv-debug) |
+| `MY_BUILD` | `release` | Build type (release/debug) |
 | `MY_SUBFOLDER` | `<conf>/<build>` | Build output subdirectory |
 | `NO_PARSERS` | `False` | Skip parser regeneration |

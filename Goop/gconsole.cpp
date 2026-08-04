@@ -15,6 +15,7 @@
 #include "network.h" //TEMP
 
 #include "allegro_compat.h"
+#include "dedicated.h"
 #include <boost/bind/bind.hpp>
 using namespace boost::placeholders;
 #include <boost/lexical_cast.hpp>
@@ -294,7 +295,7 @@ void GConsole::varCbFont(std::string oldValue) {
 }
 #endif
 void GConsole::init() {
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	keyHandler.init();
 
 	// Connect the handlers as group 0 so they are called first
@@ -312,7 +313,7 @@ void GConsole::init() {
 		keyHandler.keyUp(key);
 		return false;
 	});
-#endif
+	}
 
 	m_mode = CONSOLE_MODE_BINDINGS;
 	// m_mode = CONSOLE_MODE_INPUT;
@@ -344,22 +345,22 @@ void GConsole::init() {
 }
 
 void GConsole::shutDown() {
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	keyHandler.shutDown();
 
 	// m_font must be deleted here!!!! hmm not sure now
-#endif
+	}
 }
 
 void GConsole::loadResources() {
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	m_font = fontLocator.load(m_fontName);
 
 	if (!m_font)
 		cout << "Console font couldn't be loaded" << endl;
 
 	background = spriteList.load("con_background");
-#endif
+	}
 }
 
 #ifndef DEDSERV
@@ -572,7 +573,7 @@ bool GConsole::eventPrintableChar(char c, int k) {
 #endif
 
 void GConsole::think() {
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	if (height > 240)
 		height = 240;
 	if (m_mode == CONSOLE_MODE_INPUT && m_pos < height) {
@@ -584,7 +585,7 @@ void GConsole::think() {
 		m_pos = height;
 	if (m_pos < 0)
 		m_pos = 0;
-#endif
+	}
 	while (!commandsQueue.empty()) {
 		console.parseLine(*commandsQueue.begin());
 		commandsQueue.erase(commandsQueue.begin());
@@ -603,11 +604,13 @@ void GConsole::addQueueCommand(std::string const &command) {
 	commandsQueue.push_back(command);
 }
 
-#ifdef DEDSERV
 void GConsole::addLogMsg(const std::string &msg) {
-	cout << "CONSOLE: " << msg << endl;
+	if (g_dedicated) {
+		cout << "CONSOLE: " << msg << endl;
+		return;
+	}
+	Console::addLogMsg(msg);
 }
-#endif
 //============================= PRIVATE ======================================
 
 GConsole console;

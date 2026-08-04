@@ -3,6 +3,7 @@
 #include "resource_list.h"
 
 #include "game.h"
+#include "dedicated.h"
 #ifndef DEDSERV
 #include "sprite_set.h"
 #include "sprite.h"
@@ -96,7 +97,6 @@ BaseObject *newParticle_SimpleParticle(PartType *type, Vec pos_ = Vec(0.f, 0.f),
 	return particle;
 }
 
-#ifdef DEDSERV
 BaseObject *newParticle_Dummy(PartType *type, Vec pos_ = Vec(0.f, 0.f), Vec spd_ = Vec(0.f, 0.f), int dir = 1,
 							  BasePlayer *owner = NULL, Angle angle = Angle(0)) {
 	if (type->creation) {
@@ -105,7 +105,6 @@ BaseObject *newParticle_Dummy(PartType *type, Vec pos_ = Vec(0.f, 0.f), Vec spd_
 	}
 	return 0;
 }
-#endif
 
 PartType::PartType() : ResourceBase(), newParticle(0), wupixels(0), invisible(false) {
 	gravity = 0;
@@ -169,7 +168,7 @@ PartType::~PartType() {
 }
 
 void PartType::touch() {
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	if (!distortion && !distortionGen.empty()) {
 		LuaReference f = distortionGen.get();
 		if (f) {
@@ -226,7 +225,7 @@ void PartType::touch() {
 		}
 		// TODO: free lightGen function
 	}
-#endif
+	}
 }
 
 bool PartType::isSimpleParticleType() {
@@ -310,7 +309,7 @@ bool PartType::load(fs::path const &filename) {
 	// FLOG(parttypecrc, filename.string() << ": " << std::hex << parser.getCRC());
 	crc = parser.getCRC();
 
-#ifndef DEDSERV
+	if (!g_dedicated) {
 	{
 		OmfgScript::TokenBase *v = parser.getProperty("sprite");
 		if (!v->isDefault())
@@ -376,7 +375,7 @@ bool PartType::load(fs::path const &filename) {
 		blender = BlitterContext::AlphaChannel;
 	else
 		blender = BlitterContext::None;
-#endif
+	}
 	invisible = parser.getBool("invisible", false);
 	culled = parser.getBool("occluded", false);
 	animOnGround = parser.getBool("anim_on_ground", false);
@@ -473,7 +472,9 @@ bool PartType::load(fs::path const &filename) {
 	needsNode = syncPos || syncSpd || syncAngle || !networkInit.empty();
 
 	if (isSimpleParticleType()) {
-#ifndef DEDSERV
+		if (g_dedicated) {
+			newParticle = newParticle_Dummy;
+		} else {
 		if (wupixels) {
 			switch (bitmap_color_depth(screen)) {
 				default:
@@ -499,9 +500,7 @@ bool PartType::load(fs::path const &filename) {
 					break;
 			}
 		}
-#else
-		newParticle = newParticle_Dummy;
-#endif
+	}
 	} else
 		newParticle = newParticle_Particle;
 
