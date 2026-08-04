@@ -343,6 +343,11 @@ void Game::init(int argc, char **argv) {
 
 	scriptLocator.registerLoader(&LuaLoader::instance);
 
+	// Open the Lua state explicitly before registering bindings. The global
+	// `lua` no longer auto-opens in its constructor (see LuaContext::LuaContext),
+	// so this must run before any code that touches the Lua state.
+	lua.init();
+
 	LuaBindings::init();
 
 	m_defaultPath = "default";

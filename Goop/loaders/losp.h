@@ -1,20 +1,16 @@
 #ifndef GUSANOS_LOADERS_LOSP_H
 #define GUSANOS_LOADERS_LOSP_H
 
-#include "../resource_locator.h"
+#include "extension_loader.h"
 #ifndef DEDSERV
 #include "../font.h"
 #endif
 
 #ifndef DEDSERV
 
-struct LOSPFontLoader : ResourceLocator<Font>::BaseLoader {
-	virtual bool canLoad(fs::path const &path, std::string &name);
-
-	virtual bool load(Font *, fs::path const &path);
-
-	virtual const char *getName();
-
+struct LOSPFontLoader : ExtensionLoader<Font> {
+	LOSPFontLoader() : ExtensionLoader<Font>("LOSP font loader", {".lfn"}) {}
+	bool load(Font *, fs::path const &path) override;
 	static LOSPFontLoader instance;
 };
 

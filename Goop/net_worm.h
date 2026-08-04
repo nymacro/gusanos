@@ -8,6 +8,9 @@
 
 #include "network_compat.h"
 
+#include <memory>
+#include <cstdint>
+
 class NetWormInterceptor;
 
 class NetWorm : public BaseWorm {
@@ -68,7 +71,7 @@ class NetWorm : public BaseWorm {
 			m_node->setNetworkID(id);
 	}
 	ZCom_Node *getZNode() {
-		return m_node;
+		return m_node.get();
 	}
 
 	// Deterministic burst seeding (see BaseWorm). NetWorm owns the per-worm
@@ -117,11 +120,39 @@ class NetWorm : public BaseWorm {
 	void addEvent(ZCom_BitStream *data, NetEvents event);
 
 	bool m_isAuthority;
-	ZCom_Node *m_node;
-	NetWormInterceptor *m_interceptor;
+	// Owned via unique_ptr for RAII: the ctor can no longer leak m_node if a
+	// later step throws, and finalize()/dtor share one deletion path.
+	// m_interceptor is declared first so member destruction (reverse order)
+	// destroys m_node before m_interceptor, matching the prior explicit
+	// `delete m_node; delete m_interceptor;` order (ZCom_Node::~ZCom_Node
+	// unregisters and must not outlive the interceptor it may callback into).
+	std::unique_ptr<NetWormInterceptor> m_interceptor;
+	std::unique_ptr<ZCom_Node> m_node;
 	ZCom_NodeID m_playerID; // The id of the owner player node to replicate to all proxys
 
 	uint32_t m_actionSeq = 0; // per-worm monotonic fire/dig/die burst counter
+
+	// --- Proxy-side snapshot interpolation of renderPos ---
+	// Proxies buffer timestamped position snapshots from the Position
+	// replicator and interpolate renderPos between them at a delayed render
+	// time, instead of legacy exponential easing toward a hard-snapped pos.
+	// This removes the proxy snap-vs-local-physics fight (the "other half" of
+	// the rubber-band per net-worm-authority-gate.md). The server relays raw
+	// snapshots (no interpolation); the owner simulates its own worm locally.
+	// Toggle/runtime-tune via NET_INTERP / NET_INTERP_DELAY cvars.
+	struct PosSnapshot {
+		Vec pos;
+		uint64_t tick; // SDL_GetTicks() at receive
+	};
+	static constexpr size_t INTERP_BUFFER_SIZE = 16;
+	PosSnapshot m_posSnapshots[INTERP_BUFFER_SIZE];
+	size_t m_posSnapshotHead = 0;
+	size_t m_posSnapshotCount = 0;
+	Vec m_lastBufferedPos;
+	bool m_haveLastBuffered = false;
+
+	void pushPosSnapshot(const Vec &pos, uint64_t tick);
+	Vec interpolateRenderPos(uint64_t renderTime) const;
 };
 
 class NetWormInterceptor : public ZCom_NodeReplicationInterceptor {

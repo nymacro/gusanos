@@ -7,6 +7,9 @@
 #include "weapon.h"
 #include "weapon_type.h"
 #include "base_worm.h"
+#ifndef DEDSERV
+#include "base_animator.h"
+#endif
 #include "base_object.h"
 #include "base_player.h"
 #include "player_options.h"
@@ -21,6 +24,7 @@
 #include <math.h>
 #include <vector>
 #include <memory>
+#include <SDL3/SDL_timer.h>
 #include "network_compat.h"
 
 using namespace std;
@@ -32,7 +36,7 @@ NetWorm::NetWorm(bool isAuthority) : BaseWorm() {
 	timeSinceLastUpdate = 1;
 
 	m_playerID = INVALID_NODE_ID;
-	m_node = new ZCom_Node();
+	m_node = std::make_unique<ZCom_Node>();
 	if (!m_node) {
 		allegro_message("ERROR: Unable to create worm node.");
 	}
@@ -79,8 +83,8 @@ NetWorm::NetWorm(bool isAuthority) : BaseWorm() {
 
 	m_node->endReplicationSetup();
 
-	m_interceptor = new NetWormInterceptor(this);
-	m_node->setReplicationInterceptor(m_interceptor);
+	m_interceptor = std::make_unique<NetWormInterceptor>(this);
+	m_node->setReplicationInterceptor(m_interceptor.get());
 
 	m_isAuthority = isAuthority;
 	if (isAuthority) {
@@ -94,9 +98,66 @@ NetWorm::NetWorm(bool isAuthority) : BaseWorm() {
 	m_node->applyForZoidLevel(1);
 }
 
-NetWorm::~NetWorm() {
-	delete m_node;
-	delete m_interceptor;
+NetWorm::~NetWorm() = default;
+
+void NetWorm::pushPosSnapshot(const Vec &posSnapshot, uint64_t tick) {
+	// Teleport detection: a jump larger than the snap threshold between
+	// consecutive snapshots is a spawn/relocate/server correction, not
+	// movement. Clear the buffer so we snap to the new position instead of
+	// interpolating across the gap.
+	if (m_haveLastBuffered) {
+		Vec d(m_lastBufferedPos, posSnapshot); // posSnapshot - last
+		if (d.length() > RENDER_SNAP_THRESHOLD) {
+			m_posSnapshotCount = 0;
+			m_posSnapshotHead = 0;
+		}
+	}
+	m_lastBufferedPos = posSnapshot;
+	m_haveLastBuffered = true;
+
+	m_posSnapshots[m_posSnapshotHead].pos = posSnapshot;
+	m_posSnapshots[m_posSnapshotHead].tick = tick;
+	m_posSnapshotHead = (m_posSnapshotHead + 1) % INTERP_BUFFER_SIZE;
+	if (m_posSnapshotCount < INTERP_BUFFER_SIZE)
+		++m_posSnapshotCount;
+}
+
+Vec NetWorm::interpolateRenderPos(uint64_t renderTime) const {
+	if (m_posSnapshotCount == 0)
+		return pos; // no snapshots: fall back to current (snapped) pos
+	if (m_posSnapshotCount == 1) {
+		size_t i = (m_posSnapshotHead + INTERP_BUFFER_SIZE - 1) % INTERP_BUFFER_SIZE;
+		return m_posSnapshots[i].pos;
+	}
+
+	// Oldest valid entry (ring is ordered oldest->newest by insertion).
+	size_t start = (m_posSnapshotHead + INTERP_BUFFER_SIZE - m_posSnapshotCount) % INTERP_BUFFER_SIZE;
+	size_t newest = (m_posSnapshotHead + INTERP_BUFFER_SIZE - 1) % INTERP_BUFFER_SIZE;
+
+	// Find the two adjacent snapshots bracketing renderTime.
+	const PosSnapshot *s0 = nullptr; // last snapshot with tick <= renderTime
+	const PosSnapshot *s1 = nullptr; // first snapshot with tick >  renderTime
+	for (size_t k = 0; k < m_posSnapshotCount; ++k) {
+		size_t i = (start + k) % INTERP_BUFFER_SIZE;
+		if (m_posSnapshots[i].tick <= renderTime) {
+			s0 = &m_posSnapshots[i];
+		} else {
+			s1 = &m_posSnapshots[i];
+			break;
+		}
+	}
+
+	if (!s0)
+		return m_posSnapshots[start].pos; // renderTime before oldest: hold
+	if (!s1)
+		return m_posSnapshots[newest].pos; // renderTime after newest: hold (no extrapolation)
+
+	uint64_t span = s1->tick - s0->tick;
+	if (span == 0)
+		return s1->pos;
+	double alpha = static_cast<double>(renderTime - s0->tick) / static_cast<double>(span);
+	Vec d(s0->pos, s1->pos); // s1.pos - s0.pos (BaseVec two-arg ctor)
+	return s0->pos + d * alpha;
 }
 
 void NetWorm::addEvent(ZCom_BitStream *data, NetWorm::NetEvents event) {
@@ -137,14 +198,22 @@ void NetWorm::think() {
 	// still run via runWeaponThink() below so firing replicates.
 	//
 	// Proxies (m_isAuthority == false, isLocalAuthority() == false for
-	// another player's worm) are NOT gated here: they still run
-	// BaseWorm::think() so walk/firecone animation keeps ticking. The
-	// proxy worm's pos/spd are snapped from the owner every tick (spd is
-	// replicated too, so dead-reckoning stays close), and the rope is
-	// gated separately in NinjaRope::think() so it cannot apply an
-	// oscillating addSpeed() to the worm body. The owner's rope pull is
-	// already baked into the replicated spd, so the proxy worm follows
-	// the owner's trajectory without a local rope force.
+	// another player's worm) likewise skip BaseWorm::think() physics: their
+	// pos/spd are replication-driven (snapped from the owner each network
+	// update) and, with proxy-side renderPos snapshot interpolation active,
+	// rendering is driven from the timestamped buffer rather than the
+	// per-tick pos. Running local physics on a proxy only made its pos fight
+	// the replicated snap (the proxy half of the rubber-band). Like the
+	// server-relay gate above, the proxy keeps weapon-think (so predicted
+	// fire / SHOOT-reproduction spawns the deterministic cosmetic burst at
+	// the worm) and the render-side ticks (walk animation + firecone) that
+	// BaseWorm::think() would otherwise have advanced. `animate` is re-derived
+	// from the networked move flags since processMoveAndDig (which sets it)
+	// is skipped. Death/respawn are event-driven on proxies (Die/Respawn
+	// events); the rope is gated in NinjaRope::think() (no-op on proxy) and
+	// its state is replicated, with the owner's rope pull baked into the
+	// replicated spd. Gated by NET_PROXY_NOPHYS (default on); =0 reverts a
+	// proxy to running full BaseWorm::think() (legacy dead-reckoning).
 	if (m_isAuthority && !isLocalAuthority()) {
 		if (m_isActive) {
 			if (health <= 0)
@@ -162,20 +231,60 @@ void NetWorm::think() {
 				respawn();
 			++m_timeSinceDeath;
 		}
+	} else if (!m_isAuthority && !isLocalAuthority()) {
+		// Proxy worm: no local physics (pos/spd/renderPos are
+		// replication/buffer-driven); keep only weapon-think + render ticks.
+		if (m_isActive) {
+			runWeaponThink();
+#ifndef DEDSERV
+			// Re-derive walk-animate from the networked move flags, mirroring
+			// processMoveAndDig: animate only when moving in one direction
+			// (both or neither => idle/dig frame).
+			float leftInt = movingLeft ? m_movingLeftIntensity : 0.0f;
+			float rightInt = movingRight ? m_movingRightIntensity : 0.0f;
+			animate = (leftInt > 0.0f) != (rightInt > 0.0f);
+			if (animate)
+				m_animator->tick();
+			else
+				m_animator->reset();
+			if (m_currentFirecone) {
+				if (m_fireconeTime == 0)
+					m_currentFirecone = NULL;
+				--m_fireconeTime;
+				m_fireconeAnimator->tick();
+			}
+#endif
+		} else {
+			if (m_timeSinceDeath > game.options.maxRespawnTime && game.options.maxRespawnTime >= 0)
+				respawn();
+			++m_timeSinceDeath;
+		}
 	} else {
 		BaseWorm::think();
 	}
 #ifndef DEDSERV
-	// Snap on large jumps (initial spawn, server correction, teleport) so the
-	// worm doesn't slide from its (0,0) default to the spawn point; smooth
-	// small gaps (normal movement) exactly as before.
-	Vec delta(renderPos, pos); // == pos - renderPos (see BaseVec two-arg ctor)
-	double dist = delta.length();
-	if (dist > RENDER_SNAP_THRESHOLD) {
-		renderPos = pos;
+	if (!m_isAuthority && !isLocalAuthority() && network.netInterpEnabled && m_posSnapshotCount > 0) {
+		// Proxy rendering a remote worm: interpolate renderPos between
+		// buffered timestamped snapshots at a delayed render time
+		// (receive-timeline interpolation). This decouples rendering from
+		// the per-tick pos snap / local-physics integration fight that
+		// caused the proxy rubber-band.
+		uint64_t now = SDL_GetTicks();
+		uint64_t delay = static_cast<uint64_t>(network.netInterpDelayMs);
+		uint64_t renderTime = (now > delay) ? (now - delay) : 0;
+		renderPos = interpolateRenderPos(renderTime);
 	} else {
-		double fact = 1.0 / (1.0 + dist / 4.0);
-		renderPos = renderPos * (1.0 - fact) + pos * fact;
+		// Owner / server-local / interpolation disabled: legacy exponential
+		// easing toward the (authoritative) pos, snapping on large jumps
+		// (spawn, server correction, teleport).
+		Vec delta(renderPos, pos); // == pos - renderPos (see BaseVec two-arg ctor)
+		double dist = delta.length();
+		if (dist > RENDER_SNAP_THRESHOLD) {
+			renderPos = pos;
+		} else {
+			double fact = 1.0 / (1.0 + dist / 4.0);
+			renderPos = renderPos * (1.0 - fact) + pos * fact;
+		}
 	}
 #endif
 
@@ -185,7 +294,7 @@ void NetWorm::think() {
 		return;
 
 	while (m_node->checkEventWaiting()) {
-		std::cout << "[DEBUG] NetWorm::think processing event, isAuthority=" << m_isAuthority << std::endl;
+							DLOG("NetWorm::think processing event, isAuthority=" << m_isAuthority);
 		eZCom_Event type;
 		eZCom_NodeRole remote_role;
 		ZCom_ConnID conn_id;
@@ -211,8 +320,7 @@ void NetWorm::think() {
 							spd = game.level.vectorEncoding.decode<Vec>(*data);
 						} break;
 						case Respawn: {
-							std::cout << "[DEBUG] NetWorm::think Respawn received, calling BaseWorm::respawn"
-									  << std::endl;
+								DLOG("NetWorm::think Respawn received, calling BaseWorm::respawn");
 							Vec newpos = game.level.vectorEncoding.decode<Vec>(*data);
 							BaseWorm::respawn(newpos);
 							health = 100;
@@ -391,11 +499,11 @@ void NetWorm::respawn() {
 		// m_timeSinceDeath > minRespawnTime gate in BaseWorm::respawn().
 		// That gate exists for auto-respawn timing, not for explicit
 		// user-initiated respawn requests (JUMP with inactive worm).
-		std::cout << "[DEBUG] NetWorm::respawn authority nodeID=" << m_node->getNetworkID()
-				  << " m_timeSinceDeath=" << m_timeSinceDeath << " m_isActive(before)=" << m_isActive << std::endl;
+		DLOG("NetWorm::respawn authority nodeID=" << m_node->getNetworkID()
+			  << " m_timeSinceDeath=" << m_timeSinceDeath << " m_isActive(before)=" << m_isActive);
 		BaseWorm::respawn(game.level.getSpawnLocation(m_owner));
-		std::cout << "[DEBUG] NetWorm::respawn authority nodeID=" << m_node->getNetworkID()
-				  << " m_isActive(after)=" << m_isActive << std::endl;
+		DLOG("NetWorm::respawn authority nodeID=" << m_node->getNetworkID()
+			  << " m_isActive(after)=" << m_isActive);
 		if (m_isActive) {
 			ZCom_BitStream data;
 			addEvent(&data, Respawn);
@@ -511,10 +619,8 @@ void NetWorm::damage(float amount, BasePlayer *damager, DamageCause const &cause
 
 void NetWorm::finalize() {
 	BaseWorm::finalize();
-	delete m_node;
-	m_node = 0;
-	delete m_interceptor;
-	m_interceptor = 0;
+	m_node.reset();
+	m_interceptor.reset();
 }
 
 NetWormInterceptor::NetWormInterceptor(NetWorm *parent) {
@@ -533,15 +639,19 @@ bool NetWormInterceptor::inPreUpdateItem(ZCom_Node *_node, ZCom_ConnID _from, eZ
 				}
 			}
 		} break;
-			/*case NetWorm::Position:
-			{
-				Vec recievedPos = *static_cast<Vec*>(_replicator->peekData());
-				Vec speedPrediction = (recievedPos - m_parent->lastPosUpdate) / m_parent->timeSinceLastUpdate;
-				m_parent->lastPosUpdate = recievedPos;
-				m_parent->timeSinceLastUpdate = 0;
-				m_parent->spd = m_parent->spd*0.2 + speedPrediction*0.8;
-				return true;
-			} break;*/
+		case NetWorm::Position: {
+			// Buffer the incoming position for proxy-side render
+			// interpolation. Only proxies buffer: the server relays raw
+			// snapshots (it must not interpolate the stream it relays), and
+			// the owner never receives its own position back. peekData()
+			// returns the decoded pos before commit (the replicator frees
+			// the peek buffer on return), so copy the value. Returning true
+			// lets unpackData commit normally (pos/spd stay network truth).
+			if (!m_parent->m_isAuthority && network.netInterpEnabled) {
+				Vec recievedPos = *static_cast<Vec *>(_replicator->peekData());
+				m_parent->pushPosSnapshot(recievedPos, SDL_GetTicks());
+			}
+		} break;
 	}
 	return true;
 }

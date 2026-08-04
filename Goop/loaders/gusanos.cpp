@@ -166,14 +166,6 @@ const char *GusanosLevelLoader::getName() {
 #ifndef DEDSERV
 GusanosFontLoader GusanosFontLoader::instance;
 
-bool GusanosFontLoader::canLoad(fs::path const &path, std::string &name) {
-	if (path.extension().string() == ".bmp" || path.extension().string() == ".png") {
-		name = path.stem().string();
-		return true;
-	}
-	return false;
-}
-
 bool GusanosFontLoader::load(Font *font, fs::path const &path) {
 	font->free();
 
@@ -232,19 +224,7 @@ bool GusanosFontLoader::load(Font *font, fs::path const &path) {
 	return false;*/
 }
 
-const char *GusanosFontLoader::getName() {
-	return "Gusanos 0.9 font loader";
-}
-
 XMLLoader XMLLoader::instance;
-
-bool XMLLoader::canLoad(fs::path const &path, std::string &name) {
-	if (path.extension().string() == ".xml") {
-		name = path.stem().string();
-		return true;
-	}
-	return false;
-}
 
 bool XMLLoader::load(XMLFile *xml, fs::path const &path) {
 	xml->f.open(path, std::ios::binary);
@@ -255,19 +235,7 @@ bool XMLLoader::load(XMLFile *xml, fs::path const &path) {
 	return true;
 }
 
-const char *XMLLoader::getName() {
-	return "XML loader";
-}
-
 GSSLoader GSSLoader::instance;
-
-bool GSSLoader::canLoad(fs::path const &path, std::string &name) {
-	if (path.extension().string() == ".gss") {
-		name = path.stem().string();
-		return true;
-	}
-	return false;
-}
 
 bool GSSLoader::load(GSSFile *gss, fs::path const &path) {
 	// gss->f.open(path, std::ios::binary);
@@ -281,20 +249,9 @@ bool GSSLoader::load(GSSFile *gss, fs::path const &path) {
 	return true;
 }
 
-const char *GSSLoader::getName() {
-	return "GSS loader";
-}
 #endif
 
 LuaLoader LuaLoader::instance;
-
-bool LuaLoader::canLoad(fs::path const &path, std::string &name) {
-	if (path.extension().string() == ".lua") {
-		name = path.stem().string();
-		return true;
-	}
-	return false;
-}
 
 bool LuaLoader::load(Script *script, fs::path const &path) {
 	fs::ifstream f(path, std::ios::binary | std::ios::in);
@@ -320,10 +277,6 @@ bool LuaLoader::load(Script *script, fs::path const &path) {
 	script->table = name;
 
 	return true;
-}
-
-const char *LuaLoader::getName() {
-	return "Lua loader";
 }
 
 /*

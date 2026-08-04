@@ -108,6 +108,7 @@ class BaseObject : public LuaObject {
 	BaseObject *nextD_;
 	BaseObject *prevD_;
 	int cellIndex_;
+	Vec lastRelocatePos_; // pos at last relocate; relocateIfNecessary skips when unchanged
 
   protected:
 	// LuaReference luaReference; //Defined in LuaObject

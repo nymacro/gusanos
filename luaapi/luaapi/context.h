@@ -437,6 +437,62 @@ inline bool LuaContext::get<bool>(int idx) {
 
 extern LuaContext lua;
 
+// RAII owning wrapper around a LuaReference. Calls destroyReference() on the
+// owning LuaContext when it goes out of scope, so a reference dropped without
+// an explicit destroyReference cannot leak its registry slot or keep the
+// referenced Lua value alive forever. Additive: the raw LuaReference (types.h)
+// remains for registry internals and existing manual call sites; new code that
+// owns a reference for the duration of a scope should prefer this wrapper.
+class LuaScopedReference {
+  public:
+	LuaScopedReference() : m_ctx(nullptr) {}
+
+	explicit LuaScopedReference(LuaContext &ctx, LuaReference ref) : m_ctx(&ctx), m_ref(ref) {}
+
+	~LuaScopedReference() { reset(); }
+
+	LuaScopedReference(LuaScopedReference &&o) noexcept : m_ctx(o.m_ctx), m_ref(o.m_ref) {
+		o.m_ctx = nullptr;
+		o.m_ref.reset();
+	}
+
+	LuaScopedReference &operator=(LuaScopedReference &&o) noexcept {
+		if (this != &o) {
+			reset();
+			m_ctx = o.m_ctx;
+			m_ref = o.m_ref;
+			o.m_ctx = nullptr;
+			o.m_ref.reset();
+		}
+		return *this;
+	}
+
+	LuaScopedReference(LuaScopedReference const &) = delete;
+	LuaScopedReference &operator=(LuaScopedReference const &) = delete;
+
+	LuaReference get() const { return m_ref; }
+
+	LuaReference release() {
+		LuaReference r = m_ref;
+		m_ref.reset();
+		m_ctx = nullptr;
+		return r;
+	}
+
+	explicit operator bool() { return m_ctx && m_ref; }
+
+	void reset() {
+		if (m_ctx && m_ref)
+			m_ctx->destroyReference(m_ref);
+		m_ref.reset();
+		m_ctx = nullptr;
+	}
+
+  private:
+	LuaContext *m_ctx;
+	LuaReference m_ref;
+};
+
 #ifndef NDEBUG
 
 struct AssertStack {

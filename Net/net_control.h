@@ -290,6 +290,15 @@ class ZCom_Control {
 	std::vector<ZCom_ClassInfo> m_classes;
 	NodeRegistry m_nodeRegistry;			  ///< owns registration order and lookups
 	std::map<uint32_t, ENetPeer *> m_peerMap; ///< non-owning (ENet owns the peers)
+
+	/// Per-tick scratch buffers for ZCom_processOutput, reused across nodes and
+	/// peers to avoid per-tick heap churn (A7). packReplicatorsForRouting
+	/// clears+reserves m_routingPacked (capacity persists across nodes);
+	/// m_routingPkt is reset() per peer (reset preserves m_data capacity) and
+	/// built directly into — eliminating a separate per-peer payload BitStream
+	/// and the addBitStream copy that stitched it into the packet.
+	std::vector<PackedReplicator> m_routingPacked;
+	ZCom_BitStream m_routingPkt;
 	std::map<uint32_t, ZCom_Address> m_addressMap;
 	mutable std::map<ZCom_ConnID, ZCom_ConnStats>
 		m_statsCache; ///< Cache for ZCom_getConnectionStats (reference returns const&)
@@ -310,7 +319,10 @@ class ZCom_Control {
 	/// Per-connection role each peer holds for each node (Phase D1 routing).
 	/// m_peerRole[connID][nodeID] = the role the peer at connID has for nodeID.
 	/// Set by every announcement path; cleared on disconnect / re-announce.
-	std::map<uint32_t, std::map<uint32_t, eZCom_NodeRole>> m_peerRole;
+	/// connIDs/nodeIDs are dense integer keys with no ordered iteration, so a
+	/// hash map avoids the two RB-tree lookups getPeerRole() did per peer per
+	/// node each tick.
+	std::unordered_map<uint32_t, std::unordered_map<uint32_t, eZCom_NodeRole>> m_peerRole;
 
 	/// Per-connection emulation state (T1.2 lag/loss).
 	std::map<uint32_t, PeerNetState> m_peerState;

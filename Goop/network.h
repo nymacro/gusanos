@@ -140,6 +140,12 @@ class Network {
 	int checkCRC;
 	bool clientRetry;
 	bool autoDownloads;
+	// Proxy-side render-position snapshot interpolation (see NetWorm).
+	bool netInterpEnabled;
+	int netInterpDelayMs;
+	// Proxy worms skip local BaseWorm::think() physics (replication/buffer
+	// driven); =0 reverts a proxy to legacy dead-reckoning.
+	bool netProxyNoPhys;
 
   public:
 	static void setClient(bool v);

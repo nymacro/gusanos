@@ -2,8 +2,6 @@
 #include "player.h"
 #include "luaapi/context.h"
 
-// LuaContext lua;
-
 LuaCallbacks luaCallbacks;
 
 void LuaCallbacks::bind(std::string callback, LuaReference ref) {

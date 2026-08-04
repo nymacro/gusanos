@@ -34,6 +34,7 @@ OmfgScript/omfg_script_parser.h
 GUI/detail/gss-grammar.h
 Net/Reference/
 docs/zoidcom/
+*/fuzz/corpus/
 # Mod folders
 default/
 baseg3/

@@ -349,7 +349,15 @@ void Network::registerInConsole() {
 		("NET_DOWN_PPS", &network.downPPS, 20)
 		("NET_CHECK_CRC", &network.checkCRC, 1)
 		("NET_LOG", &logZoidcom, 0)
-		("NET_AUTODOWNLOADS", &network.autoDownloads, 1);
+		("NET_AUTODOWNLOADS", &network.autoDownloads, 1)
+		// Proxy-side render-position snapshot interpolation (NetWorm).
+		// NET_INTERP=0 reverts proxies to legacy exponential renderPos easing.
+		// NET_INTERP_DELAY is the render lag in ms (smoothness vs latency).
+		("NET_INTERP", &network.netInterpEnabled, 1)
+		("NET_INTERP_DELAY", &network.netInterpDelayMs, 100)
+		// Proxy worms skip local physics (pos/spd/renderPos are
+		// replication/buffer-driven). =0 reverts to legacy dead-reckoning.
+		("NET_PROXY_NOPHYS", &network.netProxyNoPhys, 1);
 
 	console.registerCommands()
 		("NET_SET_PROXY", setProxy)

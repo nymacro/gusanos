@@ -32,6 +32,9 @@ GuiTests::StubContext g_context(&g_renderer);
 
 struct GuiGlobalSetup {
 	GuiGlobalSetup() {
+		// The global `lua` no longer auto-opens in its constructor (see
+		// LuaContext::LuaContext); open it explicitly before initGUI uses it.
+		lua.init();
 		LuaBindings::initGUI(g_context, lua);
 
 		// Create a weak-referenced root Wnd so gui_root() works in tests.

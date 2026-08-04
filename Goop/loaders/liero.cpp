@@ -17,14 +17,6 @@ LieroLevelLoader LieroLevelLoader::instance;
 LieroFontLoader LieroFontLoader::instance;
 #endif
 
-bool LieroLevelLoader::canLoad(fs::path const &path, std::string &name) {
-	if (path.extension().string() == ".lev") {
-		name = path.stem().string();
-		return true;
-	}
-	return false;
-}
-
 #ifndef DEDSERV
 
 static array<unsigned char, 256 * 3> const lieroPalette = {
@@ -204,19 +196,7 @@ bool LieroLevelLoader::load(Level *level, fs::path const &path) {
 	return true;
 }
 
-const char *LieroLevelLoader::getName() {
-	return "Liero level loader";
-}
-
 #ifndef DEDSERV
-
-bool LieroFontLoader::canLoad(fs::path const &path, std::string &name) {
-	if (path.extension().string() == ".lft") {
-		name = path.stem().string();
-		return true;
-	}
-	return false;
-}
 
 bool LieroFontLoader::load(Font *font, fs::path const &path) {
 	font->free();
@@ -275,10 +255,6 @@ bool LieroFontLoader::load(Font *font, fs::path const &path) {
 	font->buildSubBitmaps();
 
 	return true;
-}
-
-const char *LieroFontLoader::getName() {
-	return "Liero font loader";
 }
 
 #endif

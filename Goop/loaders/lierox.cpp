@@ -11,14 +11,6 @@ namespace fs = boost::filesystem;
 
 LieroXLevelLoader LieroXLevelLoader::instance;
 
-bool LieroXLevelLoader::canLoad(fs::path const &path, std::string &name) {
-	if (path.extension().string() == ".lxl") {
-		name = path.stem().string();
-		return true;
-	}
-	return false;
-}
-
 bool LieroXLevelLoader::load(Level *level, fs::path const &path) {
 	fs::ifstream f(path, std::ios::binary);
 	if (!f)
@@ -151,8 +143,4 @@ bool LieroXLevelLoader::load(Level *level, fs::path const &path) {
 
 	level->loaderSucceeded();
 	return true;
-}
-
-const char *LieroXLevelLoader::getName() {
-	return "LieroX level loader";
 }

@@ -382,6 +382,7 @@ class Grid : boost::noncopyable {
 		squaresV = (height + squareSide - 1) / squareSide;
 		layers.clear();
 		layers.resize(layerCount, Layer(squaresH * squaresV));
+		m_dirty = false; // fresh layers have no delayed inserts to flush
 
 		for (std::vector<Layer>::iterator l = layers.begin(); l != layers.end(); ++l) {
 			// insertD inserts at the front, so we have to go through the squares in
@@ -595,20 +596,24 @@ class Grid : boost::noncopyable {
 	void insert(BaseObject *obj, int colLayer, int renderLayer) {
 		int squareIndex = getListIndex(obj->pos);
 		obj->cellIndex_ = squareIndex;
+		obj->lastRelocatePos_ = obj->pos;
 
 		Layer &layer = layers[colLayer + ColLayerCount * renderLayer];
 		assert((unsigned int)squareIndex < layer.grid.size());
 		layer.insertDelayed(obj);
+		m_dirty = true;
 	}
 
 	void insert(BaseObject *obj, int renderLayer) {
 		Layer &layer = layers[NoColLayer + ColLayerCount * renderLayer];
 		layer.insertDelayedNoCol(obj);
+		m_dirty = true;
 	}
 
 	void insertImmediately(BaseObject *obj, int colLayer, int renderLayer) {
 		int cellIndex = getListIndex(obj->pos);
 		obj->cellIndex_ = cellIndex;
+		obj->lastRelocatePos_ = obj->pos;
 
 		Layer &layer = layers[colLayer + ColLayerCount * renderLayer];
 
@@ -616,17 +621,31 @@ class Grid : boost::noncopyable {
 	}
 
 	void flush() {
+		// Most ticks insert nothing (objects think in place; only new spawns
+		// delay-insert), so skip the layerCount-wide sweep entirely then.
+		if (!m_dirty)
+			return;
 		for (std::vector<Layer>::iterator i = layers.begin(); i != layers.end(); ++i) {
 			i->flushDelayed();
 		}
+		m_dirty = false;
 	}
 
 	void relocateIfNecessary(iterator o) {
 		if (!o->prevD_) // Not a relocatable node
 			return;
 
+		// Skip the cell recompute when the object hasn't moved since its last
+		// relocation: the stored cellIndex_ is still valid then. This is
+		// behaviour-preserving (we only skip when pos is bit-identical, so the
+		// cell provably cannot have changed) and avoids the shifts+clamps of
+		// getListIndex for stationary objects (settled debris, resting particles).
+		if (o->pos.x == o->lastRelocatePos_.x && o->pos.y == o->lastRelocatePos_.y)
+			return;
+
 		int curIndex = o->cellIndex_;
 		int realIndex = getListIndex(o->pos);
+		o->lastRelocatePos_ = o->pos;
 		if (realIndex != curIndex) {
 			assert((unsigned int)realIndex < o.curLayer->grid.size());
 			o->cellIndex_ = realIndex;
@@ -744,6 +763,7 @@ class Grid : boost::noncopyable {
 	int y2;
 
 	std::vector<Layer> layers;
+	bool m_dirty = false; // set by insert(); cleared by flush()/resize()
 };
 
 /*
