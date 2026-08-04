@@ -1,31 +1,23 @@
 #ifndef GUSANOS_LOADERS_LIERO_H
 #define GUSANOS_LOADERS_LIERO_H
 
-#include "../resource_locator.h"
+#include "extension_loader.h"
 #include "../level.h"
 #ifndef DEDSERV
 #include "../font.h"
 #endif
 
-struct LieroLevelLoader : ResourceLocator<Level>::BaseLoader {
-	virtual bool canLoad(fs::path const &path, std::string &name);
-
-	virtual bool load(Level *, fs::path const &path);
-
-	virtual const char *getName();
-
+struct LieroLevelLoader : ExtensionLoader<Level> {
+	LieroLevelLoader() : ExtensionLoader<Level>("Liero level loader", {".lev"}) {}
+	bool load(Level *, fs::path const &path) override;
 	static LieroLevelLoader instance;
 };
 
 #ifndef DEDSERV
 
-struct LieroFontLoader : ResourceLocator<Font>::BaseLoader {
-	virtual bool canLoad(fs::path const &path, std::string &name);
-
-	virtual bool load(Font *, fs::path const &path);
-
-	virtual const char *getName();
-
+struct LieroFontLoader : ExtensionLoader<Font> {
+	LieroFontLoader() : ExtensionLoader<Font>("Liero font loader", {".lft"}) {}
+	bool load(Font *, fs::path const &path) override;
 	static LieroFontLoader instance;
 };
 

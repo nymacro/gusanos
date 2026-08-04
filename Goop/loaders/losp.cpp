@@ -9,14 +9,6 @@ namespace fs = boost::filesystem;
 
 LOSPFontLoader LOSPFontLoader::instance;
 
-bool LOSPFontLoader::canLoad(fs::path const &path, std::string &name) {
-	if (path.extension().string() == ".lfn") {
-		name = path.stem().string();
-		return true;
-	}
-	return false;
-}
-
 /*
 Font format:
 	INT32 surfaceWidth
@@ -97,10 +89,6 @@ bool LOSPFontLoader::load(Font *font, fs::path const &path) {
 	font->buildSubBitmaps();
 
 	return true;
-}
-
-const char *LOSPFontLoader::getName() {
-	return "LOSP font loader";
 }
 
 #endif
