@@ -140,6 +140,9 @@ class Network {
 	int checkCRC;
 	bool clientRetry;
 	bool autoDownloads;
+	// Proxy-side render-position snapshot interpolation (see NetWorm).
+	bool netInterpEnabled;
+	int netInterpDelayMs;
 
   public:
 	static void setClient(bool v);

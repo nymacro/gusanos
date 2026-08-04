@@ -21,6 +21,7 @@
 #include <math.h>
 #include <vector>
 #include <memory>
+#include <SDL3/SDL_timer.h>
 #include "network_compat.h"
 
 using namespace std;
@@ -96,6 +97,66 @@ NetWorm::NetWorm(bool isAuthority) : BaseWorm() {
 
 NetWorm::~NetWorm() = default;
 
+void NetWorm::pushPosSnapshot(const Vec &posSnapshot, uint64_t tick) {
+	// Teleport detection: a jump larger than the snap threshold between
+	// consecutive snapshots is a spawn/relocate/server correction, not
+	// movement. Clear the buffer so we snap to the new position instead of
+	// interpolating across the gap.
+	if (m_haveLastBuffered) {
+		Vec d(m_lastBufferedPos, posSnapshot); // posSnapshot - last
+		if (d.length() > RENDER_SNAP_THRESHOLD) {
+			m_posSnapshotCount = 0;
+			m_posSnapshotHead = 0;
+		}
+	}
+	m_lastBufferedPos = posSnapshot;
+	m_haveLastBuffered = true;
+
+	m_posSnapshots[m_posSnapshotHead].pos = posSnapshot;
+	m_posSnapshots[m_posSnapshotHead].tick = tick;
+	m_posSnapshotHead = (m_posSnapshotHead + 1) % INTERP_BUFFER_SIZE;
+	if (m_posSnapshotCount < INTERP_BUFFER_SIZE)
+		++m_posSnapshotCount;
+}
+
+Vec NetWorm::interpolateRenderPos(uint64_t renderTime) const {
+	if (m_posSnapshotCount == 0)
+		return pos; // no snapshots: fall back to current (snapped) pos
+	if (m_posSnapshotCount == 1) {
+		size_t i = (m_posSnapshotHead + INTERP_BUFFER_SIZE - 1) % INTERP_BUFFER_SIZE;
+		return m_posSnapshots[i].pos;
+	}
+
+	// Oldest valid entry (ring is ordered oldest->newest by insertion).
+	size_t start = (m_posSnapshotHead + INTERP_BUFFER_SIZE - m_posSnapshotCount) % INTERP_BUFFER_SIZE;
+	size_t newest = (m_posSnapshotHead + INTERP_BUFFER_SIZE - 1) % INTERP_BUFFER_SIZE;
+
+	// Find the two adjacent snapshots bracketing renderTime.
+	const PosSnapshot *s0 = nullptr; // last snapshot with tick <= renderTime
+	const PosSnapshot *s1 = nullptr; // first snapshot with tick >  renderTime
+	for (size_t k = 0; k < m_posSnapshotCount; ++k) {
+		size_t i = (start + k) % INTERP_BUFFER_SIZE;
+		if (m_posSnapshots[i].tick <= renderTime) {
+			s0 = &m_posSnapshots[i];
+		} else {
+			s1 = &m_posSnapshots[i];
+			break;
+		}
+	}
+
+	if (!s0)
+		return m_posSnapshots[start].pos; // renderTime before oldest: hold
+	if (!s1)
+		return m_posSnapshots[newest].pos; // renderTime after newest: hold (no extrapolation)
+
+	uint64_t span = s1->tick - s0->tick;
+	if (span == 0)
+		return s1->pos;
+	double alpha = static_cast<double>(renderTime - s0->tick) / static_cast<double>(span);
+	Vec d(s0->pos, s1->pos); // s1.pos - s0.pos (BaseVec two-arg ctor)
+	return s0->pos + d * alpha;
+}
+
 void NetWorm::addEvent(ZCom_BitStream *data, NetWorm::NetEvents event) {
 #ifdef COMPACT_EVENTS
 	// data->addInt(event, Encoding::bitsOf(NetWorm::EVENT_COUNT - 1));
@@ -163,16 +224,28 @@ void NetWorm::think() {
 		BaseWorm::think();
 	}
 #ifndef DEDSERV
-	// Snap on large jumps (initial spawn, server correction, teleport) so the
-	// worm doesn't slide from its (0,0) default to the spawn point; smooth
-	// small gaps (normal movement) exactly as before.
-	Vec delta(renderPos, pos); // == pos - renderPos (see BaseVec two-arg ctor)
-	double dist = delta.length();
-	if (dist > RENDER_SNAP_THRESHOLD) {
-		renderPos = pos;
+	if (!m_isAuthority && !isLocalAuthority() && network.netInterpEnabled && m_posSnapshotCount > 0) {
+		// Proxy rendering a remote worm: interpolate renderPos between
+		// buffered timestamped snapshots at a delayed render time
+		// (receive-timeline interpolation). This decouples rendering from
+		// the per-tick pos snap / local-physics integration fight that
+		// caused the proxy rubber-band.
+		uint64_t now = SDL_GetTicks();
+		uint64_t delay = static_cast<uint64_t>(network.netInterpDelayMs);
+		uint64_t renderTime = (now > delay) ? (now - delay) : 0;
+		renderPos = interpolateRenderPos(renderTime);
 	} else {
-		double fact = 1.0 / (1.0 + dist / 4.0);
-		renderPos = renderPos * (1.0 - fact) + pos * fact;
+		// Owner / server-local / interpolation disabled: legacy exponential
+		// easing toward the (authoritative) pos, snapping on large jumps
+		// (spawn, server correction, teleport).
+		Vec delta(renderPos, pos); // == pos - renderPos (see BaseVec two-arg ctor)
+		double dist = delta.length();
+		if (dist > RENDER_SNAP_THRESHOLD) {
+			renderPos = pos;
+		} else {
+			double fact = 1.0 / (1.0 + dist / 4.0);
+			renderPos = renderPos * (1.0 - fact) + pos * fact;
+		}
 	}
 #endif
 
@@ -527,15 +600,19 @@ bool NetWormInterceptor::inPreUpdateItem(ZCom_Node *_node, ZCom_ConnID _from, eZ
 				}
 			}
 		} break;
-			/*case NetWorm::Position:
-			{
-				Vec recievedPos = *static_cast<Vec*>(_replicator->peekData());
-				Vec speedPrediction = (recievedPos - m_parent->lastPosUpdate) / m_parent->timeSinceLastUpdate;
-				m_parent->lastPosUpdate = recievedPos;
-				m_parent->timeSinceLastUpdate = 0;
-				m_parent->spd = m_parent->spd*0.2 + speedPrediction*0.8;
-				return true;
-			} break;*/
+		case NetWorm::Position: {
+			// Buffer the incoming position for proxy-side render
+			// interpolation. Only proxies buffer: the server relays raw
+			// snapshots (it must not interpolate the stream it relays), and
+			// the owner never receives its own position back. peekData()
+			// returns the decoded pos before commit (the replicator frees
+			// the peek buffer on return), so copy the value. Returning true
+			// lets unpackData commit normally (pos/spd stay network truth).
+			if (!m_parent->m_isAuthority && network.netInterpEnabled) {
+				Vec recievedPos = *static_cast<Vec *>(_replicator->peekData());
+				m_parent->pushPosSnapshot(recievedPos, SDL_GetTicks());
+			}
+		} break;
 	}
 	return true;
 }

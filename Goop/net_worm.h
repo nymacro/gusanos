@@ -9,6 +9,7 @@
 #include "network_compat.h"
 
 #include <memory>
+#include <cstdint>
 
 class NetWormInterceptor;
 
@@ -130,6 +131,28 @@ class NetWorm : public BaseWorm {
 	ZCom_NodeID m_playerID; // The id of the owner player node to replicate to all proxys
 
 	uint32_t m_actionSeq = 0; // per-worm monotonic fire/dig/die burst counter
+
+	// --- Proxy-side snapshot interpolation of renderPos ---
+	// Proxies buffer timestamped position snapshots from the Position
+	// replicator and interpolate renderPos between them at a delayed render
+	// time, instead of legacy exponential easing toward a hard-snapped pos.
+	// This removes the proxy snap-vs-local-physics fight (the "other half" of
+	// the rubber-band per net-worm-authority-gate.md). The server relays raw
+	// snapshots (no interpolation); the owner simulates its own worm locally.
+	// Toggle/runtime-tune via NET_INTERP / NET_INTERP_DELAY cvars.
+	struct PosSnapshot {
+		Vec pos;
+		uint64_t tick; // SDL_GetTicks() at receive
+	};
+	static constexpr size_t INTERP_BUFFER_SIZE = 16;
+	PosSnapshot m_posSnapshots[INTERP_BUFFER_SIZE];
+	size_t m_posSnapshotHead = 0;
+	size_t m_posSnapshotCount = 0;
+	Vec m_lastBufferedPos;
+	bool m_haveLastBuffered = false;
+
+	void pushPosSnapshot(const Vec &pos, uint64_t tick);
+	Vec interpolateRenderPos(uint64_t renderTime) const;
 };
 
 class NetWormInterceptor : public ZCom_NodeReplicationInterceptor {
