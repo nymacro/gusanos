@@ -69,6 +69,11 @@ inline void set_color_conversion(int flags) {
 	current_color_conversion = flags;
 }
 
+// Allegro colour-conversion flags. These are compat no-ops (all 0); kept
+// symbolic because engine source references a few of them (COLORCONV_NONE,
+// COLORCONV_REDUCE_TO_256, COLORCONV_KEEP_TRANS). set_color_conversion /
+// get_color_conversion above are the live wrappers (gfx.h
+// LocalSetColorConversion).
 #define COLORCONV_NONE 0
 #define COLORCONV_TOTAL 0
 #define COLORCONV_KEEP_TRANS 0
@@ -187,17 +192,10 @@ inline void putpixel(BITMAP *bmp, int x, int y, int color) {
 inline bool is_video_bitmap(BITMAP *bmp) {
 	return false;
 }
-inline bool is_planar_bitmap(BITMAP *bmp) {
-	return false;
-}
-inline void bmp_select(BITMAP *bmp) {}
-inline unsigned long bmp_write_line(BITMAP *bmp, int line) {
-	return (unsigned long)bmp->line[line];
-}
-inline void bmp_write32(unsigned long addr, unsigned long color) {
-	*(unsigned long *)addr = color;
-}
-inline void bmp_unwrite_line(BITMAP *bmp) {}
+// Removed unused Allegro direct-write stubs (bmp_select / bmp_write_line /
+// bmp_write32 / bmp_unwrite_line) and is_planar_bitmap: zero call sites in the
+// engine (verified via grep). getpixel/putpixel above are the live per-pixel
+// accessors. (allegro_compat TODO-tracked umbrella, B13.)
 
 inline void allegro_message(const char *msg, ...) {
 	va_list args;

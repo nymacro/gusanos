@@ -81,10 +81,10 @@ static zU32 estimatedSendTimeFromPeer(ENetPeer *peer) {
 // prefix), so per-replicator payloads concatenate without byte-alignment
 // gaps. The receiver reads bit-by-bit and stays aligned.
 void appendBits(ZCom_BitStream &dst, ZCom_BitStream &src) {
-	src.resetReadState();
-	zU32 n = src.getBitCount();
-	for (zU32 i = 0; i < n; ++i)
-		dst.addBool(src.getBool());
+	// Delegates to addBitStream, which resets the source read head and copies
+	// all written bits — identical semantics to the former per-bit loop, plus
+	// the byte-aligned memcpy fast path (A8) when dst is byte-aligned.
+	dst.addBitStream(&src);
 }
 
 // Build a file-transfer event BitStream ([fid(ZCOM_FTRANS_ID_BITS)] + optional
@@ -159,9 +159,12 @@ void ZCom_Control::ZCom_processOutput() {
 
 		// Pre-pack each replicator once (clearing dirty), then route the
 		// pre-packed bytes to matching peers. Re-calling packData per peer
-		// would no-op since the first call cleared the dirty flag.
-		std::vector<PackedReplicator> packed;
-		node->packReplicatorsForRouting(packed);
+		// would no-op since the first call cleared the dirty flag. The scratch
+		// vector is a per-control member reused across nodes (A7):
+		// packReplicatorsForRouting clears+reserves it, so only the first node
+		// pays the reserve; capacity persists for subsequent nodes.
+		node->packReplicatorsForRouting(m_routingPacked);
+		auto &packed = m_routingPacked;
 
 		bool anyUpdate = false;
 		for (auto &p : packed)
@@ -178,36 +181,37 @@ void ZCom_Control::ZCom_processOutput() {
 			if (peerRole == eZCom_RoleUndefined)
 				continue; // node not announced to this peer
 
-			ZCom_BitStream repPacked;
+			// Build the per-peer packet directly into the reusable scratch
+			// BitStream (A7): reset() preserves m_data capacity across peers,
+			// and building the payload straight into the packet (header + 1-bit
+			// flags + replicator data, in order) is bit-identical to the former
+			// repPacked + addBitStream path, but avoids a per-peer payload
+			// BitStream allocation and the bit-by-bit addBitStream copy.
+			m_routingPkt.reset();
+			m_routingPkt.addInt(MSG_REPLICATORS, 8);
+			m_routingPkt.addInt(nid, 16);
+			size_t payloadStart = m_routingPkt.getBitCount();
 			bool peerHasData = false;
 			for (auto &p : packed) {
 				bool send = p.hasUpdate && repruleMatches(p.rule, localRole, peerRole);
-				repPacked.addInt(send ? 1 : 0, 1);
+				m_routingPkt.addInt(send ? 1 : 0, 1);
 				if (send) {
 					peerHasData = true;
-					appendBits(repPacked, p.data);
+					appendBits(m_routingPkt, p.data);
 				}
 			}
 			if (!peerHasData)
 				continue;
 
-			ZCom_BitStream pkt;
-			pkt.addInt(MSG_REPLICATORS, 8);
-			pkt.addInt(nid, 16);
-			// Bit-aligned copy of the per-peer payload (1-bit flags interleaved
-			// with replicator data, not byte-aligned). addBitStream copies
-			// exactly getBitCount() bits — no per-byte addInt(getData()[i],8)
-			// loop and no trailing byte padding. The receiver reads bit-by-bit
-			// via unpackAllReplicators, so trimming the padding bits is
-			// observationally identical (fewer wasted bits on the wire).
-			pkt.addBitStream(&repPacked);
+			zU32 payloadBits = static_cast<zU32>(m_routingPkt.getBitCount() - payloadStart);
 
 			NET_LOG("Routing replicators nodeID=" << nid << " classID=" << node->getClassID() << " ("
 												  << ZCom_getClassName(node->getClassID()) << ")"
 												  << " local=" << localRole << " peer=" << peerRole
-												  << " conn=" << connID << " bits=" << repPacked.getBitCount());
+												  << " conn=" << connID << " bits=" << payloadBits);
 
-			ENetPacket *packet = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
+			ENetPacket *packet =
+				enet_packet_create(m_routingPkt.getData(), m_routingPkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
 			ENetPeer *peer = findPeer(connID);
 			if (peer)
 				sendPacket(connID, peer, CH_REPLICATOR, packet, false);

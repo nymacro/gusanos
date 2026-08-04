@@ -1,6 +1,8 @@
 #ifndef LUA_MACROS_H
 #define LUA_MACROS_H
 
+// METHOD: define a Lua method `name_` on userdata type `type_`. `p` is the object
+// read from stack 1; `body_` is the implementation; returns 0 if self is nil.
 #define METHOD(type_, name_, body_...)                                                                                 \
 	int l_##name_(lua_State *L_) {                                                                                     \
 		LuaContext context(L_);                                                                                        \
@@ -11,6 +13,8 @@
 		body_                                                                                                          \
 	}
 
+// METHODC: like METHOD, but raises a Lua error on an invalid self, which
+// catches the common '.'-vs-':' call misuse.
 #define METHODC(type_, name_, body_...)                                                                                \
 	int l_##name_(lua_State *L_) {                                                                                     \
 		LuaContext context(L_);                                                                                        \
@@ -23,6 +27,8 @@
 		}                                                                                                              \
 	}
 
+// LMETHOD: like METHOD for light userdata (no LuaObject wrapper); `p` is the
+// raw pointer read from stack 1.
 #define LMETHOD(type_, name_, body_...)                                                                                \
 	int l_##name_(lua_State *L_) {                                                                                     \
 		LuaContext context(L_);                                                                                        \
@@ -32,6 +38,7 @@
 		body_                                                                                                          \
 	}
 
+// LMETHODC: LMETHOD with an invalid-self Lua error.
 #define LMETHODC(type_, name_, body_...)                                                                               \
 	int l_##name_(lua_State *L_) {                                                                                     \
 		LuaContext context(L_);                                                                                        \
@@ -44,6 +51,8 @@
 		}                                                                                                              \
 	}
 
+// BINOP: define a Lua binary operator `name_` on `type_`; `a`/`b` are the
+// operands from stack 1/2; returns 0 if either operand is nil.
 #define BINOP(type_, name_, body_...)                                                                                  \
 	int l_##name_(lua_State *L_) {                                                                                     \
 		LuaContext context(L_);                                                                                        \
@@ -58,6 +67,7 @@
 		body_                                                                                                          \
 	}
 
+// LBINOP: BINOP for light userdata operands.
 #define LBINOP(type_, name_, body_...)                                                                                 \
 	int l_##name_(lua_State *L_) {                                                                                     \
 		LuaContext context(L_);                                                                                        \
@@ -70,6 +80,8 @@
 		body_                                                                                                          \
 	}
 
+// CLASS: build a Lua metatable for `name_` (methods in `body_`), register it,
+// and store its registry ref in `name_##MetaTable`.
 #define CLASS(name_, body_...)                                                                                         \
 	{                                                                                                                  \
 		lua_newtable(context);                                                                                         \
@@ -92,6 +104,8 @@
 	lua_rawset(context, -3); \
 	name_##MetaTable = context.createReference(); }
 	*/
+// CLASS_: like CLASS but store the metatable ref in `name_::metaTable` (static
+// member form) instead of `name_##MetaTable`.
 #define CLASS_(name_, body_...)                                                                                        \
 	{                                                                                                                  \
 		lua_newtable(context);                                                                                         \
@@ -103,6 +117,7 @@
 		name_::metaTable = context.createReference();                                                                  \
 	}
 
+// CLASSM: like CLASS plus metamethods (`meta_`) bound before __index.
 #define CLASSM(name_, meta_, body_...)                                                                                 \
 	{                                                                                                                  \
 		lua_newtable(context);                                                                                         \
@@ -115,6 +130,7 @@
 		name_##MetaTable = context.createReference();                                                                  \
 	}
 
+// CLASSM_: CLASSM with the `name_::metaTable` static-member form.
 #define CLASSM_(name_, meta_, body_...)                                                                                \
 	{                                                                                                                  \
 		lua_newtable(context);                                                                                         \
@@ -127,6 +143,8 @@
 		name_::metaTable = context.createReference();                                                                  \
 	}
 
+// ENUM: create a Lua global table `name_` populated by context.tableItems()
+// in `body_`.
 #define ENUM(name_, body_)                                                                                             \
 	{                                                                                                                  \
 		lua_pushstring(context, #name_);                                                                               \
@@ -135,6 +153,8 @@
 		lua_rawset(context, LUA_GLOBALSINDEX);                                                                         \
 	}
 
+// REQUEST_TABLE: create a Lua global table `name_` whose __index metamethod
+// calls the C function `func_`.
 #define REQUEST_TABLE(name_, func_)                                                                                    \
 	{                                                                                                                  \
 		lua_pushstring(context, name_);                                                                                \
@@ -147,6 +167,8 @@
 		lua_rawset(context, LUA_GLOBALSINDEX);                                                                         \
 	}
 
+// SHADOW_TABLE: create a Lua global table `name_` with __index (`get_`) and
+// __newindex (`set_`) metamethods.
 #define SHADOW_TABLE(name_, get_, set_)                                                                                \
 	{                                                                                                                  \
 		lua_pushstring(context, name_);                                                                                \

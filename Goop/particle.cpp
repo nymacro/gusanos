@@ -282,6 +282,12 @@ void Particle::think() {
 	// Note: m_health is not replicated and Damage::run is authority-only, so
 	// the death branch (and its gameplay RNG draws) effectively never fires on
 	// clients; particles are cosmetic there and removed via eZCom_EventRemoved.
+	// Hoist per-type constants out of the substep loop (A1): bounceFactor and
+	// groundFriction never change during think(). Precomputing the negative
+	// bounce factor resolves the per-collision TODO and is bit-identical (IEEE-754
+	// negation is exact, so x * (-y) == x * negY).
+	const float negBounce = -m_type->bounceFactor;
+	const float groundFriction = m_type->groundFriction;
 	for (int i = 0; i < m_type->repeat; ++i) {
 		if (m_health <= 0 && m_type->death) {
 			m_type->death->run(this);
@@ -309,9 +315,23 @@ void Particle::think() {
 			IVec iPos = IVec(pos);
 			int n = 0;
 			int iradius = static_cast<int>(radius);
+			// When the whole [-iradius..iradius]^2 probe box is inside the level,
+			// use unsafeGetMaterial (no per-pixel bounds check). The bounds check
+			// in getMaterial is the dominant cost of this nested loop and always
+			// passes for interior particles, so this is a bit-identical lookup
+			// that skips redundant per-pixel bounds work (A1).
+			int levelW = game.level.width();
+			int levelH = game.level.height();
+			bool boxInBounds = iPos.x - iradius >= 0 && iPos.x + iradius < levelW &&
+			                   iPos.y - iradius >= 0 && iPos.y + iradius < levelH;
 			for (int y = -iradius; y <= iradius; ++y)
 				for (int x = -iradius; x <= iradius; ++x) {
-					if (!game.level.getMaterial(iPos.x + x, iPos.y + y).particle_pass) {
+					bool solid;
+					if (boxInBounds)
+						solid = !game.level.unsafeGetMaterial(iPos.x + x, iPos.y + y).particle_pass;
+					else
+						solid = !game.level.getMaterial(iPos.x + x, iPos.y + y).particle_pass;
+					if (solid) {
 						averageCorrection += getCorrectionBox(pos, iPos + IVec(x, y), radius);
 						++n;
 					}
@@ -329,13 +349,13 @@ void Particle::think() {
 
 		bool collision = false;
 		if (!game.level.getMaterial(roundAny(pos.x + spd.x), roundAny(pos.y)).particle_pass) {
-			spd.x *= -m_type->bounceFactor; // TODO: Precompute the negative of this
-			spd.y *= m_type->groundFriction;
+			spd.x *= negBounce;
+			spd.y *= groundFriction;
 			collision = true;
 		}
 		if (!game.level.getMaterial(roundAny(pos.x), roundAny(pos.y + spd.y)).particle_pass) {
-			spd.y *= -m_type->bounceFactor; // TODO: Precompute the negative of this
-			spd.x *= m_type->groundFriction;
+			spd.y *= negBounce;
+			spd.x *= groundFriction;
 			collision = true;
 		}
 		if (collision) {

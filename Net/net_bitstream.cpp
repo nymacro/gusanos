@@ -418,6 +418,36 @@ bool ZCom_BitStream::addBitStream(ZCom_BitStream *other, bool _allow_align) {
 	// (e.g. NetWorm::sendWeaponMessage -> recieveMessage, LuaEvent payloads).
 	other->resetReadState();
 	zU32 n = other->getBitCount();
+	if (n == 0)
+		return true;
+
+	// Byte-aligned fast path (A8): after resetReadState the source read head is
+	// at bit 0, so when the destination write head is also byte-aligned we can
+	// memcpy whole bytes and finish the <8 trailing bits with the bit loop.
+	// Bit-identical to the per-bit loop below; avoids the per-bit
+	// addBool/getBool overhead for large embedded streams (file transfer /
+	// announce payloads). The invariant m_data.size() >= (m_writeBit+7)/8
+	// guarantees the source has >= n/8 bytes and ensureCapacity guarantees the
+	// destination has room.
+	if ((m_writeBit & 7) == 0) {
+		size_t fullBytes = n / 8;
+		if (fullBytes > 0) {
+			ensureCapacity(m_writeBit + fullBytes * 8);
+			std::memcpy(&m_data[m_writeBit / 8], other->m_data.data(), fullBytes);
+			m_writeBit += fullBytes * 8;
+			other->m_readBit += fullBytes * 8;
+			n -= static_cast<zU32>(fullBytes * 8);
+			m_fillPos.bit = static_cast<uint16_t>(m_writeBit % 8);
+			m_fillPos.pos = static_cast<uint16_t>(m_writeBit / 8);
+			other->m_readPos.bit = static_cast<uint16_t>(other->m_readBit % 8);
+			other->m_readPos.pos = static_cast<uint16_t>(other->m_readBit / 8);
+		}
+		for (zU32 i = 0; i < n; ++i)
+			addBool(other->getBool());
+		return true;
+	}
+
+	// Unaligned destination: per-bit copy.
 	for (zU32 i = 0; i < n; ++i)
 		addBool(other->getBool());
 	return true;

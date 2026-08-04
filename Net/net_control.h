@@ -290,6 +290,15 @@ class ZCom_Control {
 	std::vector<ZCom_ClassInfo> m_classes;
 	NodeRegistry m_nodeRegistry;			  ///< owns registration order and lookups
 	std::map<uint32_t, ENetPeer *> m_peerMap; ///< non-owning (ENet owns the peers)
+
+	/// Per-tick scratch buffers for ZCom_processOutput, reused across nodes and
+	/// peers to avoid per-tick heap churn (A7). packReplicatorsForRouting
+	/// clears+reserves m_routingPacked (capacity persists across nodes);
+	/// m_routingPkt is reset() per peer (reset preserves m_data capacity) and
+	/// built directly into — eliminating a separate per-peer payload BitStream
+	/// and the addBitStream copy that stitched it into the packet.
+	std::vector<PackedReplicator> m_routingPacked;
+	ZCom_BitStream m_routingPkt;
 	std::map<uint32_t, ZCom_Address> m_addressMap;
 	mutable std::map<ZCom_ConnID, ZCom_ConnStats>
 		m_statsCache; ///< Cache for ZCom_getConnectionStats (reference returns const&)

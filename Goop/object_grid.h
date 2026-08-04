@@ -596,6 +596,7 @@ class Grid : boost::noncopyable {
 	void insert(BaseObject *obj, int colLayer, int renderLayer) {
 		int squareIndex = getListIndex(obj->pos);
 		obj->cellIndex_ = squareIndex;
+		obj->lastRelocatePos_ = obj->pos;
 
 		Layer &layer = layers[colLayer + ColLayerCount * renderLayer];
 		assert((unsigned int)squareIndex < layer.grid.size());
@@ -612,6 +613,7 @@ class Grid : boost::noncopyable {
 	void insertImmediately(BaseObject *obj, int colLayer, int renderLayer) {
 		int cellIndex = getListIndex(obj->pos);
 		obj->cellIndex_ = cellIndex;
+		obj->lastRelocatePos_ = obj->pos;
 
 		Layer &layer = layers[colLayer + ColLayerCount * renderLayer];
 
@@ -633,8 +635,17 @@ class Grid : boost::noncopyable {
 		if (!o->prevD_) // Not a relocatable node
 			return;
 
+		// Skip the cell recompute when the object hasn't moved since its last
+		// relocation: the stored cellIndex_ is still valid then. This is
+		// behaviour-preserving (we only skip when pos is bit-identical, so the
+		// cell provably cannot have changed) and avoids the shifts+clamps of
+		// getListIndex for stationary objects (settled debris, resting particles).
+		if (o->pos.x == o->lastRelocatePos_.x && o->pos.y == o->lastRelocatePos_.y)
+			return;
+
 		int curIndex = o->cellIndex_;
 		int realIndex = getListIndex(o->pos);
+		o->lastRelocatePos_ = o->pos;
 		if (realIndex != curIndex) {
 			assert((unsigned int)realIndex < o.curLayer->grid.size());
 			o->cellIndex_ = realIndex;

@@ -6,6 +6,10 @@
 // #include "luaapi/context.h"
 #include "luaapi/types.h"
 
+// EACH_CALLBACK(i_, type_): iterate the registered Lua callbacks for the given
+// callback type. The macro references the global `luaCallbacks` singleton by
+// name; new code may call LuaCallbacks::callbacksFor(type_) to obtain the
+// vector explicitly instead.
 #define EACH_CALLBACK(i_, type_)                                                                                       \
 	for (std::vector<LuaReference>::iterator i_ = luaCallbacks.callbacks[LuaCallbacks::type_].begin();                 \
 		 i_ != luaCallbacks.callbacks[LuaCallbacks::type_].end(); ++i_)
@@ -56,6 +60,10 @@ struct LuaCallbacks {
 	std::vector<LuaReference> localplayerInit;
 	*/
 	std::vector<LuaReference> callbacks[max];
+
+	// Accessor for the callback vector of a given type (alternative to the
+	// EACH_CALLBACK macro, which names the global singleton directly).
+	std::vector<LuaReference> &callbacksFor(int type_) { return callbacks[type_]; }
 };
 
 extern LuaCallbacks luaCallbacks;

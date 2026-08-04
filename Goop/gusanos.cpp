@@ -258,7 +258,7 @@ int main(int argc, char **argv) try {
 			}
 #endif
 
-			if (game.isLoaded() && game.level.isLoaded()) {
+		if (game.isLoaded() && game.level.isLoaded()) {
 
 #ifdef USE_GRID
 
@@ -360,6 +360,8 @@ int main(int argc, char **argv) try {
 			// console.addLogMsg(cast<string>(fps));
 		}
 
+		static std::string overlayBuf; // reused across frames to avoid per-frame string allocs (A18)
+
 		if (game.isLoaded() && game.level.isLoaded()) {
 
 			for (list<BasePlayer *>::iterator iter = game.players.begin(); iter != game.players.end(); iter++) {
@@ -368,13 +370,22 @@ int main(int argc, char **argv) try {
 
 			// debug info
 			if (showDebug) {
-				game.infoFont->draw(gfx.buffer, "OBJECTS: \01303" + cast<string>(game.objects.size()), 5, 10, 0, 255,
+				char dbgTmp[48];
+				std::snprintf(dbgTmp, sizeof dbgTmp, "OBJECTS: \01303%d", (int)game.objects.size());
+				overlayBuf = dbgTmp;
+				game.infoFont->draw(gfx.buffer, overlayBuf, 5, 10, 0, 255,
 									255, 255, 255, Font::Formatting);
-				game.infoFont->draw(gfx.buffer, "PLAYERS: \01303" + cast<string>(game.players.size()), 5, 15, 0, 255,
+				std::snprintf(dbgTmp, sizeof dbgTmp, "PLAYERS: \01303%d", (int)game.players.size());
+				overlayBuf = dbgTmp;
+				game.infoFont->draw(gfx.buffer, overlayBuf, 5, 15, 0, 255,
 									255, 255, 255, Font::Formatting);
-				game.infoFont->draw(gfx.buffer, "PING:    \01303" + cast<string>(network.getServerPing()), 5, 20, 0,
+				std::snprintf(dbgTmp, sizeof dbgTmp, "PING:    \01303%d", (int)network.getServerPing());
+				overlayBuf = dbgTmp;
+				game.infoFont->draw(gfx.buffer, overlayBuf, 5, 20, 0,
 									255, 255, 255, 255, Font::Formatting);
-				game.infoFont->draw(gfx.buffer, "LUA MEM: \01303" + cast<string>(lua_gc(lua, LUA_GCCOUNT, 0)), 5, 25, 0,
+				std::snprintf(dbgTmp, sizeof dbgTmp, "LUA MEM: \01303%d", (int)lua_gc(lua, LUA_GCCOUNT, 0));
+				overlayBuf = dbgTmp;
+				game.infoFont->draw(gfx.buffer, overlayBuf, 5, 25, 0,
 									255, 255, 255, 255, Font::Formatting);
 			}
 
@@ -453,7 +464,11 @@ int main(int argc, char **argv) try {
 				if (!gamepadHandler.isConnected(slot))
 					continue;
 
-				std::string line = "GP" + cast<string>(slot) + ": ";
+				static std::string line;
+				line.clear();
+				char gpHdr[16];
+				std::snprintf(gpHdr, sizeof gpHdr, "GP%d: ", slot);
+				line += gpHdr;
 
 				// Trigger values
 				float lt = gamepadHandler.getAxis(slot, 4);
@@ -472,8 +487,11 @@ int main(int argc, char **argv) try {
 					{GP_LB, "LB"}, {GP_RB, "RB"}, {GP_START, "START"}, {GP_BACK, "BACK"},
 				};
 				for (const auto &b : btns) {
-					if (gamepadHandler.isPressed(slot, b.gp))
-						line += std::string(" [") + b.name + "]";
+					if (gamepadHandler.isPressed(slot, b.gp)) {
+						line += " [";
+						line += b.name;
+						line += "]";
+					}
 				}
 
 				// D-pad
@@ -488,8 +506,10 @@ int main(int argc, char **argv) try {
 					{GP_DPAD_RIGHT, ">"},
 				};
 				for (const auto &d : ddirs) {
-					if (gamepadHandler.isPressed(slot, d.gp))
-						line += std::string(" ") + d.sym;
+					if (gamepadHandler.isPressed(slot, d.gp)) {
+						line += " ";
+						line += d.sym;
+					}
 				}
 
 				// Stick virtual directions
@@ -498,8 +518,10 @@ int main(int argc, char **argv) try {
 					{GP_RSTICK_LEFT, "R<"}, {GP_RSTICK_RIGHT, "R>"}, {GP_RSTICK_UP, "R^"}, {GP_RSTICK_DOWN, "Rv"},
 				};
 				for (const auto &s : stickDirs) {
-					if (gamepadHandler.isPressed(slot, s.gp))
-						line += std::string(" ") + s.name;
+					if (gamepadHandler.isPressed(slot, s.gp)) {
+						line += " ";
+						line += s.name;
+					}
 				}
 
 				// Right-align the line
@@ -513,7 +535,10 @@ int main(int argc, char **argv) try {
 
 		// show fps (on top of menu)
 		if (showFps) {
-			game.infoFont->draw(gfx.buffer, "FPS: \01303" + cast<string>(fps), 5, 5, 0, 255, 255, 255, 255,
+			char fpsTmp[32];
+			std::snprintf(fpsTmp, sizeof fpsTmp, "FPS: \01303%d", (int)fps);
+			overlayBuf = fpsTmp;
+			game.infoFont->draw(gfx.buffer, overlayBuf, 5, 5, 0, 255, 255, 255, 255,
 								Font::Formatting);
 		}
 		fpsCount++;
