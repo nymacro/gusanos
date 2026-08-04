@@ -354,7 +354,10 @@ void Network::registerInConsole() {
 		// NET_INTERP=0 reverts proxies to legacy exponential renderPos easing.
 		// NET_INTERP_DELAY is the render lag in ms (smoothness vs latency).
 		("NET_INTERP", &network.netInterpEnabled, 1)
-		("NET_INTERP_DELAY", &network.netInterpDelayMs, 100);
+		("NET_INTERP_DELAY", &network.netInterpDelayMs, 100)
+		// Proxy worms skip local physics (pos/spd/renderPos are
+		// replication/buffer-driven). =0 reverts to legacy dead-reckoning.
+		("NET_PROXY_NOPHYS", &network.netProxyNoPhys, 1);
 
 	console.registerCommands()
 		("NET_SET_PROXY", setProxy)

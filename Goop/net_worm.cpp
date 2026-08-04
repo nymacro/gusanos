@@ -7,6 +7,9 @@
 #include "weapon.h"
 #include "weapon_type.h"
 #include "base_worm.h"
+#ifndef DEDSERV
+#include "base_animator.h"
+#endif
 #include "base_object.h"
 #include "base_player.h"
 #include "player_options.h"
@@ -195,14 +198,22 @@ void NetWorm::think() {
 	// still run via runWeaponThink() below so firing replicates.
 	//
 	// Proxies (m_isAuthority == false, isLocalAuthority() == false for
-	// another player's worm) are NOT gated here: they still run
-	// BaseWorm::think() so walk/firecone animation keeps ticking. The
-	// proxy worm's pos/spd are snapped from the owner every tick (spd is
-	// replicated too, so dead-reckoning stays close), and the rope is
-	// gated separately in NinjaRope::think() so it cannot apply an
-	// oscillating addSpeed() to the worm body. The owner's rope pull is
-	// already baked into the replicated spd, so the proxy worm follows
-	// the owner's trajectory without a local rope force.
+	// another player's worm) likewise skip BaseWorm::think() physics: their
+	// pos/spd are replication-driven (snapped from the owner each network
+	// update) and, with proxy-side renderPos snapshot interpolation active,
+	// rendering is driven from the timestamped buffer rather than the
+	// per-tick pos. Running local physics on a proxy only made its pos fight
+	// the replicated snap (the proxy half of the rubber-band). Like the
+	// server-relay gate above, the proxy keeps weapon-think (so predicted
+	// fire / SHOOT-reproduction spawns the deterministic cosmetic burst at
+	// the worm) and the render-side ticks (walk animation + firecone) that
+	// BaseWorm::think() would otherwise have advanced. `animate` is re-derived
+	// from the networked move flags since processMoveAndDig (which sets it)
+	// is skipped. Death/respawn are event-driven on proxies (Die/Respawn
+	// events); the rope is gated in NinjaRope::think() (no-op on proxy) and
+	// its state is replicated, with the owner's rope pull baked into the
+	// replicated spd. Gated by NET_PROXY_NOPHYS (default on); =0 reverts a
+	// proxy to running full BaseWorm::think() (legacy dead-reckoning).
 	if (m_isAuthority && !isLocalAuthority()) {
 		if (m_isActive) {
 			if (health <= 0)
@@ -215,6 +226,34 @@ void NetWorm::think() {
 			// set primaryShooting on this authority worm, and
 			// runWeaponThink() consumes it, fires, and broadcasts SHOOT.
 			runWeaponThink();
+		} else {
+			if (m_timeSinceDeath > game.options.maxRespawnTime && game.options.maxRespawnTime >= 0)
+				respawn();
+			++m_timeSinceDeath;
+		}
+	} else if (!m_isAuthority && !isLocalAuthority()) {
+		// Proxy worm: no local physics (pos/spd/renderPos are
+		// replication/buffer-driven); keep only weapon-think + render ticks.
+		if (m_isActive) {
+			runWeaponThink();
+#ifndef DEDSERV
+			// Re-derive walk-animate from the networked move flags, mirroring
+			// processMoveAndDig: animate only when moving in one direction
+			// (both or neither => idle/dig frame).
+			float leftInt = movingLeft ? m_movingLeftIntensity : 0.0f;
+			float rightInt = movingRight ? m_movingRightIntensity : 0.0f;
+			animate = (leftInt > 0.0f) != (rightInt > 0.0f);
+			if (animate)
+				m_animator->tick();
+			else
+				m_animator->reset();
+			if (m_currentFirecone) {
+				if (m_fireconeTime == 0)
+					m_currentFirecone = NULL;
+				--m_fireconeTime;
+				m_fireconeAnimator->tick();
+			}
+#endif
 		} else {
 			if (m_timeSinceDeath > game.options.maxRespawnTime && game.options.maxRespawnTime >= 0)
 				respawn();
