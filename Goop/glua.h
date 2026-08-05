@@ -63,7 +63,9 @@ struct LuaCallbacks {
 
 	// Accessor for the callback vector of a given type (alternative to the
 	// EACH_CALLBACK macro, which names the global singleton directly).
-	std::vector<LuaReference> &callbacksFor(int type_) { return callbacks[type_]; }
+	std::vector<LuaReference> &callbacksFor(int type_) {
+		return callbacks[type_];
+	}
 };
 
 extern LuaCallbacks luaCallbacks;

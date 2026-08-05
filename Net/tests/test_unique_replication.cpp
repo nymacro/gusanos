@@ -56,13 +56,17 @@ BOOST_AUTO_TEST_CASE(unique_replicator_reaches_proxy) {
 		uint32_t cls;
 		ZCom_Node *node = nullptr;
 		int32_t gravity = 42;
-		~USrv() { delete node; }
+		~USrv() {
+			delete node;
+		}
 		USrv(int p) {
 			g_currentControl = this;
 			ZCom_initSockets(true, p, 2, 0);
 			cls = ZCom_registerClass("UQ1", 0);
 		}
-		bool ZCom_cbConnectionRequest(uint32_t, ZCom_BitStream &, ZCom_BitStream &) override { return true; }
+		bool ZCom_cbConnectionRequest(uint32_t, ZCom_BitStream &, ZCom_BitStream &) override {
+			return true;
+		}
 		void ZCom_cbConnectionSpawned(uint32_t) override {}
 	} srv(port);
 
@@ -72,7 +76,9 @@ BOOST_AUTO_TEST_CASE(unique_replicator_reaches_proxy) {
 		bool connected = false;
 		ZCom_Node *node = nullptr;
 		int32_t rgravity = 0;
-		~UCli() { delete node; }
+		~UCli() {
+			delete node;
+		}
 		UCli(int p) {
 			g_currentControl = this;
 			ZCom_initSockets(false, 0, 0, 0);
@@ -97,8 +103,7 @@ BOOST_AUTO_TEST_CASE(unique_replicator_reaches_proxy) {
 	g_currentControl = &srv;
 	srv.node = new ZCom_Node();
 	srv.node->beginReplicationSetup(1);
-	srv.node->addReplicationInt((zS32 *)&srv.gravity, 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL,
-								0);
+	srv.node->addReplicationInt((zS32 *)&srv.gravity, 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL, 0);
 	srv.node->endReplicationSetup();
 	srv.node->registerNodeUnique(srv.cls, eZCom_RoleAuthority, &srv);
 	g_currentControl = nullptr;
@@ -117,8 +122,7 @@ BOOST_AUTO_TEST_CASE(unique_replicator_reaches_proxy) {
 	g_currentControl = &cli;
 	cli.node = new ZCom_Node();
 	cli.node->beginReplicationSetup(1);
-	cli.node->addReplicationInt((zS32 *)&cli.rgravity, 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL,
-								0);
+	cli.node->addReplicationInt((zS32 *)&cli.rgravity, 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL, 0);
 	cli.node->endReplicationSetup();
 	cli.node->registerNodeUnique(cli.cls, eZCom_RoleProxy, &cli);
 	g_currentControl = nullptr;
@@ -151,13 +155,17 @@ BOOST_AUTO_TEST_CASE(unique_event_reaches_proxy) {
 	  public:
 		uint32_t cls;
 		ZCom_Node *node = nullptr;
-		~ESrv() { delete node; }
+		~ESrv() {
+			delete node;
+		}
 		ESrv(int p) {
 			g_currentControl = this;
 			ZCom_initSockets(true, p, 2, 0);
 			cls = ZCom_registerClass("UQ2", 0);
 		}
-		bool ZCom_cbConnectionRequest(uint32_t, ZCom_BitStream &, ZCom_BitStream &) override { return true; }
+		bool ZCom_cbConnectionRequest(uint32_t, ZCom_BitStream &, ZCom_BitStream &) override {
+			return true;
+		}
 		void ZCom_cbConnectionSpawned(uint32_t) override {}
 	} srv(port);
 
@@ -166,7 +174,9 @@ BOOST_AUTO_TEST_CASE(unique_event_reaches_proxy) {
 		uint32_t cls;
 		bool connected = false;
 		ZCom_Node *node = nullptr;
-		~ECli() { delete node; }
+		~ECli() {
+			delete node;
+		}
 		ECli(int p) {
 			g_currentControl = this;
 			ZCom_initSockets(false, 0, 0, 0);
@@ -240,13 +250,17 @@ BOOST_AUTO_TEST_CASE(unique_event_init_fires_per_peer) {
 		ZCom_Node *node = nullptr;
 		int initEvents = 0;
 		std::vector<uint32_t> initConnIDs;
-		~ISrv() { delete node; }
+		~ISrv() {
+			delete node;
+		}
 		ISrv(int p) {
 			g_currentControl = this;
 			ZCom_initSockets(true, p, 4, 0); // room for multiple clients
 			cls = ZCom_registerClass("UQ3", 0);
 		}
-		bool ZCom_cbConnectionRequest(uint32_t, ZCom_BitStream &, ZCom_BitStream &) override { return true; }
+		bool ZCom_cbConnectionRequest(uint32_t, ZCom_BitStream &, ZCom_BitStream &) override {
+			return true;
+		}
 		void ZCom_cbConnectionSpawned(uint32_t) override {}
 		void drain() {
 			if (!node)
@@ -276,7 +290,9 @@ BOOST_AUTO_TEST_CASE(unique_event_init_fires_per_peer) {
 			uint32_t cls;
 			bool connected = false;
 			ZCom_Node *node = nullptr;
-			~ICli() { delete node; }
+			~ICli() {
+				delete node;
+			}
 			ICli(int p) {
 				g_currentControl = this;
 				ZCom_initSockets(false, 0, 0, 0);
@@ -348,13 +364,17 @@ BOOST_AUTO_TEST_CASE(unique_proxy_before_announce_is_rekeyed) {
 		uint32_t cls;
 		ZCom_Node *node = nullptr;
 		int32_t val = 7;
-		~RSrv() { delete node; }
+		~RSrv() {
+			delete node;
+		}
 		RSrv(int p) {
 			g_currentControl = this;
 			ZCom_initSockets(true, p, 2, 0);
 			cls = ZCom_registerClass("UQ4", 0);
 		}
-		bool ZCom_cbConnectionRequest(uint32_t, ZCom_BitStream &, ZCom_BitStream &) override { return true; }
+		bool ZCom_cbConnectionRequest(uint32_t, ZCom_BitStream &, ZCom_BitStream &) override {
+			return true;
+		}
 		void ZCom_cbConnectionSpawned(uint32_t) override {}
 	} srv(port);
 
@@ -364,7 +384,9 @@ BOOST_AUTO_TEST_CASE(unique_proxy_before_announce_is_rekeyed) {
 		bool connected = false;
 		ZCom_Node *node = nullptr;
 		int32_t rval = 0;
-		~RCli() { delete node; }
+		~RCli() {
+			delete node;
+		}
 		RCli(int p) {
 			g_currentControl = this;
 			ZCom_initSockets(false, 0, 0, 0);
@@ -442,15 +464,21 @@ BOOST_AUTO_TEST_CASE(updater_zoid2_replicates_and_events) {
 		uint32_t cls;
 		ZCom_Node *node = nullptr;
 		int32_t level = 5;
-		~ZSrv() { delete node; }
+		~ZSrv() {
+			delete node;
+		}
 		ZSrv(int p) {
 			g_currentControl = this;
 			ZCom_initSockets(true, p, 2, 0);
 			cls = ZCom_registerClass("UQ5", 0);
 		}
-		bool ZCom_cbConnectionRequest(uint32_t, ZCom_BitStream &, ZCom_BitStream &) override { return true; }
+		bool ZCom_cbConnectionRequest(uint32_t, ZCom_BitStream &, ZCom_BitStream &) override {
+			return true;
+		}
 		void ZCom_cbConnectionSpawned(uint32_t) override {}
-		bool ZCom_cbZoidRequest(uint32_t, uint8_t, ZCom_BitStream &) override { return true; }
+		bool ZCom_cbZoidRequest(uint32_t, uint8_t, ZCom_BitStream &) override {
+			return true;
+		}
 	} srv(port);
 
 	class ZCli : public ZCom_Control {
@@ -460,7 +488,9 @@ BOOST_AUTO_TEST_CASE(updater_zoid2_replicates_and_events) {
 		ZCom_Node *node = nullptr;
 		int32_t rlevel = 0;
 		bool zoidEnabled = false;
-		~ZCli() { delete node; }
+		~ZCli() {
+			delete node;
+		}
 		ZCli(int p) {
 			g_currentControl = this;
 			ZCom_initSockets(false, 0, 0, 0);
@@ -565,13 +595,17 @@ BOOST_AUTO_TEST_CASE(terrain_destruction_via_unique_node) {
 		uint32_t cls;
 		ZCom_Node *node = nullptr;
 		int snapshotsSent = 0;
-		~TSrv() { delete node; }
+		~TSrv() {
+			delete node;
+		}
 		TSrv(int p) {
 			g_currentControl = this;
 			ZCom_initSockets(true, p, 2, 0);
 			cls = ZCom_registerClass("UQ6", 0);
 		}
-		bool ZCom_cbConnectionRequest(uint32_t, ZCom_BitStream &, ZCom_BitStream &) override { return true; }
+		bool ZCom_cbConnectionRequest(uint32_t, ZCom_BitStream &, ZCom_BitStream &) override {
+			return true;
+		}
 		void ZCom_cbConnectionSpawned(uint32_t) override {}
 		void sendHole(uint8_t payload) {
 			ZCom_BitStream ev;
@@ -607,7 +641,9 @@ BOOST_AUTO_TEST_CASE(terrain_destruction_via_unique_node) {
 		int snapshotPayloads = 0;
 		int holePayloads = 0;
 		uint8_t lastHole = 0;
-		~TCli() { delete node; }
+		~TCli() {
+			delete node;
+		}
 		TCli(int p) {
 			g_currentControl = this;
 			ZCom_initSockets(false, 0, 0, 0);

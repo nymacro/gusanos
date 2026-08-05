@@ -124,15 +124,15 @@ bool WeaponType::load(fs::path const &filename) {
 
 	laserSightColour = parser.getProperty("laser_sight_colour", "laser_sight_color")->toColor(255, 0, 0);
 	if (!g_dedicated) {
-	{
-		OmfgScript::TokenBase *v = parser.getProperty("firecone");
-		if (!v->isDefault())
-			firecone = spriteList.load(v->toString());
+		{
+			OmfgScript::TokenBase *v = parser.getProperty("firecone");
+			if (!v->isDefault())
+				firecone = spriteList.load(v->toString());
 
-		v = parser.getProperty("skin");
-		if (!v->isDefault())
-			skin = spriteList.load(v->toString());
-	}
+			v = parser.getProperty("skin");
+			if (!v->isDefault())
+				skin = spriteList.load(v->toString());
+		}
 	}
 
 	OmfgScript::Parser::EventIter i(parser);

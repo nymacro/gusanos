@@ -322,8 +322,8 @@ void Particle::think() {
 			// that skips redundant per-pixel bounds work (A1).
 			int levelW = game.level.width();
 			int levelH = game.level.height();
-			bool boxInBounds = iPos.x - iradius >= 0 && iPos.x + iradius < levelW &&
-			                   iPos.y - iradius >= 0 && iPos.y + iradius < levelH;
+			bool boxInBounds = iPos.x - iradius >= 0 && iPos.x + iradius < levelW && iPos.y - iradius >= 0 &&
+							   iPos.y + iradius < levelH;
 			for (int y = -iradius; y <= iradius; ++y)
 				for (int x = -iradius; x <= iradius; ++x) {
 					bool solid;

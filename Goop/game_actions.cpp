@@ -353,28 +353,28 @@ Remove::~Remove() {}
 
 PlaySound::PlaySound(vector<OmfgScript::TokenBase *> const &params) {
 	if (!g_dedicated) {
-	if (params[0]->isString()) {
-		sounds.push_back(soundList.load(params[0]->toString()));
-	} else if (params[0]->assertList()) {
-		for (auto s : params[0]->toList()) {
-			if (s->assertString())
-				sounds.push_back(soundList.load(s->toString()));
+		if (params[0]->isString()) {
+			sounds.push_back(soundList.load(params[0]->toString()));
+		} else if (params[0]->assertList()) {
+			for (auto s : params[0]->toList()) {
+				if (s->assertString())
+					sounds.push_back(soundList.load(s->toString()));
+			}
 		}
-	}
-	loudness = params[1]->toDouble(100.0);
-	pitch = params[2]->toDouble(1.0);
-	pitchVariation = params[3]->toDouble(0.0);
+		loudness = params[1]->toDouble(100.0);
+		pitch = params[2]->toDouble(1.0);
+		pitchVariation = params[3]->toDouble(0.0);
 	}
 }
 
 void PlaySound::run(ActionParams const &params) {
 	if (!g_dedicated) {
-	if (!sounds.empty()) {
-		int sound = rndInt(sounds.size());
-		if (sounds[sound]) {
-			sounds[sound]->play2D(params.object, loudness, pitch, pitchVariation);
+		if (!sounds.empty()) {
+			int sound = rndInt(sounds.size());
+			if (sounds[sound]) {
+				sounds[sound]->play2D(params.object, loudness, pitch, pitchVariation);
+			}
 		}
-	}
 	}
 }
 
@@ -386,28 +386,28 @@ PlaySound::~PlaySound() {}
 
 PlaySoundStatic::PlaySoundStatic(vector<OmfgScript::TokenBase *> const &params) {
 	if (!g_dedicated) {
-	if (params[0]->isString()) {
-		sounds.push_back(soundList.load(params[0]->toString()));
-	} else if (params[0]->assertList()) {
-		for (auto s : params[0]->toList()) {
-			if (s->assertString())
-				sounds.push_back(soundList.load(s->toString()));
+		if (params[0]->isString()) {
+			sounds.push_back(soundList.load(params[0]->toString()));
+		} else if (params[0]->assertList()) {
+			for (auto s : params[0]->toList()) {
+				if (s->assertString())
+					sounds.push_back(soundList.load(s->toString()));
+			}
 		}
-	}
-	loudness = params[1]->toDouble(100.0);
-	pitch = params[2]->toDouble(1.0);
-	pitchVariation = params[3]->toDouble(0.0);
+		loudness = params[1]->toDouble(100.0);
+		pitch = params[2]->toDouble(1.0);
+		pitchVariation = params[3]->toDouble(0.0);
 	}
 }
 
 void PlaySoundStatic::run(ActionParams const &params) {
 	if (!g_dedicated) {
-	if (!sounds.empty()) {
-		int sound = rndInt(sounds.size());
-		if (sounds[sound]) {
-			sounds[sound]->play2D(params.object->pos, loudness, pitch, pitchVariation);
+		if (!sounds.empty()) {
+			int sound = rndInt(sounds.size());
+			if (sounds[sound]) {
+				sounds[sound]->play2D(params.object->pos, loudness, pitch, pitchVariation);
+			}
 		}
-	}
 	}
 }
 
@@ -419,29 +419,29 @@ PlaySoundStatic::~PlaySoundStatic() {}
 
 PlayGlobalSound::PlayGlobalSound(vector<OmfgScript::TokenBase *> const &params) {
 	if (!g_dedicated) {
-	if (params[0]->isString()) {
-		sounds.push_back(sound1DList.load(params[0]->toString()));
-	} else if (params[0]->assertList()) {
-		for (auto s : params[0]->toList()) {
-			if (s->assertString())
-				sounds.push_back(sound1DList.load(s->toString()));
+		if (params[0]->isString()) {
+			sounds.push_back(sound1DList.load(params[0]->toString()));
+		} else if (params[0]->assertList()) {
+			for (auto s : params[0]->toList()) {
+				if (s->assertString())
+					sounds.push_back(sound1DList.load(s->toString()));
+			}
 		}
-	}
-	volume = params[1]->toDouble(1.0);
-	volumeVariation = params[2]->toDouble(0.0);
-	pitch = params[3]->toDouble(1.0);
-	pitchVariation = params[4]->toDouble(0.0);
+		volume = params[1]->toDouble(1.0);
+		volumeVariation = params[2]->toDouble(0.0);
+		pitch = params[3]->toDouble(1.0);
+		pitchVariation = params[4]->toDouble(0.0);
 	}
 }
 
 void PlayGlobalSound::run(ActionParams const &params) {
 	if (!g_dedicated) {
-	if (!sounds.empty()) {
-		int sound = rndInt(sounds.size());
-		if (sounds[sound]) {
-			sounds[sound]->play(volume, pitch, volumeVariation, pitchVariation);
+		if (!sounds.empty()) {
+			int sound = rndInt(sounds.size());
+			if (sounds[sound]) {
+				sounds[sound]->play(volume, pitch, volumeVariation, pitchVariation);
+			}
 		}
-	}
 	}
 }
 
@@ -486,17 +486,17 @@ UseAmmo::~UseAmmo() {}
 
 ShowFirecone::ShowFirecone(vector<OmfgScript::TokenBase *> const &params) {
 	if (!g_dedicated) {
-	sprite = spriteList.load(params[0]->toString());
-	frames = params[1]->toInt(0);
-	drawDistance = params[2]->toDouble(0);
+		sprite = spriteList.load(params[0]->toString());
+		frames = params[1]->toInt(0);
+		drawDistance = params[2]->toDouble(0);
 	}
 }
 
 void ShowFirecone::run(ActionParams const &params) {
 	if (!g_dedicated) {
-	if (BaseWorm *w = dynamic_cast<BaseWorm *>(params.object)) {
-		w->showFirecone(sprite, frames, drawDistance);
-	}
+		if (BaseWorm *w = dynamic_cast<BaseWorm *>(params.object)) {
+			w->showFirecone(sprite, frames, drawDistance);
+		}
 	}
 }
 
@@ -551,9 +551,9 @@ SetAlphaFade::SetAlphaFade(vector<OmfgScript::TokenBase *> const &params) {
 
 void SetAlphaFade::run(ActionParams const &params) {
 	if (!g_dedicated) {
-	if (params.object) {
-		params.object->setAlphaFade(frames, dest);
-	}
+		if (params.object) {
+			params.object->setAlphaFade(frames, dest);
+		}
 	}
 }
 

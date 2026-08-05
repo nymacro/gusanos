@@ -107,8 +107,12 @@ class BaseWorm : public BaseObject {
 	// events so every peer reproduces identical particles. Base (non-networked)
 	// worms have no node/counter and return 0 / no-op, which leaves the legacy
 	// global RNG path in effect (see game_rng.h).
-	virtual uint32_t fireSeedNodeID() const { return 0; }
-	virtual uint32_t fireActionSeq() const { return 0; }
+	virtual uint32_t fireSeedNodeID() const {
+		return 0;
+	}
+	virtual uint32_t fireActionSeq() const {
+		return 0;
+	}
 	virtual void advanceFireActionSeq() {}
 	virtual void reconcileFireActionSeq(uint32_t /*seq*/) {}
 

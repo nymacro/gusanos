@@ -79,9 +79,15 @@ class NetWorm : public BaseWorm {
 	uint32_t fireSeedNodeID() const override {
 		return m_node ? static_cast<uint32_t>(m_node->getNetworkID()) : 0;
 	}
-	uint32_t fireActionSeq() const override { return m_actionSeq; }
-	void advanceFireActionSeq() override { ++m_actionSeq; }
-	void reconcileFireActionSeq(uint32_t seq) override { m_actionSeq = seq; }
+	uint32_t fireActionSeq() const override {
+		return m_actionSeq;
+	}
+	void advanceFireActionSeq() override {
+		++m_actionSeq;
+	}
+	void reconcileFireActionSeq(uint32_t seq) override {
+		m_actionSeq = seq;
+	}
 
 	void respawn();
 	void dig();

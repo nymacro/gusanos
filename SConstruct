@@ -10,6 +10,7 @@ sconscript = [
     'Utility/util',
     'Console',
     'Goop',
+    'Goop/blitters',
     'Net',
     'OmfgScript',
     'liero2gus',

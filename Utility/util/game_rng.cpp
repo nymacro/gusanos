@@ -1,8 +1,7 @@
 #include "game_rng.h"
 #include "math_func.h"
 
-GameRng::GameRng()
-	: m_rnd01(m_gen), m_mid(m_gen, boost::uniform_real<>(-0.5, 0.5)) {}
+GameRng::GameRng() : m_rnd01(m_gen), m_mid(m_gen, boost::uniform_real<>(-0.5, 0.5)) {}
 
 void GameRng::seed(uint32_t s) {
 	m_gen.seed(static_cast<boost::mt19937::result_type>(s));

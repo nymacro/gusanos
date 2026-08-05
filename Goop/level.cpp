@@ -175,60 +175,60 @@ void Level::think() {
 			m_config->gameStart->run(0, 0, 0, 0);
 	}
 	if (!g_dedicated) {
-	for (auto it = m_water.begin(); it != m_water.end();) {
-		if (getMaterialIndex(it->x, it->y) != it->mat) {
-			putpixel_solid(image, it->x, it->y, getpixel(background, it->x, it->y));
-			it = m_water.erase(it);
-		} else if (rnd() > WaterSkipFactor) {
-			unsigned char mat = getMaterialIndex(it->x, it->y + 1);
-			if (m_materialList[mat].particle_pass && !m_materialList[mat].flows) {
-				checkWBorders(it->x, it->y);
+		for (auto it = m_water.begin(); it != m_water.end();) {
+			if (getMaterialIndex(it->x, it->y) != it->mat) {
 				putpixel_solid(image, it->x, it->y, getpixel(background, it->x, it->y));
-				putMaterial(1, it->x, it->y);
-				++it->y;
-				putpixel_solid(image, it->x, it->y, getpixel(watermap, it->x, it->y));
-				putMaterial(it->mat, it->x, it->y);
-				it->count = 0; // Reset stagnation counter because it moved
-				++it;
-			} else {
-				char dir;
-				if (it->dir)
-					dir = 1;
-				else
-					dir = -1;
-
-				mat = getMaterialIndex(it->x + dir, it->y);
+				it = m_water.erase(it);
+			} else if (rnd() > WaterSkipFactor) {
+				unsigned char mat = getMaterialIndex(it->x, it->y + 1);
 				if (m_materialList[mat].particle_pass && !m_materialList[mat].flows) {
 					checkWBorders(it->x, it->y);
 					putpixel_solid(image, it->x, it->y, getpixel(background, it->x, it->y));
 					putMaterial(1, it->x, it->y);
-					it->x += dir;
+					++it->y;
 					putpixel_solid(image, it->x, it->y, getpixel(watermap, it->x, it->y));
 					putMaterial(it->mat, it->x, it->y);
-					it->count = 0;
-					// Reset stagnation counter because it moved
+					it->count = 0; // Reset stagnation counter because it moved
 					++it;
 				} else {
-					it->dir = !it->dir;
-					++it->count; // It didnt move so the stagnation counter gets incremented.
-					if (it->count > 1) {
-						mat = getMaterialIndex(it->x - dir, it->y);
-						if (!m_materialList[mat].particle_pass || m_materialList[mat].flows) {
-							putMaterial(it->mat + 1, it->x, it->y);
-							putpixel_solid(image, it->x, it->y, getpixel(watermap, it->x, it->y));
-							it = m_water.erase(it);
+					char dir;
+					if (it->dir)
+						dir = 1;
+					else
+						dir = -1;
+
+					mat = getMaterialIndex(it->x + dir, it->y);
+					if (m_materialList[mat].particle_pass && !m_materialList[mat].flows) {
+						checkWBorders(it->x, it->y);
+						putpixel_solid(image, it->x, it->y, getpixel(background, it->x, it->y));
+						putMaterial(1, it->x, it->y);
+						it->x += dir;
+						putpixel_solid(image, it->x, it->y, getpixel(watermap, it->x, it->y));
+						putMaterial(it->mat, it->x, it->y);
+						it->count = 0;
+						// Reset stagnation counter because it moved
+						++it;
+					} else {
+						it->dir = !it->dir;
+						++it->count; // It didnt move so the stagnation counter gets incremented.
+						if (it->count > 1) {
+							mat = getMaterialIndex(it->x - dir, it->y);
+							if (!m_materialList[mat].particle_pass || m_materialList[mat].flows) {
+								putMaterial(it->mat + 1, it->x, it->y);
+								putpixel_solid(image, it->x, it->y, getpixel(watermap, it->x, it->y));
+								it = m_water.erase(it);
+							} else {
+								++it;
+							}
 						} else {
 							++it;
 						}
-					} else {
-						++it;
 					}
 				}
+			} else {
+				++it;
 			}
-		} else {
-			++it;
 		}
-	}
 	}
 }
 
@@ -428,32 +428,32 @@ void Level::loaderSucceeded() {
 		}
 
 	if (!g_dedicated) {
-	if (!lightmap) {
-		LocalSetColorDepth cd(8);
-		lightmap = create_bitmap(material->w, material->h);
-		clear_to_color(lightmap, 50);
-		for (int x = 0; x < lightmap->w; ++x)
-			for (int y = 0; y < lightmap->h; ++y) {
-				if (unsafeGetMaterial(x, y).blocks_light)
-					putpixel(lightmap, x, y, 200);
-			}
-	}
+		if (!lightmap) {
+			LocalSetColorDepth cd(8);
+			lightmap = create_bitmap(material->w, material->h);
+			clear_to_color(lightmap, 50);
+			for (int x = 0; x < lightmap->w; ++x)
+				for (int y = 0; y < lightmap->h; ++y) {
+					if (unsafeGetMaterial(x, y).blocks_light)
+						putpixel(lightmap, x, y, 200);
+				}
+		}
 
-	if (!background) {
-		background = create_bitmap(material->w, material->h);
-		blit(image, background, 0, 0, 0, 0, material->w, material->h);
-		gfx.setBlender(ALPHA, 120);
-		rectfill(background, 0, 0, background->w, background->h, 0);
-		solid_mode();
-	}
+		if (!background) {
+			background = create_bitmap(material->w, material->h);
+			blit(image, background, 0, 0, 0, 0, material->w, material->h);
+			gfx.setBlender(ALPHA, 120);
+			rectfill(background, 0, 0, background->w, background->h, 0);
+			solid_mode();
+		}
 
-	if (!watermap) {
-		watermap = create_bitmap(image->w, image->h);
-		blit(background, watermap, 0, 0, 0, 0, image->w, image->h);
-		gfx.setBlender(ALPHA, 150);
-		rectfill(watermap, 0, 0, watermap->w, watermap->h, makecol(0, 0, 200));
-		solid_mode();
-	}
+		if (!watermap) {
+			watermap = create_bitmap(image->w, image->h);
+			blit(background, watermap, 0, 0, 0, 0, image->w, image->h);
+			gfx.setBlender(ALPHA, 150);
+			rectfill(watermap, 0, 0, watermap->w, watermap->h, makecol(0, 0, 200));
+			solid_mode();
+		}
 	}
 	// Make the domain one pixel larger than the level so that things like ninjarope hook
 	// can get slightly outside the level and attach.

@@ -422,20 +422,20 @@ void BaseWorm::think() {
 		runWeaponThink();
 
 		if (!g_dedicated) {
-		if (animate)
-			m_animator->tick();
-		else
-			m_animator->reset();
+			if (animate)
+				m_animator->tick();
+			else
+				m_animator->reset();
 
-		if (m_currentFirecone) {
-			if (m_fireconeTime == 0)
-				m_currentFirecone = NULL;
-			--m_fireconeTime;
-			/*
-			if(m_fireconeAnimator)
-				m_fireconeAnimator->tick();*/
-			m_fireconeAnimator->tick();
-		}
+			if (m_currentFirecone) {
+				if (m_fireconeTime == 0)
+					m_currentFirecone = NULL;
+				--m_fireconeTime;
+				/*
+				if(m_fireconeAnimator)
+					m_fireconeAnimator->tick();*/
+				m_fireconeAnimator->tick();
+			}
 		}
 	} else {
 		if (m_timeSinceDeath > game.options.maxRespawnTime && game.options.maxRespawnTime >= 0) {

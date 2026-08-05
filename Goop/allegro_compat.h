@@ -208,6 +208,9 @@ inline void allegro_message(const char *msg, ...) {
 #define CPU_MMX 1
 #define CPU_MMXPLUS 2
 #define CPU_SSE 4
+#define CPU_SSE2 8
+#define CPU_AVX2 16
+#define CPU_NEON 32
 extern int cpu_capabilities;
 
 // Global screen pointer

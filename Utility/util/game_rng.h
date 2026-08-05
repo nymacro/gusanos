@@ -92,8 +92,12 @@ inline uint32_t mix32(uint32_t a, uint32_t b) {
 // RAII scoped swap of g_gameplayRng. Restores the prior pointer on destruction.
 class GameplayRngScope {
   public:
-	explicit GameplayRngScope(GameRng &rng) : m_prev(g_gameplayRng) { g_gameplayRng = &rng; }
-	~GameplayRngScope() { g_gameplayRng = m_prev; }
+	explicit GameplayRngScope(GameRng &rng) : m_prev(g_gameplayRng) {
+		g_gameplayRng = &rng;
+	}
+	~GameplayRngScope() {
+		g_gameplayRng = m_prev;
+	}
 
   private:
 	GameplayRngScope(GameplayRngScope const &);

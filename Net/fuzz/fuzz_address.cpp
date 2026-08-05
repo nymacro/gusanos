@@ -44,8 +44,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 	// Hash key; impl has an explicit max==0 edge case.
 	zU32 hmax = 0;
 	if (size > 12)
-		hmax = static_cast<zU32>(data[9]) | (uint32_t(data[10]) << 8) |
-			   (uint32_t(data[11]) << 16) | (uint32_t(data[12]) << 24);
+		hmax = static_cast<zU32>(data[9]) | (uint32_t(data[10]) << 8) | (uint32_t(data[11]) << 16) |
+			   (uint32_t(data[12]) << 24);
 	(void)a.computeHashKey(hmax);
 	(void)a.computeHashKey(0);
 

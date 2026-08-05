@@ -449,7 +449,9 @@ class LuaScopedReference {
 
 	explicit LuaScopedReference(LuaContext &ctx, LuaReference ref) : m_ctx(&ctx), m_ref(ref) {}
 
-	~LuaScopedReference() { reset(); }
+	~LuaScopedReference() {
+		reset();
+	}
 
 	LuaScopedReference(LuaScopedReference &&o) noexcept : m_ctx(o.m_ctx), m_ref(o.m_ref) {
 		o.m_ctx = nullptr;
@@ -470,7 +472,9 @@ class LuaScopedReference {
 	LuaScopedReference(LuaScopedReference const &) = delete;
 	LuaScopedReference &operator=(LuaScopedReference const &) = delete;
 
-	LuaReference get() const { return m_ref; }
+	LuaReference get() const {
+		return m_ref;
+	}
 
 	LuaReference release() {
 		LuaReference r = m_ref;
@@ -479,7 +483,9 @@ class LuaScopedReference {
 		return r;
 	}
 
-	explicit operator bool() { return m_ctx && m_ref; }
+	explicit operator bool() {
+		return m_ctx && m_ref;
+	}
 
 	void reset() {
 		if (m_ctx && m_ref)

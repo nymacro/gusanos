@@ -151,26 +151,26 @@ bool LieroLevelLoader::load(Level *level, fs::path const &path) {
 	array<unsigned char, 256 * 3> palette;
 
 	if (!g_dedicated) {
-	palette = lieroPalette;
+		palette = lieroPalette;
 
-	if (fileSize >= width * height + 10 + 256 * 3) {
-		char magic[10];
-		f.seekg(width * height, std::ios::beg);
-		f.read(magic, 10);
-		if (!memcmp(magic, "POWERLEVEL", 10)) {
-			f.read((char *)&palette[0], 256 * 3);
-			for (array<unsigned char, 256 * 3>::iterator i = palette.begin(); i != palette.end(); ++i) {
-				*i *= 4;
+		if (fileSize >= width * height + 10 + 256 * 3) {
+			char magic[10];
+			f.seekg(width * height, std::ios::beg);
+			f.read(magic, 10);
+			if (!memcmp(magic, "POWERLEVEL", 10)) {
+				f.read((char *)&palette[0], 256 * 3);
+				for (array<unsigned char, 256 * 3>::iterator i = palette.begin(); i != palette.end(); ++i) {
+					*i *= 4;
+				}
 			}
+			f.seekg(0, std::ios::beg);
 		}
-		f.seekg(0, std::ios::beg);
-	}
 	}
 
 	level->material = create_bitmap_ex(8, width, height);
 	if (!g_dedicated) {
-	level->image = create_bitmap(width, height);
-	level->background = create_bitmap(width, height);
+		level->image = create_bitmap(width, height);
+		level->background = create_bitmap(width, height);
 	}
 
 	initMaterialMappings();
@@ -180,13 +180,13 @@ bool LieroLevelLoader::load(Level *level, fs::path const &path) {
 			int c = f.get();
 
 			if (!g_dedicated) {
-			unsigned char const *entry = &palette[c * 3];
-			int imagec = makecol(entry[0], entry[1], entry[2]);
-			putpixel(level->image, x, y, imagec);
+				unsigned char const *entry = &palette[c * 3];
+				int imagec = makecol(entry[0], entry[1], entry[2]);
+				putpixel(level->image, x, y, imagec);
 
-			entry = &palette[(160 + (rndgen() & 3)) * 3];
-			int backgroundc = makecol(entry[0], entry[1], entry[2]);
-			putpixel(level->background, x, y, backgroundc);
+				entry = &palette[(160 + (rndgen() & 3)) * 3];
+				int backgroundc = makecol(entry[0], entry[1], entry[2]);
+				putpixel(level->background, x, y, backgroundc);
 			}
 
 			putpixel(level->material, x, y, materialMappings[c]); // TODO

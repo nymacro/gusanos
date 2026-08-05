@@ -16,8 +16,7 @@
 // matching ResourceLocator<T, Cache, ReturnResource>.
 template <class T, bool Cache = true, bool ReturnResource = true>
 struct ExtensionLoader : ResourceLocator<T, Cache, ReturnResource>::BaseLoader {
-	ExtensionLoader(const char *name, std::initializer_list<const char *> exts)
-		: m_name(name), m_exts(exts) {}
+	ExtensionLoader(const char *name, std::initializer_list<const char *> exts) : m_name(name), m_exts(exts) {}
 
 	bool canLoad(fs::path const &path, std::string &name) override {
 		std::string ext = path.extension().string();
@@ -30,9 +29,11 @@ struct ExtensionLoader : ResourceLocator<T, Cache, ReturnResource>::BaseLoader {
 		return false;
 	}
 
-	const char *getName() override { return m_name; }
+	const char *getName() override {
+		return m_name;
+	}
 
-private:
+  private:
 	const char *m_name;
 	std::vector<const char *> m_exts;
 };

@@ -512,20 +512,20 @@ void Game::think() {
 												}
 												break;
 							*/
-					case LuaEvent: {
-						int index = data->getInt(8);
-						DLOG("Got lua event index " << index);
-						if (LuaEventDef *event = network.indexToLuaEvent(Network::LuaEventGroup::Game, index)) {
-							event->call(data.get());
-						}
-					} break;
+						case LuaEvent: {
+							int index = data->getInt(8);
+							DLOG("Got lua event index " << index);
+							if (LuaEventDef *event = network.indexToLuaEvent(Network::LuaEventGroup::Game, index)) {
+								event->call(data.get());
+							}
+						} break;
 
-					case eTerrainSnapshot: {
-						level.applyDestructionMaskRLE(*data);
-					} break;
+						case eTerrainSnapshot: {
+							level.applyDestructionMaskRLE(*data);
+						} break;
 
-					case NetEventsCount:
-						break;
+						case NetEventsCount:
+							break;
 					}
 				}
 				break;

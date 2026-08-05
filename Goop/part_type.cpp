@@ -169,62 +169,62 @@ PartType::~PartType() {
 
 void PartType::touch() {
 	if (!g_dedicated) {
-	if (!distortion && !distortionGen.empty()) {
-		LuaReference f = distortionGen.get();
-		if (f) {
-			DistortionMap *d = new DistortionMap;
-			int width = distortionSize.x;
-			int height = distortionSize.y;
-			d->map.resize(width * height);
-			d->width = width;
+		if (!distortion && !distortionGen.empty()) {
+			LuaReference f = distortionGen.get();
+			if (f) {
+				DistortionMap *d = new DistortionMap;
+				int width = distortionSize.x;
+				int height = distortionSize.y;
+				d->map.resize(width * height);
+				d->width = width;
 
-			int hwidth = width / 2;
-			int hheight = height / 2;
+				int hwidth = width / 2;
+				int hheight = height / 2;
 
-			for (int y = 0; y < height; ++y)
-				for (int x = 0; x < width; ++x) {
-					int n = (lua.call(f, 2), x - hwidth, y - hheight, width, height)();
-					if (n == 2) {
-						d->map[y * width + x] = Vec(lua_tonumber(lua, -2), lua_tonumber(lua, -1));
-						lua.pop(2);
-					} else
-						assert(false);
-				}
-			distortion = new Distortion(d);
+				for (int y = 0; y < height; ++y)
+					for (int x = 0; x < width; ++x) {
+						int n = (lua.call(f, 2), x - hwidth, y - hheight, width, height)();
+						if (n == 2) {
+							d->map[y * width + x] = Vec(lua_tonumber(lua, -2), lua_tonumber(lua, -1));
+							lua.pop(2);
+						} else
+							assert(false);
+					}
+				distortion = new Distortion(d);
+			}
+			// TODO: free distortionGen function
 		}
-		// TODO: free distortionGen function
-	}
 
-	if (!lightHax && !lightGen.empty()) {
-		LuaReference f = lightGen.get();
-		if (f) {
-			int width = lightSize.x;
-			int height = lightSize.y;
+		if (!lightHax && !lightGen.empty()) {
+			LuaReference f = lightGen.get();
+			if (f) {
+				int width = lightSize.x;
+				int height = lightSize.y;
 
-			BITMAP *l = create_bitmap_ex(8, width, height);
+				BITMAP *l = create_bitmap_ex(8, width, height);
 
-			int hwidth = width / 2;
-			int hheight = height / 2;
+				int hwidth = width / 2;
+				int hheight = height / 2;
 
-			for (int y = 0; y < height; ++y)
-				for (int x = 0; x < width; ++x) {
-					int n = (lua.call(f, 1), x - hwidth, y - hheight, width, height)();
-					if (n == 1) {
-						int v = lua_tointeger(lua, -1);
-						if (v < 0)
-							v = 0;
-						else if (v > 255)
-							v = 255;
-						putpixel_solid(l, x, y, v);
-						lua.pop(1);
-					} else
-						assert(false);
-				}
+				for (int y = 0; y < height; ++y)
+					for (int x = 0; x < width; ++x) {
+						int n = (lua.call(f, 1), x - hwidth, y - hheight, width, height)();
+						if (n == 1) {
+							int v = lua_tointeger(lua, -1);
+							if (v < 0)
+								v = 0;
+							else if (v > 255)
+								v = 255;
+							putpixel_solid(l, x, y, v);
+							lua.pop(1);
+						} else
+							assert(false);
+					}
 
-			lightHax = new Sprite(l, hwidth, hheight);
+				lightHax = new Sprite(l, hwidth, hheight);
+			}
+			// TODO: free lightGen function
 		}
-		// TODO: free lightGen function
-	}
 	}
 }
 
@@ -310,71 +310,71 @@ bool PartType::load(fs::path const &filename) {
 	crc = parser.getCRC();
 
 	if (!g_dedicated) {
-	{
-		OmfgScript::TokenBase *v = parser.getProperty("sprite");
-		if (!v->isDefault())
-			sprite = spriteList.load(v->toString());
-	}
-	{
-		OmfgScript::TokenBase *v = parser.getDeprProperty("light_radius");
-		if (!v->isDefault())
-			lightHax = genLight(v->toInt(0));
-	}
+		{
+			OmfgScript::TokenBase *v = parser.getProperty("sprite");
+			if (!v->isDefault())
+				sprite = spriteList.load(v->toString());
+		}
+		{
+			OmfgScript::TokenBase *v = parser.getDeprProperty("light_radius");
+			if (!v->isDefault())
+				lightHax = genLight(v->toInt(0));
+		}
 
-	if (OmfgScript::Function const *f = parser.getDeprFunction("distortion")) {
-		if (f->name == "lens")
-			distortion = new Distortion(lensMap((*f)[0]->toInt()));
-		else if (f->name == "swirl")
-			distortion = new Distortion(swirlMap((*f)[0]->toInt()));
-		else if (f->name == "ripple")
-			distortion = new Distortion(rippleMap((*f)[0]->toInt()));
-		else if (f->name == "random")
-			distortion = new Distortion(randomMap((*f)[0]->toInt()));
-		else if (f->name == "spin")
-			distortion = new Distortion(spinMap((*f)[0]->toInt()));
-		else if (f->name == "bitmap")
-			distortion = new Distortion(bitmapMap((*f)[0]->toString()));
-	}
+		if (OmfgScript::Function const *f = parser.getDeprFunction("distortion")) {
+			if (f->name == "lens")
+				distortion = new Distortion(lensMap((*f)[0]->toInt()));
+			else if (f->name == "swirl")
+				distortion = new Distortion(swirlMap((*f)[0]->toInt()));
+			else if (f->name == "ripple")
+				distortion = new Distortion(rippleMap((*f)[0]->toInt()));
+			else if (f->name == "random")
+				distortion = new Distortion(randomMap((*f)[0]->toInt()));
+			else if (f->name == "spin")
+				distortion = new Distortion(spinMap((*f)[0]->toInt()));
+			else if (f->name == "bitmap")
+				distortion = new Distortion(bitmapMap((*f)[0]->toString()));
+		}
 
-	distortionGen = parser.getString("distort_gen", "");
+		distortionGen = parser.getString("distort_gen", "");
 
-	{
-		OmfgScript::TokenBase *v = parser.getProperty("distort_size");
-		if (v->isList()) {
-			std::list<OmfgScript::TokenBase *> const &c = v->toList();
-			if (c.size() >= 2) {
-				std::list<OmfgScript::TokenBase *>::const_iterator i = c.begin();
-				distortionSize.x = (*i++)->toInt(0);
-				distortionSize.y = (*i++)->toInt(0);
+		{
+			OmfgScript::TokenBase *v = parser.getProperty("distort_size");
+			if (v->isList()) {
+				std::list<OmfgScript::TokenBase *> const &c = v->toList();
+				if (c.size() >= 2) {
+					std::list<OmfgScript::TokenBase *>::const_iterator i = c.begin();
+					distortionSize.x = (*i++)->toInt(0);
+					distortionSize.y = (*i++)->toInt(0);
+				}
 			}
 		}
-	}
 
-	lightGen = parser.getString("light_gen", "");
+		lightGen = parser.getString("light_gen", "");
 
-	{
-		OmfgScript::TokenBase *v = parser.getProperty("light_size");
-		if (v->isList()) {
-			std::list<OmfgScript::TokenBase *> const &c = v->toList();
-			if (c.size() >= 2) {
-				std::list<OmfgScript::TokenBase *>::const_iterator i = c.begin();
-				lightSize.x = (*i++)->toInt(0);
-				lightSize.y = (*i++)->toInt(0);
+		{
+			OmfgScript::TokenBase *v = parser.getProperty("light_size");
+			if (v->isList()) {
+				std::list<OmfgScript::TokenBase *> const &c = v->toList();
+				if (c.size() >= 2) {
+					std::list<OmfgScript::TokenBase *>::const_iterator i = c.begin();
+					lightSize.x = (*i++)->toInt(0);
+					lightSize.y = (*i++)->toInt(0);
+				}
 			}
 		}
-	}
 
-	distortMagnitude = parser.getDouble("distort_magnitude", 1);
+		distortMagnitude = parser.getDouble("distort_magnitude", 1);
 
-	std::string blenderstr = parser.getString("blender", "none");
-	if (blenderstr == "add")
-		blender = BlitterContext::Add;
-	else if (blenderstr == "alpha")
-		blender = BlitterContext::Alpha;
-	else if (blenderstr == "alphach")
-		blender = BlitterContext::AlphaChannel;
-	else
-		blender = BlitterContext::None;
+		std::string blenderstr = parser.getString("blender", "none");
+		if (blenderstr == "add")
+			blender = BlitterContext::Add;
+		else if (blenderstr == "alpha")
+			blender = BlitterContext::Alpha;
+		else if (blenderstr == "alphach")
+			blender = BlitterContext::AlphaChannel;
+		else
+			blender = BlitterContext::None;
 	}
 	invisible = parser.getBool("invisible", false);
 	culled = parser.getBool("occluded", false);
@@ -475,32 +475,32 @@ bool PartType::load(fs::path const &filename) {
 		if (g_dedicated) {
 			newParticle = newParticle_Dummy;
 		} else {
-		if (wupixels) {
-			switch (bitmap_color_depth(screen)) {
-				default:
-					newParticle = newParticle_SimpleParticle<SimpleParticle>;
-					break;
-				case 32:
-					newParticle = newParticle_SimpleParticle<SimpleParticle32wu>;
-					break;
-				case 16:
-					newParticle = newParticle_SimpleParticle<SimpleParticle16wu>;
-					break;
-			}
-		} else {
-			switch (bitmap_color_depth(screen)) {
-				default:
-					newParticle = newParticle_SimpleParticle<SimpleParticle>;
-					break;
-				case 32:
-					newParticle = newParticle_SimpleParticle<SimpleParticle32>;
-					break;
-				case 16:
-					newParticle = newParticle_SimpleParticle<SimpleParticle16>;
-					break;
+			if (wupixels) {
+				switch (bitmap_color_depth(screen)) {
+					default:
+						newParticle = newParticle_SimpleParticle<SimpleParticle>;
+						break;
+					case 32:
+						newParticle = newParticle_SimpleParticle<SimpleParticle32wu>;
+						break;
+					case 16:
+						newParticle = newParticle_SimpleParticle<SimpleParticle16wu>;
+						break;
+				}
+			} else {
+				switch (bitmap_color_depth(screen)) {
+					default:
+						newParticle = newParticle_SimpleParticle<SimpleParticle>;
+						break;
+					case 32:
+						newParticle = newParticle_SimpleParticle<SimpleParticle32>;
+						break;
+					case 16:
+						newParticle = newParticle_SimpleParticle<SimpleParticle16>;
+						break;
+				}
 			}
 		}
-	}
 	} else
 		newParticle = newParticle_Particle;
 

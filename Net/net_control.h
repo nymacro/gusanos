@@ -59,12 +59,12 @@ static const int MSG_NODE_EVENT = 104;
 static const int MSG_REPLICATORS = 105;
 static const int MSG_DISCONNECT_DATA = 106;
 // File transfer protocol (Phase E)
-static const int MSG_FILE_OFFER = 107;		   // sender -> receiver: start a transfer
-static const int MSG_FILE_ACCEPT = 108;		   // receiver -> sender: accept/deny
-static const int MSG_FILE_DATA = 109;		   // sender -> receiver: file chunk
-static const int MSG_FILE_ABORT = 110;		   // either side: abort
-static const int MSG_FILE_COMPLETE = 111;	   // sender -> receiver: all chunks sent
-static const int MSG_DOWNSTREAM_REQUEST = 112; // peer asks us to cap our upstream to it (T1.1)
+static const int MSG_FILE_OFFER = 107;			 // sender -> receiver: start a transfer
+static const int MSG_FILE_ACCEPT = 108;			 // receiver -> sender: accept/deny
+static const int MSG_FILE_DATA = 109;			 // sender -> receiver: file chunk
+static const int MSG_FILE_ABORT = 110;			 // either side: abort
+static const int MSG_FILE_COMPLETE = 111;		 // sender -> receiver: all chunks sent
+static const int MSG_DOWNSTREAM_REQUEST = 112;	 // peer asks us to cap our upstream to it (T1.1)
 static const int MSG_NODE_ANNOUNCE_UNIQUE = 113; // server -> client: announce a unique node (class-based linking)
 
 // Wire-protocol version. Stamped by the server into MSG_CONNECTION_REPLY and

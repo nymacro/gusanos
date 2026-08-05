@@ -195,17 +195,28 @@ struct BITMAP {
 
 ### Blitters (`Goop/blitters/`)
 
-Software pixel blenders operating on raw BITMAP data. Organised by blend mode:
+Software pixel blenders operating on raw BITMAP data. Organised by blend mode.
+The `*_simd.cpp` variants provide AVX2 / SSE2 / NEON accelerated paths for the
+hot inner loops (`rectfill_add_32`, `hline_add_32`, `drawSpriteLine_add_8`,
+`drawSprite_mult_8_to_32`); `blitters.h` dispatches to them at runtime based on
+`cpu_capabilities` (set from `SDL_HasSSE2/AVX2/NEON` in `gfx.cpp`). The SIMD
+paths reproduce the **scalar** reference (`addColorsCrude_32`,
+`addColorsCrude_8_4`, `scaleColor_32`) bit-for-bit — including the scalar
+alignment prologue's count-overrun to a 4-byte boundary — not true `paddusb`
+saturating add, so SIMD and scalar render identically. Correctness is covered
+by `tests/test_blitter_simd.cpp` (random + edge-width sweep; built by
+`Goop/blitters/SConscript` for debug `build-tests=1`).
 
 | File | Purpose |
 |---|---|
-| `add.cpp` / `add_simd.cpp` | Additive blending |
-| `blend.cpp` / `blend_simd.cpp` | Alpha blending |
-| `mult.cpp` / `mult_simd.cpp` | Multiplicative blending |
-| `macros.h` | Core pixel access macros (`bmp_select`, `bmp_write32`) |
+| `add.cpp` / `add_simd.cpp` | Additive blending (scalar + AVX2/SSE2/NEON) |
+| `blend.cpp` | Alpha blending (scalar only) |
+| `mult.cpp` / `mult_simd.cpp` | Multiplicative 8→32-bit blending (scalar + AVX2/SSE2/NEON) |
+| `macros.h` | Core pixel access macros (`SPRITE_X_LOOP_ALIGN`, `CLIP_RECT`, ...) |
 | `context.h` | BlitterContext — pre-computed params for fast blitting |
-| `colors.h` | Color space conversions, lookup tables |
+| `colors.h` | Color space conversions, SWAR add/scale primitives |
 | `types.h` | Pixel format descriptors |
+| `tests/test_blitter_simd.cpp` | SIMD-vs-scalar bit-exact correctness test |
 
 ### Viewport (`Goop/viewport.cpp` + `viewport.h`)
 

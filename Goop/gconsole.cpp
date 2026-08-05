@@ -296,23 +296,23 @@ void GConsole::varCbFont(std::string oldValue) {
 #endif
 void GConsole::init() {
 	if (!g_dedicated) {
-	keyHandler.init();
+		keyHandler.init();
 
-	// Connect the handlers as group 0 so they are called first
+		// Connect the handlers as group 0 so they are called first
 
-	keyHandler.printableChar.connect(0, boost::bind(&GConsole::eventPrintableChar, this, _1, _2));
-	keyHandler.keyDown.connect(0, boost::bind(&GConsole::eventKeyDown, this, _1));
-	keyHandler.keyUp.connect(0, boost::bind(&GConsole::eventKeyUp, this, _1));
+		keyHandler.printableChar.connect(0, boost::bind(&GConsole::eventPrintableChar, this, _1, _2));
+		keyHandler.keyDown.connect(0, boost::bind(&GConsole::eventKeyDown, this, _1));
+		keyHandler.keyUp.connect(0, boost::bind(&GConsole::eventKeyUp, this, _1));
 
-	// Wire gamepad button signals into the key handler signal chain
-	gamepadHandler.buttonDown.connect(0, [](int key) {
-		keyHandler.keyDown(key);
-		return false;
-	});
-	gamepadHandler.buttonUp.connect(0, [](int key) {
-		keyHandler.keyUp(key);
-		return false;
-	});
+		// Wire gamepad button signals into the key handler signal chain
+		gamepadHandler.buttonDown.connect(0, [](int key) {
+			keyHandler.keyDown(key);
+			return false;
+		});
+		gamepadHandler.buttonUp.connect(0, [](int key) {
+			keyHandler.keyUp(key);
+			return false;
+		});
 	}
 
 	m_mode = CONSOLE_MODE_BINDINGS;
@@ -346,20 +346,20 @@ void GConsole::init() {
 
 void GConsole::shutDown() {
 	if (!g_dedicated) {
-	keyHandler.shutDown();
+		keyHandler.shutDown();
 
-	// m_font must be deleted here!!!! hmm not sure now
+		// m_font must be deleted here!!!! hmm not sure now
 	}
 }
 
 void GConsole::loadResources() {
 	if (!g_dedicated) {
-	m_font = fontLocator.load(m_fontName);
+		m_font = fontLocator.load(m_fontName);
 
-	if (!m_font)
-		cout << "Console font couldn't be loaded" << endl;
+		if (!m_font)
+			cout << "Console font couldn't be loaded" << endl;
 
-	background = spriteList.load("con_background");
+		background = spriteList.load("con_background");
 	}
 }
 
@@ -574,17 +574,17 @@ bool GConsole::eventPrintableChar(char c, int k) {
 
 void GConsole::think() {
 	if (!g_dedicated) {
-	if (height > 240)
-		height = 240;
-	if (m_mode == CONSOLE_MODE_INPUT && m_pos < height) {
-		m_pos += speed;
-	} else if (m_mode == CONSOLE_MODE_BINDINGS && m_pos > 0) {
-		m_pos -= speed;
-	}
-	if (m_pos > height)
-		m_pos = height;
-	if (m_pos < 0)
-		m_pos = 0;
+		if (height > 240)
+			height = 240;
+		if (m_mode == CONSOLE_MODE_INPUT && m_pos < height) {
+			m_pos += speed;
+		} else if (m_mode == CONSOLE_MODE_BINDINGS && m_pos > 0) {
+			m_pos -= speed;
+		}
+		if (m_pos > height)
+			m_pos = height;
+		if (m_pos < 0)
+			m_pos = 0;
 	}
 	while (!commandsQueue.empty()) {
 		console.parseLine(*commandsQueue.begin());

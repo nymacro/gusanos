@@ -94,8 +94,8 @@ bool LieroXLevelLoader::load(Level *level, fs::path const &path) {
 	level->material = create_bitmap_ex(8, width, height);
 
 	if (!g_dedicated) {
-	level->image = create_bitmap(width, height);
-	level->background = create_bitmap(width, height);
+		level->image = create_bitmap(width, height);
+		level->background = create_bitmap(width, height);
 	}
 	unsigned char *pbackground = &data[0];
 	unsigned char *pimage = pbackground + width * height * 3;
@@ -107,15 +107,15 @@ bool LieroXLevelLoader::load(Level *level, fs::path const &path) {
 			int m = pmaterial[0];
 
 			if (!g_dedicated) {
-			int backgroundc = makecol(pbackground[0], pbackground[1], pbackground[2]);
-			if (m == 1)
-				putpixel(level->image, x, y, backgroundc);
-			else {
-				int imagec = makecol(pimage[0], pimage[1], pimage[2]);
-				putpixel(level->image, x, y, imagec);
-			}
+				int backgroundc = makecol(pbackground[0], pbackground[1], pbackground[2]);
+				if (m == 1)
+					putpixel(level->image, x, y, backgroundc);
+				else {
+					int imagec = makecol(pimage[0], pimage[1], pimage[2]);
+					putpixel(level->image, x, y, imagec);
+				}
 
-			putpixel(level->background, x, y, backgroundc);
+				putpixel(level->background, x, y, backgroundc);
 			}
 
 			switch (m) {
@@ -133,8 +133,8 @@ bool LieroXLevelLoader::load(Level *level, fs::path const &path) {
 			putpixel(level->material, x, y, m);
 
 			if (!g_dedicated) {
-			pimage += 3;
-			pbackground += 3;
+				pimage += 3;
+				pbackground += 3;
 			}
 			++pmaterial;
 		}
