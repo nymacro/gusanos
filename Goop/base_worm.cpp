@@ -45,6 +45,12 @@ BaseWorm::BaseWorm()
 #endif
 	  ,
 	  animate(false), movable(false), changing(false), showingWeaponText(false), m_dir(1) {
+	// Assign a stable, distinct per-worm seed id so local/single-player worms
+	// get burst-varying deterministic RNG just like networked worms (whose id
+	// is their network node id). See fireSeedNodeID() / game_rng.h.
+	static uint32_t s_nextFireSeedID = 1;
+	m_fireSeedNodeID = s_nextFireSeedID++;
+
 	skin = nullptr;
 	skinMask = nullptr;
 	m_fireconeTime = 0;

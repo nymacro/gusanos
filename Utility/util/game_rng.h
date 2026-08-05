@@ -90,6 +90,10 @@ inline uint32_t mix32(uint32_t a, uint32_t b) {
 }
 
 // RAII scoped swap of g_gameplayRng. Restores the prior pointer on destruction.
+// Used to run a fire/dig/die burst (and its spawned particles) under a seeded
+// GameRng so every peer reproduces identical draws; grnd/gmidrnd/grndInt route
+// to g_gameplayRng while a scope is active and fall back to the legacy global
+// stream otherwise. See BaseWorm::fireSeedNodeID() / fireActionSeq().
 class GameplayRngScope {
   public:
 	explicit GameplayRngScope(GameRng &rng) : m_prev(g_gameplayRng) {

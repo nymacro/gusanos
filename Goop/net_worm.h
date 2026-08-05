@@ -74,19 +74,11 @@ class NetWorm : public BaseWorm {
 		return m_node.get();
 	}
 
-	// Deterministic burst seeding (see BaseWorm). NetWorm owns the per-worm
-	// action counter and its network node id.
+	// Deterministic burst seeding (see BaseWorm). NetWorm overrides the seed
+	// id to use its network node id (so all peers seed from matching ids); the
+	// per-worm action counter is owned by BaseWorm.
 	uint32_t fireSeedNodeID() const override {
 		return m_node ? static_cast<uint32_t>(m_node->getNetworkID()) : 0;
-	}
-	uint32_t fireActionSeq() const override {
-		return m_actionSeq;
-	}
-	void advanceFireActionSeq() override {
-		++m_actionSeq;
-	}
-	void reconcileFireActionSeq(uint32_t seq) override {
-		m_actionSeq = seq;
 	}
 
 	void respawn();
@@ -135,8 +127,6 @@ class NetWorm : public BaseWorm {
 	std::unique_ptr<NetWormInterceptor> m_interceptor;
 	std::unique_ptr<ZCom_Node> m_node;
 	ZCom_NodeID m_playerID; // The id of the owner player node to replicate to all proxys
-
-	uint32_t m_actionSeq = 0; // per-worm monotonic fire/dig/die burst counter
 
 	// --- Proxy-side snapshot interpolation of renderPos ---
 	// Proxies buffer timestamped position snapshots from the Position

@@ -101,7 +101,10 @@ void Weapon::think(bool isFocused, size_t index) {
 					// counter. The authority and the owning client predict with
 					// the same counter (confirmed via SHOOT), so their spawned
 					// particles match byte-for-byte; proxies reproduce the burst
-					// from the seq carried in the SHOOT event. See game_rng.h.
+					// from the seq carried in the SHOOT event. Local/single-player
+					// worms share this path: BaseWorm owns a real counter and a
+					// stable seed id, so they get the same burst-varying spread.
+					// See game_rng.h.
 					uint32_t seq = m_owner->fireActionSeq();
 					GameRng rg;
 					rg.seed(mix32(m_owner->fireSeedNodeID(), seq));

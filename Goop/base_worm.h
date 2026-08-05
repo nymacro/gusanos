@@ -100,21 +100,29 @@ class BaseWorm : public BaseObject {
 		return isAuthority();
 	}
 
-	// Deterministic fire/dig/die burst seeding support.
-	// The authority and the owning client predict a spawn burst under a seeded
-	// gameplay RNG derived from (wormNodeID, actionSequence); the server
-	// confirms the per-worm monotonic action counter via the SHOOT / Dig / Die
-	// events so every peer reproduces identical particles. Base (non-networked)
-	// worms have no node/counter and return 0 / no-op, which leaves the legacy
-	// global RNG path in effect (see game_rng.h).
+	// Deterministic fire/dig/die burst seeding support. The authority and the
+	// owning client predict a spawn burst under a seeded gameplay RNG derived
+	// from (wormNodeID, actionSequence); the server confirms the per-worm
+	// monotonic action counter via the SHOOT / Dig / Die events so every peer
+	// reproduces identical particles.
+	//
+	// BaseWorm owns the per-worm action counter and a stable per-worm seed id
+	// (assigned at construction from a process-local counter), so local /
+	// single-player worms get the SAME deterministic, burst-varying RNG
+	// behaviour as networked worms. NetWorm overrides fireSeedNodeID() to use
+	// the network-assigned node id instead, so all peers seed from matching ids.
 	virtual uint32_t fireSeedNodeID() const {
-		return 0;
+		return m_fireSeedNodeID;
 	}
 	virtual uint32_t fireActionSeq() const {
-		return 0;
+		return m_actionSeq;
 	}
-	virtual void advanceFireActionSeq() {}
-	virtual void reconcileFireActionSeq(uint32_t /*seq*/) {}
+	virtual void advanceFireActionSeq() {
+		++m_actionSeq;
+	}
+	virtual void reconcileFireActionSeq(uint32_t seq) {
+		m_actionSeq = seq;
+	}
 
 	virtual void damage(float amount, BasePlayer *damager, DamageCause const &cause);
 
@@ -235,6 +243,11 @@ class BaseWorm : public BaseObject {
 	bool changing; // This shouldnt be in the worm class ( its player stuff >:O )
 	bool showingWeaponText;
 	int m_dir;
+
+  protected:
+	// Per-worm deterministic burst seeding state (see fireSeedNodeID() etc.).
+	uint32_t m_actionSeq = 0;	   // monotonic fire/dig/die burst counter
+	uint32_t m_fireSeedNodeID = 0; // stable per-worm seed id; NetWorm overrides the getter
 };
 
 #endif // _WORM_H_
