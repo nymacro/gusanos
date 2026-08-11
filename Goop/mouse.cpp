@@ -10,6 +10,25 @@ bool buttonStates[3] = {false, false, false};
 int posX = 0;
 int posY = 0;
 int posZ = 0;
+
+// Convert raw SDL window mouse coordinates into the 320x240 back-buffer
+// coordinate space the engine renders into. SDL_RenderCoordinatesFromWindow
+// maps into the renderer's logical presentation space, which is 320x240 for
+// the plain filters but 320*f x 240*f for the xBRZ filters (f = 2/3/4). Scale
+// the result down so the OS cursor maps 1:1 across the whole window and the
+// in-game cursor stays aligned regardless of the active scaling mode.
+void windowToBuffer(float &fx, float &fy) {
+	if (!gfx.renderer)
+		return;
+	SDL_RenderCoordinatesFromWindow(gfx.renderer, fx, fy, &fx, &fy);
+	int logicalW = 320;
+	int logicalH = 240;
+	SDL_GetRenderLogicalPresentation(gfx.renderer, &logicalW, &logicalH, nullptr);
+	if (logicalW > 0 && logicalH > 0) {
+		fx = fx * 320.0f / static_cast<float>(logicalW);
+		fy = fy * 240.0f / static_cast<float>(logicalH);
+	}
+}
 } // namespace
 
 void MouseHandler::init() {
@@ -22,12 +41,10 @@ void MouseHandler::init() {
 		SDL_ShowCursor();
 	}
 
-	// Initialize positions from current SDL state, converting to logical coords.
+	// Initialize positions from current SDL state, converting to buffer coords.
 	float fx, fy;
 	SDL_GetMouseState(&fx, &fy);
-	if (gfx.renderer) {
-		SDL_RenderCoordinatesFromWindow(gfx.renderer, fx, fy, &fx, &fy);
-	}
+	windowToBuffer(fx, fy);
 	posX = static_cast<int>(fx);
 	posY = static_cast<int>(fy);
 	if (posX < 0)
@@ -68,12 +85,10 @@ void MouseHandler::poll() {
 		posZ += static_cast<int>(event.wheel.y);
 	}
 
-	// Read current button state and position, convert to logical coords
+	// Read current button state and position, converting to buffer coords.
 	float fx, fy;
 	Uint32 buttons = SDL_GetMouseState(&fx, &fy);
-	if (gfx.renderer) {
-		SDL_RenderCoordinatesFromWindow(gfx.renderer, fx, fy, &fx, &fy);
-	}
+	windowToBuffer(fx, fy);
 
 	// Button state diff
 	for (int i = 0; i < 3; ++i) {
