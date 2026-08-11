@@ -7,7 +7,10 @@
 #include "util/angle.h"
 #include "timer_event.h"
 #include <vector>
-#include "network_compat.h"
+#include "net_types.h"
+
+class ZCom_BitStream;
+class ZCom_Node;
 
 #ifndef DEDSERV
 class Sprite;

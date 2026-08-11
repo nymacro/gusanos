@@ -208,9 +208,7 @@ void Updater::think() {
 
 					// DLOG("Transfer: " << double(info.bps) / 1000.0 << " kB/s, " << ((100 * info.transferred) /
 					// info.size) << "% done.");
-					EACH_CALLBACK(i, transferUpdate) {
-						(lua.call(*i), info.path, info.bps, info.transferred, info.size)();
-					}
+					dispatchCallbacks(LuaCallbacks::transferUpdate, info.path, info.bps, info.transferred, info.size);
 
 					// ZCom_ConnStats const& state = network.getZControl()->ZCom_getConnectionStats(conn_id);
 				} break;
@@ -258,9 +256,7 @@ void Updater::think() {
 						case MsgRequestDone: {
 							unsigned long reqID = data->getInt(32);
 
-							EACH_CALLBACK(i, transferFinished) {
-								(lua.call(*i))();
-							}
+							dispatchCallbacks(LuaCallbacks::transferFinished);
 
 							if (reqID == 1)
 								network.reconnect(50);

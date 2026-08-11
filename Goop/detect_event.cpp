@@ -17,7 +17,6 @@ DetectEvent::~DetectEvent() {
 }
 
 void DetectEvent::check(BaseObject *ownerObject) {
-#ifdef USE_GRID
 	// TODO: Detect event
 
 	int x = int(ownerObject->pos.x);
@@ -72,33 +71,4 @@ void DetectEvent::check(BaseObject *ownerObject) {
 			}
 		}
 	}
-#else
-	if (m_detectFilter & 1) // 1 is the worm collision layer flag
-	{
-		ObjectsList::ColLayerIterator worm;
-		for (worm = game.objects.colLayerBegin(Game::WORMS_COLLISION_LAYER); worm; ++worm) {
-			if (m_detectOwner || (*worm)->getOwner() != ownerObject->getOwner())
-				if ((*worm)->isCollidingWith(ownerObject->pos, m_range)) {
-					// m_event->run( ownerObject, (*worm) );
-					run(ownerObject, (*worm));
-				}
-		}
-	}
-
-	// from CUSTOM_COL_LAYER_START to COLLISION_LAYERS_AMMOUNT its the particles collision layers
-	for (int customFilter = Game::CUSTOM_COL_LAYER_START, filterFlag = 2; customFilter < COLLISION_LAYERS_AMMOUNT;
-		 ++customFilter, filterFlag *= 2) {
-		if (m_detectFilter & filterFlag) {
-			ObjectsList::ColLayerIterator object;
-			for (object = game.objects.colLayerBegin(customFilter); object; ++object) {
-				if ((*object) != ownerObject)
-					if (!(*object)->deleteMe && (m_detectOwner || (*object)->getOwner() != ownerObject->getOwner()))
-						if ((*object)->isCollidingWith(ownerObject->pos, m_range)) {
-							// m_event->run( ownerObject,(*object) );
-							run(ownerObject, (*object));
-						}
-			}
-		}
-	}
-#endif
 }

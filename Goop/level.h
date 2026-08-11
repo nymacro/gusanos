@@ -16,7 +16,6 @@
 #include <cmath>
 #include "events.h"
 #include <boost/array.hpp>
-using boost::array;
 
 class Sprite;
 class LevelEffect;
@@ -187,7 +186,7 @@ class Level {
 	// unload(), (re)allocated in loaderSucceeded(). Water sim does not touch it.
 	std::vector<uint8_t> m_destructionMask;
 
-	array<Material, 256> m_materialList;
+	boost::array<Material, 256> m_materialList;
 
 	LevelConfig *m_config;
 	bool m_firstFrame;

@@ -16,8 +16,6 @@
 
 #include "allegro_compat.h"
 #include "dedicated.h"
-#include <boost/bind/bind.hpp>
-using namespace boost::placeholders;
 #include <boost/lexical_cast.hpp>
 using boost::lexical_cast;
 
@@ -300,9 +298,9 @@ void GConsole::init() {
 
 		// Connect the handlers as group 0 so they are called first
 
-		keyHandler.printableChar.connect(0, boost::bind(&GConsole::eventPrintableChar, this, _1, _2));
-		keyHandler.keyDown.connect(0, boost::bind(&GConsole::eventKeyDown, this, _1));
-		keyHandler.keyUp.connect(0, boost::bind(&GConsole::eventKeyUp, this, _1));
+		keyHandler.printableChar.connect(0, [this](char c, int k) { return eventPrintableChar(c, k); });
+		keyHandler.keyDown.connect(0, [this](int k) { return eventKeyDown(k); });
+		keyHandler.keyUp.connect(0, [this](int k) { return eventKeyUp(k); });
 
 		// Wire gamepad button signals into the key handler signal chain
 		gamepadHandler.buttonDown.connect(0, [](int key) {
@@ -320,7 +318,7 @@ void GConsole::init() {
 
 	console.registerVariables()("CON_SPEED", &speed, 4)("CON_HEIGHT", &height, 120)
 #ifndef DEDSERV
-		("CON_FONT", &m_fontName, "minifont", boost::bind(&GConsole::varCbFont, this, _1))
+		("CON_FONT", &m_fontName, "minifont", [this](std::string const &v) { varCbFont(v); })
 #endif
 		;
 
@@ -333,7 +331,7 @@ void GConsole::init() {
 				(string("SETALTGRCHAR"), setAltGrChar)
 				(string("SETCHAR"), setChar)
 		*/
-		(string("SETCONSOLEKEY"), boost::bind(&GConsole::setConsoleKey, this, _1))
+		(string("SETCONSOLEKEY"), [this](std::list<std::string> const &args) { return setConsoleKey(args); })
 #endif
 			(string("EXEC"), execCmd)
 		//(string("EXECSCRIPT"), execScript)

@@ -1,7 +1,7 @@
 #ifndef STL_STR_REPLICATOR_H
 #define STL_STR_REPLICATOR_H
 
-#include "network_compat.h"
+#include "net_replicator.h"
 #include <string>
 #include <stdexcept>
 

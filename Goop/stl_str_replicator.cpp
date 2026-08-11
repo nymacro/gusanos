@@ -1,6 +1,5 @@
 #include "stl_str_replicator.h"
 
-#include "network_compat.h"
 #include <cassert>
 #include <string>
 

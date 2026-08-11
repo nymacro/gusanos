@@ -1,6 +1,5 @@
 #include "posspd_replicator.h"
 
-#include "network_compat.h"
 #include <iostream>
 #include "util/vec.h"
 #include "encoding.h"

@@ -58,9 +58,7 @@ mq_end_define_message()
 int stateTimeOut = 0;
 
 void setLuaState(Network::State s) {
-	EACH_CALLBACK(i, networkStateChange) {
-		(lua.call(*i), s)();
-	}
+	dispatchCallbacks(LuaCallbacks::networkStateChange, s);
 }
 
 void setState(Network::State s) {

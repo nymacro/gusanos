@@ -19,12 +19,141 @@
 #include <utility>
 #include <list>
 #include <cstring>
+#include <cmath>
 using std::cerr;
 using std::endl;
 #include <boost/lexical_cast.hpp>
 using boost::lexical_cast;
 
 namespace LuaBindings {
+
+namespace {
+
+// Serialize a Lua value at stack index i into a ZCom_BitStream (BitStream:dump).
+// Wire format: 4-bit LuaType tag; Number is 23-bit float, Integer is 32-bit int,
+// String is addString, Table is [array-part... End] [hash-part key val... End].
+// Moved here from LuaContext (luaapi/context.cpp) so libglua no longer depends
+// on libomfgnet. Keep the encoding byte-identical to the original.
+void serializeLuaValue(LuaContext &ctx, ZCom_BitStream &s, int i) {
+	lua_State *L = ctx;
+	switch (lua_type(L, i)) {
+		case LUA_TNIL:
+			s.addInt(LuaType::Nil, 4);
+			break;
+
+		case LUA_TNUMBER: {
+			lua_Number n = lua_tonumber(L, i);
+			lua_Integer iv = static_cast<lua_Integer>(n);
+			if (std::fabs(iv - n) < 0.00001) {
+				s.addInt(LuaType::Integer, 4);
+				s.addInt(iv, 32);
+			} else {
+				s.addInt(LuaType::Number, 4);
+				s.addFloat(static_cast<float>(n), 23);
+			}
+		} break;
+
+		case LUA_TBOOLEAN: {
+			int n = lua_toboolean(L, i);
+			s.addInt(n ? LuaType::BooleanTrue : LuaType::BooleanFalse, 4);
+		} break;
+
+		case LUA_TSTRING: {
+			s.addInt(LuaType::String, 4);
+			char const *n = lua_tostring(L, i);
+			s.addString(n);
+		} break;
+
+		case LUA_TTABLE: {
+			s.addInt(LuaType::Table, 4);
+			size_t idx = 1;
+			for (;; ++idx) {
+				lua_rawgeti(L, i, idx);
+				if (lua_isnil(L, -1)) {
+					ctx.pop(1);
+					break;
+				}
+
+				serializeLuaValue(ctx, s, -1);
+				ctx.pop(1);
+			}
+			s.addInt(LuaType::End, 4);
+
+			lua_pushnil(L);
+			int tab = i < 0 ? i - 1 : i;
+			while (lua_next(L, tab) != 0) {
+				if (!lua_isnumber(L, -2) || (size_t)lua_tointeger(L, -2) >= idx) {
+					serializeLuaValue(ctx, s, -2);
+					serializeLuaValue(ctx, s, -1);
+				}
+				ctx.pop(1);
+			}
+			s.addInt(LuaType::End, 4);
+		} break;
+
+		default: // Ignore any value we can't handle and encode a nil instead
+			s.addInt(LuaType::Nil, 4);
+			break;
+	}
+}
+
+// Deserialize one Lua value from a ZCom_BitStream onto the stack (BitStream:undump).
+// Returns false when no value could be decoded. Mirrors serializeLuaValue.
+bool deserializeLuaValue(LuaContext &ctx, ZCom_BitStream &s) {
+	lua_State *L = ctx;
+	int t = s.getInt(4);
+	switch (t) {
+		case LuaType::Nil:
+			lua_pushnil(L);
+			break;
+
+		case LuaType::Number: {
+			ctx.push(static_cast<lua_Number>(s.getFloat(23)));
+		} break;
+
+		case LuaType::Integer: {
+			ctx.push(s.getInt(32));
+		} break;
+
+		case LuaType::BooleanTrue:
+			ctx.push(true);
+			break;
+
+		case LuaType::BooleanFalse:
+			ctx.push(false);
+			break;
+
+		case LuaType::String: {
+			ctx.push(s.getStringStatic());
+		} break;
+
+		case LuaType::Table: {
+			lua_newtable(L);
+
+			for (int idx = 1; deserializeLuaValue(ctx, s); ++idx) {
+				lua_rawseti(L, -2, idx);
+			}
+
+			while (deserializeLuaValue(ctx, s)) {
+				if (!deserializeLuaValue(ctx, s)) {
+					// Value was invalid
+					ctx.pop(1);	 // Pop key
+					return true; // Return what we have of the table
+				}
+
+				lua_rawset(L, -3);
+			}
+		} break;
+
+		default: {
+			return false; // No value could be decoded
+		} break;
+	}
+
+	return true;
+}
+
+} // namespace
 
 LuaReference SocketMetaTable;
 LuaReference ZCom_BitStreamMetaTable;
@@ -175,13 +304,13 @@ LMETHOD(LuaSocket, tcp_destroy, p->~LuaSocket(); return 0;)
 	WARNING: This function is not very space efficient and can only encode tables
 	, strings, numbers, booleans and nil (or tables with keys and values of those types)
 */
-METHODC(ZCom_BitStream, bitStream_dump, context.serialize(*p, 2); context.pushvalue(1); return 1;)
+METHODC(ZCom_BitStream, bitStream_dump, serializeLuaValue(context, *p, 2); context.pushvalue(1); return 1;)
 
 /*! Bitstream:undump()
 
 	Extracts a lua object added to the bitstream using the //dump// method.
 */
-METHODC(ZCom_BitStream, bitStream_undump, context.deserialize(*p); return 1;)
+METHODC(ZCom_BitStream, bitStream_undump, deserializeLuaValue(context, *p); return 1;)
 
 /*! Bitstream:encode_elias_gamma(value)
 

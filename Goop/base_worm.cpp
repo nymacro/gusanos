@@ -857,10 +857,8 @@ void BaseWorm::die() {
 								 ? game.weaponList[m_lastHurtWeapon]->name
 								 : std::string();
 
-	EACH_CALLBACK(i, wormDeath) {
-		LuaReference killerRef = m_lastHurt ? m_lastHurt->getLuaReference() : LuaReference();
-		(lua.call(*i), getLuaReference(), killerRef, weaponName.c_str())();
-	}
+	LuaReference killerRef = m_lastHurt ? m_lastHurt->getLuaReference() : LuaReference();
+	dispatchCallbacks(LuaCallbacks::wormDeath, getLuaReference(), killerRef, weaponName.c_str());
 	m_isActive = false;
 	if (m_owner) {
 		m_owner->stats->deaths++;
@@ -1042,9 +1040,7 @@ LuaReference BaseWorm::getLuaReference()
 }*/
 
 void BaseWorm::finalize() {
-	EACH_CALLBACK(i, wormRemoved) {
-		(lua.call(*i), getLuaReference())();
-	}
+	dispatchCallbacks(LuaCallbacks::wormRemoved, getLuaReference());
 
 	for (size_t i = 0; i < m_weapons.size(); ++i) {
 		luaDelete(m_weapons[i]);

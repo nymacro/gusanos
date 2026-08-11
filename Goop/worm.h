@@ -5,7 +5,7 @@
 #include "base_worm.h"
 // #include "sprite.h"
 
-#include "network_compat.h"
+#include "net_types.h"
 
 class BaseAnimator;
 class BasePlayer;

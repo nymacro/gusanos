@@ -8,9 +8,5 @@ env.Append(LIBS = Split("""
 # SDL3/Allegro replacement handled in SConstruct or eventually removed
 # but for now we just remove the old allegro-config call.
 
-SConscript([
-	'./loaders/SConscript'
-	], exports = ['env'])
-
 env.Program(env.getBinName('lighter'),
     env.getObjects() + [env.Object('../Goop/allegro_compat.cpp')])

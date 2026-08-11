@@ -86,7 +86,7 @@ bool check_materials(int x1, int y1, int x2, int y2) {
 }
 
 PlayerAI::PlayerAI(int team_, BaseWorm *worm)
-	: BasePlayer(shared_ptr<PlayerOptions>(new PlayerOptions("bot")), worm), m_pathSteps(100), m_target(0),
+	: BasePlayer(boost::shared_ptr<PlayerOptions>(new PlayerOptions("bot")), worm), m_pathSteps(100), m_target(0),
 	  m_thinkTime(0), m_movingRight(false), m_movingLeft(false), m_shooting(false) {
 	colour = universalColor(rndInt(256), rndInt(256), rndInt(256));
 	team = team_;
@@ -103,7 +103,6 @@ void PlayerAI::getTarget() {
 	m_target = NULL;
 	m_targetBlocked = true;
 	float tmpDist = -1;
-#ifdef USE_GRID
 	for (Grid::iterator worm = game.objects.beginColLayer(Grid::WormColLayer); worm; ++worm) {
 		if (worm->getOwner() != this)
 			if (!game.options.teamPlay || (worm->getOwner()->team != team || team == -1))
@@ -120,23 +119,6 @@ void PlayerAI::getTarget() {
 						}
 					}
 	}
-#else
-	ObjectsList::ColLayerIterator worm;
-	for (worm = game.objects.colLayerBegin(Game::WORMS_COLLISION_LAYER); worm; ++worm) {
-		BaseWorm *tmpWorm;
-		if ((*worm)->getOwner() != this)
-			if ((tmpWorm = dynamic_cast<BaseWorm *>(*worm)) && tmpWorm->isActive()) {
-				bool blocked = checkMaterialsTo((*worm)->pos);
-				bool distIsShorter = (m_worm->pos - (*worm)->pos).length() < tmpDist;
-				if ((!blocked && (m_targetBlocked || distIsShorter)) || (blocked && m_targetBlocked && distIsShorter) ||
-					tmpDist < 0) {
-					m_targetBlocked = blocked;
-					m_target = *worm;
-					tmpDist = (m_worm->pos - (*worm)->pos).length();
-				}
-			}
-	}
-#endif
 }
 
 void PlayerAI::getPath() {

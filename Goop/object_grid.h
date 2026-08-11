@@ -5,10 +5,7 @@
 #include <boost/utility.hpp>
 #include "base_object.h"
 
-#include <iostream>
 #include <cassert>
-using std::cerr;
-using std::endl;
 
 template <class T>
 struct List {

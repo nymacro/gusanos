@@ -3,7 +3,7 @@
 
 #include "consoleitem.h"
 #include "util/text.h"
-#include <boost/function.hpp>
+#include <functional>
 // #include <boost/lexical_cast.hpp>
 // using boost::lexical_cast;
 
@@ -32,7 +32,7 @@ class Variable : public ConsoleItem {
 template <class T>
 class TVariable : public Variable {
   public:
-	typedef boost::function<void(T const &)> CallbackT;
+	typedef std::function<void(T const &)> CallbackT;
 
 	TVariable(std::string name, T *src, T defaultValue, CallbackT const &callback = CallbackT())
 		: Variable(name), m_src(src), m_callback(callback) {
@@ -114,7 +114,7 @@ class EnumVariable : public Variable {
 	typedef std::map<std::string, int, IStrCompare> MapType;
 	typedef std::map<int, std::string> ReverseMapType;
 
-	typedef boost::function<void(int)> CallbackT;
+	typedef std::function<void(int)> CallbackT;
 
 	EnumVariable(std::string name, int *src, int defaultValue, MapType const &mapping,
 				 CallbackT const &func = CallbackT());

@@ -14,7 +14,6 @@
 #include <vector>
 #include <utility>
 #include <boost/array.hpp>
-using boost::array;
 
 class Font {
   public:
@@ -37,7 +36,7 @@ class Font {
 		int b;
 	};
 
-	static array<Color, 16> palette;
+	static boost::array<Color, 16> palette;
 
 	struct CharInfo {
 		CharInfo() : subBitmap(0) {}
@@ -85,7 +84,7 @@ class Font {
 
 		Item cur;
 		int loc;
-		array<Item, 5> stack;
+		boost::array<Item, 5> stack;
 	};
 
 	Font();

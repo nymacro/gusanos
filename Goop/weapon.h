@@ -1,7 +1,7 @@
 #ifndef WEAPON_H
 #define WEAPON_H
 
-#include "network_compat.h"
+#include "net_bitstream.h"
 #include "timer_event.h"
 // #include "luaapi/types.h"
 #include "glua.h"

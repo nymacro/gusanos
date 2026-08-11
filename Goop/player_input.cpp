@@ -135,21 +135,10 @@ string eventStart(size_t index, Player::Actions action, list<string> const &args
 	if (index < game.localPlayers.size()) {
 		Player &player = *game.localPlayers[index];
 
-		bool ignore = false;
-
-		EACH_CALLBACK(i, localplayerEvent + action) {
-			int n = (lua.call(*i, 1), player.getLuaReference(), true)();
-			if (n > 0 && lua.get<bool>(-1))
-				ignore = true;
-			lua.pop(n);
-		}
-
-		EACH_CALLBACK(i, localplayerEventAny) {
-			int n = (lua.call(*i, 1), player.getLuaReference(), static_cast<int>(action), true)();
-			if (n > 0 && lua.get<bool>(-1))
-				ignore = true;
-			lua.pop(n);
-		}
+		bool ignore = dispatchCallbacksVeto(LuaCallbacks::localplayerEvent + action, player.getLuaReference(), true);
+		if (dispatchCallbacksVeto(LuaCallbacks::localplayerEventAny, player.getLuaReference(), static_cast<int>(action),
+								  true))
+			ignore = true;
 
 		if (!ignore)
 			player.actionStart(action, intensity);
@@ -161,21 +150,10 @@ string eventStop(size_t index, Player::Actions action, list<string> const &args)
 	if (index < game.localPlayers.size()) {
 		Player &player = *game.localPlayers[index];
 
-		bool ignore = false;
-
-		EACH_CALLBACK(i, localplayerEvent + action) {
-			int n = (lua.call(*i, 1), player.getLuaReference(), false)();
-			if (n > 0 && lua.get<bool>(-1))
-				ignore = true;
-			lua.pop(n);
-		}
-
-		EACH_CALLBACK(i, localplayerEventAny) {
-			int n = (lua.call(*i, 1), player.getLuaReference(), static_cast<int>(action), false)();
-			if (n > 0 && lua.get<bool>(-1))
-				ignore = true;
-			lua.pop(n);
-		}
+		bool ignore = dispatchCallbacksVeto(LuaCallbacks::localplayerEvent + action, player.getLuaReference(), false);
+		if (dispatchCallbacksVeto(LuaCallbacks::localplayerEventAny, player.getLuaReference(), static_cast<int>(action),
+								  false))
+			ignore = true;
 
 		if (!ignore)
 			player.actionStop(action);

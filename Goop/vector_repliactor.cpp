@@ -1,6 +1,5 @@
 #include "vector_replicator.h"
 
-#include "network_compat.h"
 #include <iostream>
 #include "util/vec.h"
 using std::cerr;

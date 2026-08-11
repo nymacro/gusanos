@@ -107,156 +107,7 @@ ZCom_ClassID Game::classID = ZCom_Invalid_ID;
 
 Game game;
 
-string mapCmd(const list<string> &args) {
-	if (!args.empty()) {
-		string tmp = *args.begin();
-		std::transform(tmp.begin(), tmp.end(), tmp.begin(), (int (*)(int))tolower);
-		/*
-		if(!game.changeLevelCmd( tmp ))
-			return "ERROR LOADING MAP";
-		*/
-		// mq_queue(game.msg, Game::ChangeLevel, tmp);
-		game.changeLevelCmd(tmp);
-		return "";
-	}
-	return "MAP <MAPNAME> : LOAD A MAP";
-}
-
-struct MapIterGetText {
-	template <class IteratorT>
-	std::string const &operator()(IteratorT i) const {
-		return i->first;
-	}
-};
-
-string mapCompleter(Console *con, int idx, std::string const &beginning) {
-	if (idx != 0)
-		return beginning;
-
-	return shellComplete(levelLocator.getMap(), beginning.begin(), beginning.end(), MapIterGetText(),
-						 ConsoleAddLines(*con));
-}
-
-string gameCmd(const list<string> &args) {
-	if (!args.empty()) {
-		string tmp = *args.begin();
-		std::transform(tmp.begin(), tmp.end(), tmp.begin(), (int (*)(int))tolower);
-		if (!game.setMod(tmp))
-			return "MOD " + tmp + " NOT FOUND";
-		return "THE GAME WILL CHANGE THE NEXT TIME YOU CHANGE MAP";
-	}
-	return "GAME <MODNAME> : SET THE MOD TO LOAD THE NEXT MAP CHANGE";
-}
-
-struct GameIterGetText {
-	template <class IteratorT>
-	std::string const &operator()(IteratorT i) const {
-		return *i;
-	}
-};
-
-string gameCompleter(Console *con, int idx, std::string const &beginning) {
-	if (idx != 0)
-		return beginning;
-
-	return shellComplete(game.modList, beginning.begin(), beginning.end(), GameIterGetText(), ConsoleAddLines(*con));
-}
-
-string addbotCmd(const list<string> &args) {
-	if (!network.isClient()) {
-		int team = -1;
-		list<string>::const_iterator i = args.begin();
-		if (i != args.end()) {
-			team = cast<int>(*i);
-			++i;
-		}
-		game.addBot(team);
-		return "";
-	} else {
-		return "You cant add bots as client";
-	}
-}
-
-string connectCmd(const list<string> &args) {
-	if (!args.empty()) {
-		network.connect(*args.begin());
-		return "";
-	}
-	return "CONNECT <HOST_ADDRESS> : JOIN A NETWORK SERVER";
-}
-
-string rConCmd(const list<string> &args) {
-	if (!args.empty() && network.isClient()) {
-
-		list<string>::const_iterator iter = args.begin();
-		string tmp = *iter++;
-		for (; iter != args.end(); ++iter) {
-			tmp += " \"" + *iter + '"';
-		}
-		game.sendRConMsg(tmp);
-		return "";
-	}
-	return "";
-}
-
-string rConCompleter(Console *con, int idx, std::string const &beginning) {
-	if (idx != 0)
-		return beginning;
-
-	return con->completeCommand(beginning);
-}
-
-BasePlayer *findPlayerByName(std::string const &name) {
-	// BasePlayer* player2Kick = 0;
-	// for ( std::list<BasePlayer*>::iterator iter = game.players.begin(); iter != game.players.end(); iter++)
-	for (auto iter : game.players) {
-		if (iter->m_name == name) {
-			return iter;
-		}
-	}
-
-	return 0;
-}
-
-string banCmd(list<string> const &args) {
-	if (!network.isClient() && !args.empty()) {
-		if (BasePlayer *player = findPlayerByName(*args.begin()))
-			if (!player->local) {
-				network.ban(player->getConnectionID());
-				return "PLAYER BANNED";
-			}
-		return "PLAYER NOT FOUND OR IS LOCAL";
-	}
-	return "BAN <PLAYER_NAME> : BANS THE PLAYER WITH THE SPECIFIED NAME";
-}
-
-string kickCmd(const list<string> &args) {
-	if (!network.isClient() && !args.empty()) {
-		if (BasePlayer *player2Kick = findPlayerByName(*args.begin()))
-			if (!player2Kick->local) {
-				player2Kick->deleteMe = true;
-				network.kick(player2Kick->getConnectionID());
-				return "PLAYER KICKED";
-			}
-		return "PLAYER NOT FOUND OR IS LOCAL";
-	}
-	return "KICK <PLAYER_NAME> : KICKS THE PLAYER WITH THE SPECIFIED NAME";
-}
-
-struct BasePlayerIterGetText {
-	template <class IteratorT>
-	std::string const &operator()(IteratorT i) const {
-		return (*i)->m_name;
-	}
-};
-
-string kickCompleter(Console *con, int idx, std::string const &beginning) {
-	if (idx != 0)
-		return beginning;
-
-	return shellComplete(game.players, beginning.begin(), beginning.end(), BasePlayerIterGetText(),
-						 ConsoleAddLines(*con));
-}
+void registerGameCommands(Console &console);
 
 void Options::registerInConsole() {
 	console.registerVariables()("SV_NINJAROPE_SHOOT_SPEED", &ninja_rope_shootSpeed, 2)("SV_NINJAROPE_PULL_FORCE",
@@ -295,9 +146,7 @@ void Options::registerInConsole() {
 	maxWeapons = 5;
 	splitScreen = false;
 
-	console.registerCommands()("MAP", mapCmd, mapCompleter)("GAME", gameCmd, gameCompleter)("ADDBOT", addbotCmd)(
-		"CONNECT", connectCmd)("RCON", rConCmd, rConCompleter)("KICK", kickCmd, kickCompleter)("BAN", banCmd,
-																							   kickCompleter);
+	registerGameCommands(console);
 }
 
 Game::Game() {
@@ -370,7 +219,7 @@ void Game::init(int argc, char **argv) {
 	network.registerInConsole();
 
 	for (size_t i = 0; i < MAX_LOCAL_PLAYERS; ++i) {
-		shared_ptr<PlayerOptions> options(new PlayerOptions);
+		boost::shared_ptr<PlayerOptions> options(new PlayerOptions);
 		options->registerInConsole(i);
 		playerOptions.push_back(options);
 	}
@@ -532,9 +381,7 @@ void Game::think() {
 
 			case eZCom_EventInit: {
 				// Call this first since level effects will hog the message queue
-				EACH_CALLBACK(i, gameNetworkInit) {
-					(lua.call(*i), conn_id)();
-				}
+				dispatchCallbacks(LuaCallbacks::gameNetworkInit, conn_id);
 				// Authority: a new peer just got this node. Send it the current
 				// destruction state as one RLE snapshot so late joiners catch up.
 				if (m_isAuthority && level.isLoaded()) {
@@ -654,21 +501,12 @@ void Game::reset(ResetReason reason) {
 	localPlayers.clear();
 
 	// Delete all objects
-#ifdef USE_GRID
 	objects.clear();
-#else
-	for (ObjectsList::Iterator iter = objects.begin(); (bool)iter; ++iter) {
-		(*iter)->deleteThis();
-	}
-	objects.clear();
-#endif
 
 	level.unload();
 
 	if (reason != LoadingLevel) {
-		EACH_CALLBACK(i, gameEnded) {
-			(lua.call(*i), static_cast<int>(reason))();
-		}
+		dispatchCallbacks(LuaCallbacks::gameEnded, static_cast<int>(reason));
 	}
 }
 
@@ -858,9 +696,7 @@ bool Game::reloadModWithoutMap() {
 }
 
 void Game::error(Error err) {
-	EACH_CALLBACK(i, gameError) {
-		(lua.call(*i), static_cast<int>(err))();
-	}
+	dispatchCallbacks(LuaCallbacks::gameError, static_cast<int>(err));
 }
 
 bool Game::hasLevel(std::string const &level) {
@@ -897,9 +733,7 @@ bool Game::changeLevel(const std::string &levelName, bool refresh) {
 		return false;
 	}
 
-#ifdef USE_GRID
 	objects.resize(0, 0, level.width(), level.height());
-#endif
 
 	// cerr << "Loading mod" << endl;
 	loadMod();
@@ -1021,11 +855,7 @@ BasePlayer *Game::findPlayerWithID(ZCom_NodeID ID) {
 }
 
 void Game::insertExplosion(Explosion *explosion) {
-#ifdef USE_GRID
 	game.objects.insert(explosion, Grid::NoColLayer, explosion->getType()->renderLayer);
-#else
-	game.objects.insert(NO_COLLISION_LAYER, explosion->getType()->renderLayer, explosion);
-#endif
 }
 
 BasePlayer *Game::addPlayer(PLAYER_TYPE type, int team, BaseWorm *worm) {
@@ -1048,9 +878,7 @@ BasePlayer *Game::addPlayer(PLAYER_TYPE type, int team, BaseWorm *worm) {
 			players.push_back(player);
 			localPlayers.push_back(player);
 			player->local = true;
-			EACH_CALLBACK(i, localplayerInit) {
-				(lua.call(*i), player->getLuaReference())();
-			}
+			dispatchCallbacks(LuaCallbacks::localplayerInit, player->getLuaReference());
 			p = player;
 		} break;
 
@@ -1068,9 +896,7 @@ BasePlayer *Game::addPlayer(PLAYER_TYPE type, int team, BaseWorm *worm) {
 	}
 
 	if (p) {
-		EACH_CALLBACK(i, playerInit) {
-			(lua.call(*i), p->getLuaReference())();
-		}
+		dispatchCallbacks(LuaCallbacks::playerInit, p->getLuaReference());
 	}
 
 	return p;
@@ -1087,13 +913,8 @@ BaseWorm *Game::addWorm(bool isAuthority) {
 	}
 	if (!returnWorm)
 		allegro_message("moo");
-#ifdef USE_GRID
 	objects.insertImmediately(returnWorm, Grid::WormColLayer, Grid::WormRenderLayer);
 	objects.insertImmediately(returnWorm->getNinjaRopeObj(), 1, 1);
-#else
-	objects.insert(WORMS_COLLISION_LAYER, WORMS_RENDER_LAYER, returnWorm);
-	objects.insert(1, 1, (BaseObject *)returnWorm->getNinjaRopeObj());
-#endif
 
 	return returnWorm;
 }

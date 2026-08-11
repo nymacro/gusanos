@@ -203,7 +203,10 @@ class ZCom_Control {
 	}
 
 	// --- Reference API members (B1b): game-unused; stubs/delegations ---
-	bool ZCom_initSockets(bool _useudp, zU16 _udpport, zU16 _localport, zU8 _control_id_size = 0);
+	// Host-only socket init (32 peers, server bind). Renamed from ZCom_initSockets to
+	// avoid collision with the free function of that name, which is the single public
+	// init path the game uses (variable peer count, server-or-client).
+	bool initHost(bool _useudp, zU16 _udpport, zU16 _localport, zU8 _control_id_size = 0);
 	void ZCom_setControlID(zU8 _id);
 	void ZCom_setDebugName(const char *_name);
 	void ZCom_setUpstreamLimit(zU32 _total_bps, zU32 _perconn_bps);

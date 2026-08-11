@@ -7,8 +7,6 @@
 #include "gconsole.h"
 #include <list>
 #include <string>
-#include <boost/array.hpp>
-using boost::array;
 
 #include <algorithm>
 #include <cctype>

@@ -119,20 +119,10 @@ void Viewport::render(BasePlayer *player) {
 	if (game.level.config()->darkMode && game.level.lightmap)
 		blit(game.level.lightmap, fadeBuffer, offX, offY, 0, 0, fadeBuffer->w, fadeBuffer->h);
 
-#ifdef USE_GRID
 	for (Grid::iterator iter = game.objects.beginAll(); iter; ++iter) {
 		// iter->draw(dest, offX, offY);
 		iter->draw(this);
 	}
-#else
-	for (int i = 0; i < RENDER_LAYERS_AMMOUNT; ++i) {
-		ObjectsList::RenderLayerIterator iter;
-		for (iter = game.objects.renderLayerBegin(i); (bool)iter; ++iter) {
-			//(*iter)->draw(dest, offX, offY);
-			(*iter)->draw(this);
-		}
-	}
-#endif
 
 	/*
 		static double a = 0.0;
@@ -156,7 +146,7 @@ void Viewport::render(BasePlayer *player) {
 	if (game.level.config()->darkMode)
 		drawSprite_mult_8(dest, fadeBuffer, 0, 0);
 
-	EACH_CALLBACK(i, wormRender) {
+	for (LuaReference &wormRenderCb : luaCallbacks.callbacksFor(LuaCallbacks::wormRender)) {
 		for (list<BasePlayer *>::iterator playerIter = game.players.begin(); playerIter != game.players.end();
 			 ++playerIter) {
 			BaseWorm *worm = (*playerIter)->getWorm();
@@ -165,24 +155,23 @@ void Viewport::render(BasePlayer *player) {
 				int x = renderPos.x - offX;
 				int y = renderPos.y - offY;
 				// bool ownViewport = (*playerIter == player);
+
 				LuaReference ownerRef;
 
 				if (player)
 					ownerRef = player->getLuaReference();
 
-				// lua.callReference(0, *i, (lua_Number)x, (lua_Number)y, worm->luaReference, luaReference,
+				// lua.callReference(0, wormRenderCb, (lua_Number)x, (lua_Number)y, worm->luaReference, luaReference,
 				// ownViewport);
-				(lua.call(*i), (lua_Number)x, (lua_Number)y, worm->getLuaReference(), luaReference, ownerRef)();
+				(lua.call(wormRenderCb), (lua_Number)x, (lua_Number)y, worm->getLuaReference(), luaReference,
+				 ownerRef)();
 			}
 		}
 	}
 
 	if (player) {
 		if (BaseWorm *worm = player->getWorm()) {
-			EACH_CALLBACK(i, viewportRender) {
-				// lua.callReference(0, *i, luaReference, worm->luaReference);
-				(lua.call(*i), luaReference, worm->getLuaReference())();
-			}
+			dispatchCallbacks(LuaCallbacks::viewportRender, luaReference, worm->getLuaReference());
 		}
 	}
 }

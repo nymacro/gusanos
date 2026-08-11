@@ -1,4 +1,5 @@
 #include "allegro_compat.h"
+#include <SDL3_image/SDL_image.h>
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>

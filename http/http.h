@@ -7,11 +7,8 @@
 #include <memory>
 #include "tcp.h"
 
-#define HAS_ZOIDCOM
-
-#ifdef HAS_ZOIDCOM // TODO: Use Zoidcom for async hostname look-up
-#include "network_compat.h"
-#endif
+// TODO: hostname look-up is currently blocking (TCP::resolveHost in sockets.cpp);
+//       async DNS resolution is tracked as a structural improvement.
 
 namespace TCP {
 

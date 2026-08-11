@@ -19,7 +19,23 @@ using std::endl;
 using std::istream;
 using std::string;
 
-class ZCom_BitStream;
+// Type tags for Lua value (de)serialization. Shared by the ostream-based
+// serializers in context.cpp and the ZCom_BitStream-based serializers in
+// Goop/lua/bindings-network.cpp. The on-wire/ostream encoding is part of the
+// BitStream:dump()/undump() wire format; do not renumber.
+namespace LuaType {
+enum type {
+	Nil = 0,
+	Number,
+	BooleanFalse,
+	BooleanTrue,
+	String,
+	Table,
+	UserData,
+	End,
+	Integer,
+};
+}
 
 class LuaContext {
   public:
@@ -304,6 +320,28 @@ class LuaContext {
 		return *this;
 	}
 
+	LuaContext &pushNil() {
+		lua_pushnil(m_State);
+		return *this;
+	}
+
+	bool isNil(int idx) const {
+		return lua_isnil(m_State, idx);
+	}
+
+	LuaContext &getOrCreateGlobalTable(char const *name) {
+		lua_pushstring(m_State, name);
+		lua_rawget(m_State, LUA_GLOBALSINDEX);
+		if (lua_isnil(m_State, -1)) {
+			lua_pop(m_State, 1);
+			lua_newtable(m_State);
+			lua_pushstring(m_State, name);
+			lua_pushvalue(m_State, -2);
+			lua_rawset(m_State, LUA_GLOBALSINDEX);
+		}
+		return *this;
+	}
+
 	char const *tostring(int i) {
 		return lua_tostring(m_State, i);
 	}
@@ -401,9 +439,6 @@ class LuaContext {
 	void serialize(std::ostream &s, int i);
 	void deserialize(std::istream &s);
 	void serializeT(std::ostream &s, int i, int indent = 0);
-
-	void serialize(ZCom_BitStream &s, int i);
-	bool deserialize(ZCom_BitStream &s);
 
 	void regObject(char const *name) {
 		lua_setfield(m_State, LUA_REGISTRYINDEX, name);

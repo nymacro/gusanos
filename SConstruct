@@ -45,7 +45,7 @@ def getObjects(env, directory='.'):
     env.VariantDir(buildDir, directory, duplicate=0)
     
     return [env.Object(os.path.join(buildDir, i))
-            for i in os.listdir(directory)
+            for i in sorted(os.listdir(directory))
             if sourcePattern.search(i)]
 
 def detectClang(env):
@@ -84,6 +84,50 @@ def detectClang(env):
     ccp = cxxp.replace('clang++', 'clang')
     return (ccp, cxxp)
 
+def TestProgram(env, bin_name, libs, extra_sources=None, linkflags=None):
+    """Build a boost.test unit-test binary for this SConscript's subproject.
+
+    No-op unless this is a debug build with build-tests=1. Clones `env`, wires
+    up the standard test search paths (Homebrew + this subproject's own dir),
+    links ``boost_unit_test_framework`` (appended to ``libs``), defines
+    BOOST_TEST_DYN_LINK, and links the objects compiled from this
+    subproject's ``tests/`` directory into ``bin_name``.
+
+    The subproject include dir added to CPPPATH is derived from the current
+    working directory (SCons runs each SConscript with its own dir as CWD, so
+    this matches the dir that owns the SConscript).
+
+    Args:
+        bin_name: test binary base name, e.g. 'net_tests'.
+        libs: libraries to link before boost_unit_test_framework.
+        extra_sources: extra source/object nodes appended after the ``tests/``
+            objects, or a callable taking the cloned test env and returning
+            such a list (use the callable when objects must be built with the
+            test env's flags).
+        linkflags: LINKFLAGS to add; defaults to ``['-pthread']``. Pass ``[]``
+            to omit (e.g. when no threaded dependency is linked).
+    """
+    if not (env['BUILD_TESTS'] and env['MY_BUILD'] == 'debug'):
+        return
+    testEnv = env.Clone()
+    brew_prefix = '/home/linuxbrew/.linuxbrew'
+    subdir = os.path.basename(os.getcwd())
+    if linkflags is None:
+        linkflags = ['-pthread']
+    append = {
+        'CPPPATH': [brew_prefix + '/include', '#' + subdir],
+        'LIBPATH': [brew_prefix + '/lib', '#/lib/' + testEnv['MY_SUBFOLDER']],
+        'LIBS': list(libs) + ['boost_unit_test_framework'],
+        'CPPDEFINES': ['BOOST_TEST_DYN_LINK'],
+    }
+    if linkflags:
+        append['LINKFLAGS'] = list(linkflags)
+    testEnv.Append(**append)
+    sources = testEnv.getObjects('tests')
+    if extra_sources is not None:
+        sources += extra_sources(testEnv) if callable(extra_sources) else list(extra_sources)
+    return testEnv.Program(testEnv.getBinName(bin_name), sources)
+
 # Initialize Environment
 env = Environment(ENV=os.environ.copy())
 
@@ -92,6 +136,7 @@ env.AddMethod(getBinName)
 env.AddMethod(getLibName)
 env.AddMethod(getObjects)
 env.AddMethod(detectClang)
+env.AddMethod(TestProgram)
 
 # Generate compile_commands.json for IDE/LSP support
 env.Tool('compilation_db')
@@ -190,7 +235,21 @@ if env['MY_BUILD'] == 'release':
                CPPDEFINES=['NDEBUG'])
 elif env['MY_BUILD'] == 'debug':
     env.Append(CCFLAGS=Split('-Og -g -fno-omit-frame-pointer -Wextra'),
-               CPPDEFINES=['DEBUG', 'MAP_DOWNLOADING', 'LOG_RUNTIME'])
+               CPPDEFINES=['DEBUG'])
+
+# Extra preprocessor defines, independent of the build profile. Feature
+# defines are no longer hardwired to the debug axis, so debug and release
+# differ only in diagnostics (DEBUG/NDEBUG + optimization flags); any feature
+# define is opt-in for either profile. Usage:
+#   scons define=LOG_RUNTIME                          # one define
+#   scons build=release define=LOG_RUNTIME,FOO=1     # several, comma-separated
+# LOG_RUNTIME (see Utility/util/log.h) makes the DLOG/TLOG/WLOG/ILOG/ELOG
+# macros consult `logOptions` at run time instead of being compiled out at the
+# configured LOG_LEVEL; it was previously auto-defined for debug builds.
+# (MAP_DOWNLOADING was removed: it had no #ifdef consumers anywhere.)
+_extra_defines = [d for d in ARGUMENTS.get('define', '').split(',') if d]
+if _extra_defines:
+    env.Append(CPPDEFINES=_extra_defines)
 
 # Dependency Detection
 libs = ['sdl3', 'sdl3-mixer', 'sdl3-image', 'sdl3-ttf', 'libenet', 'libpng', 'zlib']

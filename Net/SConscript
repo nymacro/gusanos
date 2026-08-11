@@ -3,23 +3,8 @@ import os
 
 env.StaticLibrary(env.getLibName('omfgnet'), env.getObjects())
 
-# Build ztests alongside the library for debug builds
-if env['BUILD_TESTS'] and env['MY_BUILD'] == 'debug':
-    testEnv = env.Clone()
-
-    brew_prefix = '/home/linuxbrew/.linuxbrew'
-    testEnv.Append(
-        CPPPATH=[brew_prefix + '/include', '#Net'],
-        LIBPATH=[brew_prefix + '/lib', '#/lib/' + testEnv['MY_SUBFOLDER']],
-        LIBS=['omfgnet', 'omfgutil', 'boost_unit_test_framework', 'enet'],
-        LINKFLAGS=['-pthread'],
-        CPPDEFINES=['BOOST_TEST_DYN_LINK']
-    )
-
-    testEnv.Program(
-        testEnv.getBinName('net_tests'),
-        testEnv.getObjects('tests')
-    )
+# Build net tests alongside the library for debug builds
+env.TestProgram('net_tests', ['omfgnet', 'omfgutil', 'enet'])
 
 # Build Net fuzz targets (libFuzzer) when tests and fuzzing are enabled.
 # Requires clang; auto-detected via env.detectClang(). Only net_bitstream.cpp

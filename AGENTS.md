@@ -175,7 +175,7 @@ console.registerVariables()
 ### Adding a new Lua callback
 
 1. Add an entry to the `LuaCallbacks` enum in `Goop/glua.h`
-2. Fire it with `EACH_CALLBACK(i, MyNewCallback) { ... }`
+2. Fire it with `dispatchCallbacks(LuaCallbacks::MyNewCallback, args...)` (fire-and-forget), `dispatchCallbacksVeto(...)` (if a callback can veto by returning true), or loop `luaCallbacks.callbacksFor(LuaCallbacks::MyNewCallback)` for custom per-iteration logic
 3. Expose it in Lua bindings via `luaCallbacks.bind("myNewCallback", ref)` in the bindings init code.
 
 ### Running fuzz tests
@@ -237,3 +237,28 @@ scons -c
 | Find a global singleton declaration | `grep(pattern="extern .* mySingleton", path="Goop")` |
 | Find dedicated (headless)-gated sections | `grep(pattern="g_dedicated", path="Goop")` |
 | Find Lua binding registrations | `grep(pattern="registerLuaBindings", path="Goop")` |
+
+## Build Dependencies
+
+```
+# set up apt repos
+cat <<EOF > /etc/apt/sources.list.d/unstable.sources
+Types: deb deb-src
+URIs: http://deb.debian.org/debian
+Suites: unstable testing
+Components: main
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+EOF
+
+cat <<EOF > /etc/apt/preferences.d/unstable
+Package: *
+Pin: release a=unstable
+Pin-Priority: 100
+EOF
+
+apt-get update
+
+# install deps
+apt-get install -y build-essential scons libsdl3-dev libsdl3-mixer-dev libsdl3-ttf-dev libenet-dev libsdl3-image-dev libboost-all-dev libluajit-5.1-dev re2c curl vim tini tmux git
+```
+

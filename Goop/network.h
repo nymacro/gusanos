@@ -4,7 +4,7 @@
 #include "network_compat.h"
 #include <string>
 #include <memory>
-#include <boost/function.hpp>
+#include <functional>
 #include "luaapi/types.h"
 #include "base_player.h"
 
@@ -16,7 +16,7 @@ namespace HTTP {
 struct Request;
 }
 
-typedef boost::function<void(std::unique_ptr<HTTP::Request>)> HttpRequestCallback;
+typedef std::function<void(std::unique_ptr<HTTP::Request>)> HttpRequestCallback;
 
 struct LuaEventDef {
 	static LuaReference metaTable;

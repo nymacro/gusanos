@@ -488,7 +488,7 @@ Game Lua glue. Provides:
   - `localplayerInit`, `localplayerEvent`, `localplayerEventAny`
   - `gameNetworkInit`, `playerNetworkInit`, `gameError`
   - `transferUpdate`, `transferFinished`, `networkStateChange`
-- `EACH_CALLBACK` macro for iteration
+- `dispatchCallbacks` / `dispatchCallbacksVeto` helpers and `callbacksFor()` accessor for iteration
 
 ### Lua Bindings (`Goop/lua/`)
 

@@ -20,7 +20,7 @@ LieroFontLoader LieroFontLoader::instance;
 
 #ifndef DEDSERV
 
-static array<unsigned char, 256 * 3> const lieroPalette = {
+static boost::array<unsigned char, 256 * 3> const lieroPalette = {
 	0x0,  0x0,	0x0,  0x6c, 0x38, 0x0,	0x6c, 0x50, 0x0,  0xa4, 0x94, 0x80, 0x0,  0x90, 0x0,  0x3c, 0xac, 0x3c, 0xfc,
 	0x54, 0x54, 0xa8, 0xa8, 0xa8, 0x54, 0x54, 0x54, 0x54, 0x54, 0xfc, 0x54, 0xd8, 0x54, 0x54, 0xfc, 0xfc, 0x78, 0x40,
 	0x8,  0x80, 0x44, 0x8,	0x88, 0x48, 0xc,  0x90, 0x50, 0x10, 0x98, 0x54, 0x14, 0xa0, 0x58, 0x18, 0xac, 0x60, 0x1c,
@@ -148,7 +148,7 @@ bool LieroLevelLoader::load(Level *level, fs::path const &path) {
 	if (fileSize < regularFileSize)
 		return false;
 
-	array<unsigned char, 256 * 3> palette;
+	boost::array<unsigned char, 256 * 3> palette;
 
 	if (!g_dedicated) {
 		palette = lieroPalette;
@@ -159,7 +159,7 @@ bool LieroLevelLoader::load(Level *level, fs::path const &path) {
 			f.read(magic, 10);
 			if (!memcmp(magic, "POWERLEVEL", 10)) {
 				f.read((char *)&palette[0], 256 * 3);
-				for (array<unsigned char, 256 * 3>::iterator i = palette.begin(); i != palette.end(); ++i) {
+				for (boost::array<unsigned char, 256 * 3>::iterator i = palette.begin(); i != palette.end(); ++i) {
 					*i *= 4;
 				}
 			}

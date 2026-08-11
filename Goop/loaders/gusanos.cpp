@@ -259,16 +259,8 @@ bool LuaLoader::load(Script *script, fs::path const &path) {
 
 	// Create the table to store the functions in
 	std::string name = path.stem().string();
-	lua_pushstring(lua, name.c_str());
-	lua_rawget(lua, LUA_GLOBALSINDEX);
-	if (lua_isnil(lua, -1)) {
-		// The table does not exist, create it
-
-		lua_pushstring(lua, name.c_str());
-		lua_newtable(lua);
-		lua_rawset(lua, LUA_GLOBALSINDEX);
-	}
-	lua_settop(lua, -2); // Pop table or nil
+	lua.getOrCreateGlobalTable(name.c_str());
+	lua.pop();
 
 	lua.load(path.string().c_str(), f);
 

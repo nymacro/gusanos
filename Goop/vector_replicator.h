@@ -1,7 +1,7 @@
 #ifndef VECTOR_REPLICATOR_H
 #define VECTOR_REPLICATOR_H
 
-#include "network_compat.h"
+#include "net_replicator.h"
 
 #include "util/vec.h"
 #include "encoding.h"

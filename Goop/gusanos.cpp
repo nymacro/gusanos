@@ -250,28 +250,14 @@ int main(int argc, char **argv) try {
 
 		while (logicLast + LOGIC_DELTA <= SDL_GetTicks()) {
 
-#ifdef USE_GRID
 			for (Grid::iterator iter = game.objects.beginAll(); iter;) {
 				if (iter->deleteMe)
 					iter.erase();
 				else
 					++iter;
 			}
-#else
-			for (ObjectsList::Iterator iter = game.objects.begin(); iter;) {
-				if ((*iter)->deleteMe) {
-					ObjectsList::Iterator tmp = iter;
-					++iter;
-					delete *tmp;
-					game.objects.erase(tmp);
-				} else
-					++iter;
-			}
-#endif
 
 			if (game.isLoaded() && game.level.isLoaded()) {
-
-#ifdef USE_GRID
 
 				for (Grid::iterator iter = game.objects.beginAll(); iter; ++iter) {
 					iter->think();
@@ -279,11 +265,6 @@ int main(int argc, char **argv) try {
 				}
 
 				game.objects.flush(); // Insert all new objects
-#else
-				for (ObjectsList::Iterator iter = game.objects.begin(); (bool)iter; ++iter) {
-					(*iter)->think();
-				}
-#endif
 
 				for (list<BasePlayer *>::iterator iter = game.players.begin(); iter != game.players.end(); iter++) {
 					(*iter)->think();
@@ -343,9 +324,7 @@ int main(int argc, char **argv) try {
 
 			spriteList.think();
 
-			EACH_CALLBACK(i, afterUpdate) {
-				(lua.call(*i))();
-			}
+			dispatchCallbacks(LuaCallbacks::afterUpdate);
 
 			logicLast += LOGIC_DELTA;
 		}
@@ -551,10 +530,7 @@ int main(int argc, char **argv) try {
 			if (quit)
 				game.infoFont->draw(gfx.buffer, "Quitting...", 15, 110, 0, 255, 255, 255, 255);
 
-			EACH_CALLBACK(i, afterRender) {
-				// lua.callReference(*i);
-				(lua.call(*i))();
-			}
+			dispatchCallbacks(LuaCallbacks::afterRender);
 
 			// Draw the in-game cursor on top of everything. The OS cursor is hidden
 			// while inside the window, so this is the cursor the user actually sees.

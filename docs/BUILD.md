@@ -172,7 +172,7 @@ Note: `Goop/SConscript` builds the single `gusanos` program directly
 | Build | CCFLAGS | CPPDEFINES |
 |---|---|---|
 | `release` | `-O3 -g` | `NDEBUG` |
-| `debug` | `-Og -g -fno-omit-frame-pointer -Wextra` | `DEBUG`, `MAP_DOWNLOADING`, `LOG_RUNTIME` |
+| `debug` | `-Og -g -fno-omit-frame-pointer -Wextra` | `DEBUG` |
 
 `DEDSERV` is no longer a defined macro — dedicated/headless mode is selected at
 runtime via `--dedicated` (`g_dedicated`). `build=dedserv` / `build=dedserv-debug`
@@ -183,6 +183,23 @@ All builds use `-std=c++17` and the shared base CCFLAGS
 `-pipe -fno-diagnostics-show-option -Wfatal-errors -Wall -Wno-unused -Wno-register
 -Wno-implicit-fallthrough`, and define `_GNU_SOURCE`,
 `BOOST_TIMER_ENABLE_DEPRECATED`.
+
+### Extra Preprocessor Defines
+
+Feature defines are decoupled from the build profile: `debug` and `release`
+differ only in diagnostics (`DEBUG`/`NDEBUG` + optimization flags). Additional
+preprocessor defines can be added to either profile with the `define=` arg
+(comma-separated):
+
+```bash
+scons build=debug define=LOG_RUNTIME
+scons build=release define=LOG_RUNTIME,FOO=1
+```
+
+`LOG_RUNTIME` (see `Utility/util/log.h`) makes the `DLOG`/`TLOG`/`WLOG`/`ILOG`/
+`ELOG` macros consult `logOptions` at run time instead of being compiled out at
+the configured `LOG_LEVEL`; it is no longer auto-defined for debug builds.
+(`MAP_DOWNLOADING` was removed: it had no `#ifdef` consumers anywhere.)
 
 ### Library Detection
 

@@ -12,13 +12,7 @@
 #include <cmath>
 #include <string>
 #include <list>
-#include <iostream>
 #include <vector>
-#include "allegro_compat.h"
-using std::cerr;
-using std::endl;
-#include <boost/lexical_cast.hpp>
-using boost::lexical_cast;
 
 namespace LuaBindings {
 

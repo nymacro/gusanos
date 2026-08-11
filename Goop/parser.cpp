@@ -7,7 +7,7 @@ using namespace std;
 
 namespace Parser {
 
-const vector<string> tokenize(const string &text) {
+vector<string> tokenize(const string &text) {
 	string::size_type left = 0;
 	string::size_type right = 0;
 

@@ -8,7 +8,6 @@
 #include <stdexcept>
 #include <boost/shared_ptr.hpp>
 #include <vector>
-using boost::shared_ptr;
 
 #include "network_compat.h"
 
@@ -84,7 +83,7 @@ class BasePlayer {
 	// do not confuse with the node ID which identifies instances of the class.
 	static ZCom_ClassID classID;
 
-	BasePlayer(shared_ptr<PlayerOptions> options, BaseWorm *worm);
+	BasePlayer(boost::shared_ptr<PlayerOptions> options, BaseWorm *worm);
 	virtual ~BasePlayer();
 
 	void think();
@@ -123,7 +122,7 @@ class BasePlayer {
 	}
 	ZCom_ConnID getConnectionID();
 	void sendLuaEvent(LuaEventDef *event, eZCom_SendMode mode, zU8 rules, ZCom_BitStream *userdata, ZCom_ConnID connID);
-	shared_ptr<PlayerOptions> getOptions();
+	boost::shared_ptr<PlayerOptions> getOptions();
 	BaseWorm *getWorm() {
 		return m_worm;
 	}
@@ -145,7 +144,7 @@ class BasePlayer {
 			return space;
 		}
 	*/
-	shared_ptr<Stats> stats;
+	boost::shared_ptr<Stats> stats;
 
 	bool deleteMe;
 
@@ -178,7 +177,7 @@ class BasePlayer {
 	void teamChangePetition_(int team_);
 
 	BaseWorm *m_worm;
-	shared_ptr<PlayerOptions> m_options;
+	boost::shared_ptr<PlayerOptions> m_options;
 
 	bool m_isAuthority;
 	bool m_processingNetworkEvent;

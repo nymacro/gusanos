@@ -4,7 +4,6 @@
 #include "level.h"
 // #include "base_object.h"
 // #include "base_action.h"
-// #include "objects_list.h"
 #include "object_grid.h"
 #include "message_queue.h"
 
@@ -18,9 +17,8 @@
 #include <set>
 #include <boost/shared_ptr.hpp>
 #include <boost/filesystem/path.hpp>
-using boost::shared_ptr;
 namespace fs = boost::filesystem;
-#include "network_compat.h"
+#include "net_types.h"
 
 class BasePlayer;
 class BaseWorm;
@@ -36,8 +34,6 @@ struct LuaEventDef;
 class Sound1D;
 class Font;
 #endif
-
-#define USE_GRID
 
 class Player;
 
@@ -96,21 +92,6 @@ struct ScreenMessage {
 
 class Game {
   public:
-#ifndef USE_GRID
-	enum ColLayer {
-		WORMS_COLLISION_LAYER = 0,
-		NO_COLLISION_LAYER = 1,
-		COLLISION_LAYER_COUNT = 10,
-	};
-
-	enum RenderLayer {
-		WORMS_RENDER_LAYER = 4,
-		RENDER_LAYER_COUNT = 10,
-	};
-
-	static const int CUSTOM_COL_LAYER_START = 2;
-#endif
-
 	static const size_t MAX_LOCAL_PLAYERS = 2;
 
 	static ZCom_ClassID classID;
@@ -179,16 +160,12 @@ class Game {
 	Level level;
 	std::vector<WeaponType *> weaponList;
 	Options options;
-	std::vector<shared_ptr<PlayerOptions>> playerOptions;
+	std::vector<boost::shared_ptr<PlayerOptions>> playerOptions;
 	std::set<std::string> modList;
 
 	std::vector<Player *> localPlayers;
 	std::list<BasePlayer *> players;
-#ifdef USE_GRID
 	Grid objects;
-#else
-	ObjectsList objects;
-#endif
 
 	void insertExplosion(Explosion *explosion);
 

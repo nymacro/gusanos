@@ -605,7 +605,7 @@ void RunScript::run(ActionParams const &params) {
 
 	lua.push(LuaContext::errorReport);
 	lua.pushReference(f);
-	if (lua_isnil(lua, -1)) {
+	if (lua.isNil(-1)) {
 		lua.pop(2);
 		return;
 	}
@@ -613,12 +613,12 @@ void RunScript::run(ActionParams const &params) {
 	if (params.object)
 		params.object->pushLuaReference();
 	else
-		lua_pushnil(lua);
+		lua.pushNil();
 
 	if (params.object2)
 		params.object2->pushLuaReference();
 	else
-		lua_pushnil(lua);
+		lua.pushNil();
 
 	if (lua.call(2, 0, -4) < 0) {
 		// lua.destroyReference(function);

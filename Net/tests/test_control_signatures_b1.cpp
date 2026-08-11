@@ -27,7 +27,7 @@ BOOST_AUTO_TEST_CASE(member_signatures_compile_check) {
 	const ZCom_Address *(ZCom_Control::*p_getPeer)(ZCom_ConnID) const = &ZCom_Control::ZCom_getPeer;
 	const ZCom_ConnStats &(ZCom_Control::*p_stats)(ZCom_ConnID) const = &ZCom_Control::ZCom_getConnectionStats;
 	// B1b reference-completeness members
-	bool (ZCom_Control::*p_init)(bool, zU16, zU16, zU8) = &ZCom_Control::ZCom_initSockets;
+	bool (ZCom_Control::*p_init)(bool, zU16, zU16, zU8) = &ZCom_Control::initHost;
 	void (ZCom_Control::*p_setCID)(zU8) = &ZCom_Control::ZCom_setControlID;
 	void (ZCom_Control::*p_setName)(const char *) = &ZCom_Control::ZCom_setDebugName;
 	void (ZCom_Control::*p_up)(zU32, zU32) = &ZCom_Control::ZCom_setUpstreamLimit;

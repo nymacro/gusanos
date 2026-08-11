@@ -769,7 +769,7 @@ uint32_t ZCom_Control::allocateConnID() {
 }
 
 // --- B1b: reference API members (game-unused; stubs/delegations) ---
-bool ZCom_Control::ZCom_initSockets(bool _useudp, zU16 _udpport, zU16 _localport, zU8 _control_id_size) {
+bool ZCom_Control::initHost(bool _useudp, zU16 _udpport, zU16 _localport, zU8 _control_id_size) {
 	(void)_useudp;	  // omfgnet is always UDP/ENet
 	(void)_localport; // local bind port not implemented (single socket)
 	m_controlID = _control_id_size;
