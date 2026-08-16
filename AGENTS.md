@@ -148,6 +148,28 @@ Key files in `Net/`:
 The `Goop/network.cpp/h` facade sits on top of this layer, managing game-level
 state (session lifecycle, Lua events, server list, player management).
 
+### Comment Style
+
+Comments should be succinct and earn their place.
+
+- **Comment *why*, not *what*.** Don't restate what the next line does (e.g.
+  `i++; // increment i`) unless the code is genuinely complicated and
+  breakage-prone. Explain non-obvious decisions, workarounds, gotchas,
+  platform/compat quirks, magic numbers, and lines that look wrong but aren't.
+- **No commented-out dead code.** Delete it — the history lives in git. This
+  includes `/* ... */` blocks of obsolete implementations and `//` stubs of
+  removed declarations.
+- **No restating box/ASCII-art headers** that only repeat a function or class
+  name.
+- **Deduplicate.** If the same explanation appears twice, keep the more
+  specific copy and trim the rest. Rationale for determinism, networking, and
+  the runtime `g_dedicated` flag already lives in this file — don't restate it
+  verbatim in source.
+- **Trim verbose prose to its essence** rather than deleting a real "why"
+  outright. Keep substantive API docs (Lua `/*! ... */` binding docs, public
+  method contracts) only where they add info beyond the signature. When in
+  doubt whether a comment carries value, keep it.
+
 ## Common Tasks
 
 ### Adding a new file
@@ -227,6 +249,9 @@ scons -c
   (`g_dedicated`, set via `--dedicated`); gate new rendering/audio/input code
   with `if (!g_dedicated)` instead. Existing inert `#ifndef DEDSERV` guards are
   left in place as dead structural markers and should not be mass-removed.
+- **Don't add excessive comments** — see *Comment Style* above. Comment *why*,
+  not *what*; don't keep commented-out dead code (git has the history); don't
+  restate rationale already documented in this file.
 
 ## Quick Search Cheatsheet
 

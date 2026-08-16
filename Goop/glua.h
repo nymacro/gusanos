@@ -45,26 +45,6 @@ struct LuaCallbacks {
 		max
 	};
 	void bind(std::string callback, LuaReference ref);
-	/*
-	std::vector<LuaReference> atGameStart;
-	std::vector<LuaReference> afterRender;
-	std::vector<LuaReference> afterUpdate;
-	std::vector<LuaReference> wormRender;
-	std::vector<LuaReference> viewportRender;
-	std::vector<LuaReference> wormDeath;
-	std::vector<LuaReference> wormRemoved;
-	std::vector<LuaReference> playerUpdate;
-	std::vector<LuaReference> playerInit;
-	std::vector<LuaReference> playerRemoved;
-	std::vector<LuaReference> playerNetworkInit;
-	std::vector<LuaReference> gameNetworkInit;
-	std::vector<LuaReference> gameEnded;
-	//TODO: std::vector<LuaReference> connectionRequest;
-
-	std::vector<LuaReference> localplayerEvent[7];
-	std::vector<LuaReference> localplayerEventAny;
-	std::vector<LuaReference> localplayerInit;
-	*/
 	std::vector<LuaReference> callbacks[max];
 
 	// Accessor for the callback vector of a given type. Use this directly for
@@ -155,22 +135,7 @@ inline bool dispatchCallbacksVeto(int type, A1 const &a1, A2 const &a2, A3 const
 	return veto;
 }
 
-/*
-// This is GCC specific, because I can't find a way to do it in standard C++ :/
-#define LUA_NEW(t_, param_) \
-({ \
-	void* space = lua.pushObject(t_::metaTable(), sizeof(t_)); \
-	t_* p = new (space) t_ param_; \
-	p->luaReference = lua.createReference(); \
-	p; \
-})
 
-
-#define LUA_DELETE(t_, p_) { \
-	t_* p = (p_); \
-	p->~t_(); \
-	lua.destroyReference(p->luaReference); \
-}*/
 
 struct LuaObject {
 	LuaObject() : deleted(false) {}

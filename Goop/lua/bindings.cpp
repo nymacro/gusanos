@@ -14,8 +14,6 @@
 #include "luaapi/macros.h"
 
 #include "../game.h"
-// #include "../vec.h"
-// #include "../gfx.h"
 #include "network.h"
 #include "../glua.h"
 #include "util/log.h"
@@ -130,8 +128,6 @@ int print(lua_State *L) {
 	to the player on the new client.
 */
 
-//! version 0.9c
-
 /*! bindings.playerRemoved(player)
 
 	This is called when a player is removed from the game. //player// is the Player object that will be removed.
@@ -156,8 +152,6 @@ int print(lua_State *L) {
 	* EndReason.IncompatibleData : Your data does not match the server's.
 
 */
-
-//! version any
 
 int l_bind(lua_State *L) {
 	char const *s = lua_tostring(L, 2);
@@ -262,7 +256,6 @@ int l_connect(lua_State *L) {
 	char const *s = lua_tostring(L, 1);
 	if (!s)
 		return 0;
-	// network.connect(s);
 	console.addQueueCommand(std::string("connect ") + s);
 	return 0;
 }
@@ -276,14 +269,6 @@ int l_host(lua_State *L) {
 	if (!map)
 		return 0;
 
-	/*
-	game.options.host = 1;
-	if(!game.changeLevelCmd( map ))
-		return 0;
-	lua_pushboolean(L, true);*/
-
-	// console.addQueueCommand("host 1");
-	// console.addQueueCommand(std::string("map \"") + map + '"');
 	game.options.host = 1;
 	game.changeLevelCmd(map);
 	return 0;
@@ -298,13 +283,6 @@ int l_map(lua_State *L) {
 	if (!map)
 		return 0;
 
-	/*
-	game.options.host = 1;
-	if(!game.changeLevelCmd( map ))
-		return 0;
-	lua_pushboolean(L, true);*/
-
-	// console.addQueueCommand(std::string("map \"") + map + '"');
 	game.options.host = 0;
 	game.changeLevelCmd(map);
 	return 0;
@@ -394,8 +372,6 @@ int l_undump(lua_State *L) {
 		if (!f.is_open())
 			return 0;
 
-		// context.deserialize(f);
-
 		int r = context.evalExpression("<persistent value>", f);
 		if (r != 1)
 			return 0;
@@ -409,50 +385,6 @@ int l_undump(lua_State *L) {
 
 	return 1;
 }
-
-/*
-std::string runLua(LuaReference ref, std::list<std::string> const& args)
-{
-	AssertStack as(lua);
-
-	lua.push(LuaContext::errorReport);
-	lua.pushReference(ref);
-	if(lua_isnil(lua, -1))
-	{
-		lua.pop(2);
-		return "";
-	}
-	int params = 0;
-
-	for(std::list<std::string>::const_iterator i = args.begin();
-		i != args.end();
-		++i)
-	{
-		lua_pushstring(lua, i->c_str());
-		++params;
-	}
-
-	int r = lua.call(params, 1, -params-2);
-	if(r < 0)
-	{
-		lua_pushnil(lua);
-		lua.assignReference(ref);
-		lua.pop(1);
-		return "";
-	}
-	lua_remove(lua, -1-1);
-
-	if(char const* s = lua_tostring(lua, -1))
-	{
-		std::string ret(s);
-		lua.pop(1);
-		return ret;
-	}
-
-	lua.pop(1);
-
-	return "";
-}*/
 
 void serverListCallb(lua_State *L, LuaReference ref, std::unique_ptr<HTTP::Request> req) {
 	static char const *fields[] = {"ip", "title", "desc", "mod", "map"};
@@ -523,8 +455,6 @@ void init() {
 	context.functions()("print", print)("console_register_command", l_console_register_command)(
 		"console_key_for_action", l_console_key_for_action)("console_bind", l_console_bind)("console_action_for_key",
 																							l_console_action_for_key)
-		//("dump", l_dump)
-		//("undump", l_undump)
 		("fetch_server_list", l_fetch_server_list)
 #ifndef DEDSERV
 			("clear_keybuf", l_clear_keybuf)("key_name", l_key_name)

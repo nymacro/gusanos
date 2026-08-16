@@ -28,10 +28,6 @@ bool PosSpdReplicator::checkState() {
 
 void PosSpdReplicator::packData(ZCom_BitStream *_stream) {
 #ifdef COMPACT_FLOATS
-	/*
-		dynamic_bitset<> n = game.level.vectorEncoding.encode(*m_posPtr);
-		Encoding::writeBitset(*_stream, n);
-	*/
 	encoding.encode(*_stream, *m_posPtr);
 #else
 	_stream->addFloat(m_posPtr->x, 32);
@@ -41,9 +37,6 @@ void PosSpdReplicator::packData(ZCom_BitStream *_stream) {
 	if (m_repCount >= speedRepTime) {
 		m_repCount = 0;
 		_stream->addBool(true);
-		/*
-				_stream->addFloat(m_spdPtr->x,speedPrec);
-				_stream->addFloat(m_spdPtr->y,speedPrec);*/
 		diffEncoding.encode(*_stream, *m_spdPtr);
 	} else {
 		++m_repCount;
@@ -54,9 +47,6 @@ void PosSpdReplicator::packData(ZCom_BitStream *_stream) {
 void PosSpdReplicator::unpackData(ZCom_BitStream *_stream, bool _store, zU32 _estimated_time_sent) {
 	if (_store) {
 #ifdef COMPACT_FLOATS
-		/*
-				dynamic_bitset<> n = Encoding::readBitset(*_stream, game.level.vectorEncoding.bits);
-				*m_posPtr = game.level.vectorEncoding.decode<Vec>(n);*/
 		*m_posPtr = encoding.decode<Vec>(*_stream);
 #else
 		m_posPtr->x = _stream->getFloat(32);
@@ -64,14 +54,10 @@ void PosSpdReplicator::unpackData(ZCom_BitStream *_stream, bool _store, zU32 _es
 #endif
 
 		if (_stream->getBool()) {
-			/*
-			m_spdPtr->x = _stream->getFloat(speedPrec);
-			m_spdPtr->y = _stream->getFloat(speedPrec);*/
 			*m_spdPtr = diffEncoding.decode<Vec>(*_stream);
 		}
 	} else {
 #ifdef COMPACT_FLOATS
-		// Encoding::readBitset(*_stream, game.level.vectorEncoding.bits);
 		encoding.decode<Vec>(*_stream);
 #else
 		_stream->getFloat(32);
@@ -79,9 +65,6 @@ void PosSpdReplicator::unpackData(ZCom_BitStream *_stream, bool _store, zU32 _es
 #endif
 
 		if (_stream->getBool()) {
-			/*
-			_stream->getFloat(speedPrec);
-			_stream->getFloat(speedPrec);*/
 			*m_spdPtr = diffEncoding.decode<Vec>(*_stream);
 		}
 	}
@@ -108,8 +91,3 @@ void PosSpdReplicator::clearPeekData() {
 	Vec *buf = (Vec *)peekDataRetrieve();
 	delete buf;
 };
-
-/*Vec VectorReplicator::getLastUpdate()
-{
-	return m_posCmp;
-}*/

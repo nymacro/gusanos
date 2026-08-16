@@ -91,32 +91,11 @@ inline Pixel blendColorsFact_32(Pixel color1, Pixel color2, int fact) {
 	return (res | g) | alpha;
 }
 
-// Does precomputation for a color in preparation for
-// the four parameter version of blendColorsFact_32.
 inline void prepareBlendColorsFact_32(Pixel color2, Pixel &color2rb, Pixel &color2g) {
 	color2rb = color2 & 0xFF00FF;
 	color2g = color2 & 0x00FF00;
 }
 
-/*
-inline Pixel32 blendColorsFact_32(Pixel32 color1, Pixel32 color2rb, Pixel32 color2g, int fact)
-{
-	Pixel32 temp2 = color1 & 0xFF00FF;
-	Pixel32 temp1;
-	temp1 = ((((color2rb - temp2) * fact) >> 8) + temp2) & 0xFF00FF;
-	color1 &= 0xFF00;
-	temp2 = ((((color2g - color1) * fact) >> 8) + color1) & 0xFF00;
-	return temp1 | temp2;
-
-	Pixel res = (((color1 & 0xFF00FF) - color2rb) * fact >> 8) + color2;
-	color1 &= 0xFF00;
-	Pixel g = ((color1 - color2g) * fact >> 8) + color2;
-
-	res &= 0xFF00FF;
-	g &= 0xFF00;
-
-	return res | g;
-}*/
 
 } // namespace Blitters
 

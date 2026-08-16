@@ -16,37 +16,6 @@ using namespace std;
 
 namespace OmfgGUI {
 
-/*
-struct GSSHandler
-{
-	GSSHandler(Context::GSSselectorMap& style_)
-	: style(style_)
-	{
-
-	}
-
-	void error(std::string err)
-	{
-		cout << err << endl;
-	}
-
-	void selector(std::string const& tagLabel, std::string const& className, std::string const& id, std::string const&
-state , std::string const& property, std::vector<std::string> const& value)
-	{
-		Context::GSSpropertyMap& dest = style.insert(tagLabel).insert(className).insert(id).insert(state);
-
-		dest.push_back(std::make_pair(property, value));
-	}
-
-	Context::GSSselectorMap& style;
-};
-
-void Context::loadGSS(std::istream& s)
-{
-	GSSHandler handler(m_gss);
-	gssSheet(s, handler);
-}*/
-
 struct XMLHandler {
 	struct Tag {
 		Tag(std::string const &label_) : label(label_) {}
@@ -87,36 +56,28 @@ struct XMLHandler {
 	}
 
 	void endAttributes() {
-		/*
-		std::string className = getAttrib("class", "");
-		std::string label = getAttrib("label", "");
-		std::string id = getAttrib("id", "");
-		bool focusable = getAttrib("selectable", "1") != "0";
-		*/
 		Wnd *newWindow = 0;
 
 		if (tag.label == "window") {
 			newWindow = lua_new_weak(Wnd, (windows.top().wnd, tag.attributes), lua);
 		} else if (tag.label == "list") {
 			newWindow =
-				lua_new_weak(List, (windows.top().wnd, /*tag.label, className, id,*/ tag.attributes /*, label*/), lua);
+				lua_new_weak(List, (windows.top().wnd, tag.attributes), lua);
 		} else if (tag.label == "button") {
 			newWindow = lua_new_weak(
-				Button, (windows.top().wnd, /*tag.label, className, id,*/ tag.attributes /*, label*/), lua);
+				Button, (windows.top().wnd, tag.attributes), lua);
 		} else if (tag.label == "group") {
 			newWindow =
-				lua_new_weak(Group, (windows.top().wnd, /*tag.label, className, id,*/ tag.attributes /*, label*/), lua);
+				lua_new_weak(Group, (windows.top().wnd, tag.attributes), lua);
 		} else if (tag.label == "edit") {
 			newWindow =
-				lua_new_weak(Edit, (windows.top().wnd, /*tag.label, className, id,*/ tag.attributes /*, label*/), lua);
+				lua_new_weak(Edit, (windows.top().wnd, tag.attributes), lua);
 		} else if (tag.label == "check") {
 			newWindow =
-				lua_new_weak(Check, (windows.top().wnd, /*tag.label, className, id,*/ tag.attributes /*, label*/), lua);
+				lua_new_weak(Check, (windows.top().wnd, tag.attributes), lua);
 		}
-		// newWindow->m_focusable = focusable;
 
 		if (!windows.top().wnd) {
-			// Set as root
 			context.setRoot(newWindow);
 		} else {
 			// Parenting is done here (not in the Wnd constructor) so that the
@@ -128,10 +89,6 @@ struct XMLHandler {
 		if (newWindow) {
 			if (!firstWindow)
 				firstWindow = newWindow;
-			/*
-			newWindow->applyGSS(style);
-			newWindow->updatePlacement();
-*/
 			windows.push(WndInfo(newWindow)); // Done last
 		}
 	}
@@ -157,39 +114,4 @@ Wnd *Context::buildFromXML(std::istream &s, Wnd *dest) {
 	return handler.firstWindow;
 }
 
-/*
-void Context::testParseXML()
-{
-	istringstream rootGSS(
-		"#root { background: #000080 ; left: 0 ; top: 0 ; bottom : -1 ; right: -1; padding: 29; spacing: 20 }");
-
-	istringstream rootXML("<window id=\"root\" />");
-
-	loadGSS(rootGSS, "root");
-	buildFromXML(rootXML, 0);
-
-	// ========================== test XML and GSS ====================
-
-	istringstream gss(
-		"button { background: #00AF00 ; "
-		" border: #AFFFAF; border-right: #00A000; border-bottom: #00A000 }"
-		"button:focused { background: #AF0000 ; border-right: #A00000; border-bottom: #A00000; }"
-		"#options { width: 100 ; height: 150 ; bottom: -10 ; right: -10 }");
-
-
-	istringstream xml(
-		"<button id=\"f\" label=\"Fullscreen\" command=\"vid_fullscreen 1\" />"
-		"<button id=\"w\" label=\"Windowed\" command=\"vid_fullscreen 0\" />"
-		"<button id=\"o\" label=\"Options\" command=\"gui_loadgss OPTIONS.GSS passive ; gui_loadxml options.xml ;
-gui_focus options\" />");
-
-	// ================================================================
-
-	loadGSS(gss, "default");
-
-	buildFromXML(xml, getRoot());
-
-	setFocus(findNamedWindow("f"));
-}
-*/
 } // namespace OmfgGUI

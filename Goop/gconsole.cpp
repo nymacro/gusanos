@@ -29,10 +29,6 @@ using namespace std;
 
 // Bind console command
 string bindCmd(const list<string> &args) {
-	// <GLIP> Simplified a little, removed unused vars
-	// and made it print out the help text when too
-	// few arguments are passed.
-
 	if (args.size() >= 2) {
 		std::list<string>::const_iterator arguments = args.begin();
 
@@ -84,82 +80,6 @@ string echoCmd(list<string> const &args) {
 }
 
 #ifndef DEDSERV
-/*
-// Key map swapping command
-string swapKeysCmd(const list<string> &args)
-{
-	if (args.size() >= 2)
-	{
-		std::list<string>::const_iterator arguments = args.begin();
-		std::string const& keyNameA = *arguments++;
-		int keyA = kName2Int(keyNameA);
-		TEST_KEY(keyA, keyNameA);
-
-		std::string const& keyNameB = *arguments++;
-		int keyB = kName2Int(keyNameB);
-		TEST_KEY(keyB, keyNameB);
-
-		KeyHandler::swapKeyMapping(keyA, keyB);
-		return "";
-	}
-	return "SWAPKEYS <KEY A> <KEY B> : SWAPS KEY A AND KEY B WITH EACHOTHER";
-}
-
-
-string setShiftChar(const list<string> &args)
-{
-	if (args.size() >= 2)
-	{
-		std::list<string>::const_iterator arguments = args.begin();
-
-		std::string const& keyName = *arguments++;
-		int key = kName2Int(keyName);
-		TEST_KEY(key, keyName);
-
-		int shiftCharacter = (*arguments)[0];
-
-		KeyHandler::setShiftCharacter(key, shiftCharacter);
-		return "";
-	}
-	return "SETSHIFTCHAR <KEY> <CHARACTER> : SETS THE CHARACTER TO BE USED WITH SHIFT+KEY";
-}
-
-string setChar(const list<string> &args)
-{
-	if (args.size() >= 2)
-	{
-		std::list<string>::const_iterator arguments = args.begin();
-
-		std::string const& keyName = *arguments++;
-		int key = kName2Int(keyName);
-		TEST_KEY(key, keyName);
-
-		int shiftCharacter = (*arguments)[0];
-
-		KeyHandler::setCharacter(key, shiftCharacter);
-		return "";
-	}
-	return "SETCHAR <KEY> <CHARACTER> : SETS THE CHARACTER TO BE USED WITH KEY";
-}
-
-string setAltGrChar(const list<string> &args)
-{
-	if (args.size() >= 2)
-	{
-		std::list<string>::const_iterator arguments = args.begin();
-
-		std::string const& keyName = *arguments++;
-		int key = kName2Int(keyName);
-		TEST_KEY(key, keyName);
-
-		int altgrCharacter = (*arguments)[0];
-
-		KeyHandler::setAltGrCharacter(key, altgrCharacter);
-		return "";
-	}
-	return "SETALTGRCHAR <KEY> <CHARACTER> : SETS THE CHARACTER TO BE USED WITH ALTGR+KEY";
-}
-*/
 string GConsole::setConsoleKey(list<string> const &args) {
 	if (args.size() >= 1) {
 		std::list<string>::const_iterator arguments = args.begin();
@@ -207,39 +127,6 @@ string aliasCmd(const list<string> &args) {
 	return "BIND <KEY> [COMMAND] : ATTACH A COMMAND TO A KEY";
 }
 
-/*
-string execScript(list<string> const& args)
-{
-	if (args.size() >= 2)
-	{
-		list<string>::const_iterator i = args.begin();
-		string const& file = *i++;
-		string const& function = *i++;
-		Script* s = scriptLocator.load(file);
-		if(!s)
-			return "SCRIPT FILE \"" + file + "\" COULDN'T BE LOADED";
-
-		s->pushFunction(function);
-		int params = 0;
-		for(; i != args.end(); ++i)
-		{
-			lua_pushstring(*s->lua, i->c_str());
-			++params;
-		}
-
-		int result = s->lua->call(params);
-
-		if(result < 0)
-		{
-			return ( "COULDN'T EXECUTE " + file + " " + function );
-		}
-		else
-			return "";
-	}
-	return "EXECSCRIPT <FILE> <FUNCTION> : EXECUTE A SCRIPT FILE";
-}
-*/
-
 string rndSeedCmd(list<string> const &args) {
 	if (args.size() > 0) {
 		std::list<string>::const_iterator i = args.begin();
@@ -262,9 +149,6 @@ string restCmd(list<string> const &args) {
 
 	return "REST <MS> : RESTS FOR A NUMBER OF MILLISECONDS";
 }
-/////////////////////////////// Console //////////////////////////////////////
-
-//============================= LIFECYCLE ====================================
 
 GConsole::GConsole()
 	: Console(256)
@@ -278,8 +162,6 @@ GConsole::GConsole()
 #endif
 	scrolling = false;
 }
-
-//============================= INTERFACE ====================================
 
 #ifndef DEDSERV
 void GConsole::varCbFont(std::string oldValue) {
@@ -297,7 +179,6 @@ void GConsole::init() {
 		keyHandler.init();
 
 		// Connect the handlers as group 0 so they are called first
-
 		keyHandler.printableChar.connect(0, [this](char c, int k) { return eventPrintableChar(c, k); });
 		keyHandler.keyDown.connect(0, [this](int k) { return eventKeyDown(k); });
 		keyHandler.keyUp.connect(0, [this](int k) { return eventKeyUp(k); });
@@ -314,7 +195,6 @@ void GConsole::init() {
 	}
 
 	m_mode = CONSOLE_MODE_BINDINGS;
-	// m_mode = CONSOLE_MODE_INPUT;
 
 	console.registerVariables()("CON_SPEED", &speed, 4)("CON_HEIGHT", &height, 120)
 #ifndef DEDSERV
@@ -325,16 +205,9 @@ void GConsole::init() {
 	console.registerCommands()
 #ifndef DEDSERV
 		(string("BIND"), bindCmd, bindCompleter)
-		/*
-				(string("SWAPKEYS"), swapKeysCmd)
-				(string("SETSHIFTCHAR"), setShiftChar)
-				(string("SETALTGRCHAR"), setAltGrChar)
-				(string("SETCHAR"), setChar)
-		*/
 		(string("SETCONSOLEKEY"), [this](std::list<std::string> const &args) { return setConsoleKey(args); })
 #endif
 			(string("EXEC"), execCmd)
-		//(string("EXECSCRIPT"), execScript)
 		(string("ALIAS"), aliasCmd)(string("ECHO"), echoCmd)(string("RND_SEED"), rndSeedCmd)(string("REST"), restCmd);
 
 	currentCommand = commandsLog.end(); // To workaround a crashbug with uninitialized iterator
@@ -345,8 +218,6 @@ void GConsole::init() {
 void GConsole::shutDown() {
 	if (!g_dedicated) {
 		keyHandler.shutDown();
-
-		// m_font must be deleted here!!!! hmm not sure now
 	}
 }
 
@@ -363,8 +234,6 @@ void GConsole::loadResources() {
 
 #ifndef DEDSERV
 void GConsole::render(BITMAP *where, bool fullScreen) {
-	// int textIndex = 0;
-
 	float pos = m_pos;
 	if (fullScreen)
 		pos = where->h - 1;
@@ -379,8 +248,8 @@ void GConsole::render(BITMAP *where, bool fullScreen) {
 
 		std::pair<int, int> dim;
 		string::const_reverse_iterator b = tempString.rbegin(), e = tempString.rend();
-		// When using reverse iterators, fitString tries to fit the spacing of
-		// the last character as well which isn't exactly what is wanted
+			// fitString on reverse iterators also fits the last char's spacing,
+			// which isn't wanted
 		e = m_font->fitString(b, e, 320 - 5, dim);
 		y -= dim.second;
 		m_font->draw(where, e.base(), b.base(), 5, y);
@@ -545,23 +414,11 @@ bool GConsole::eventPrintableChar(char c, int k) {
 			commandsLog.push_back(m_inputBuff); // add the text to the commands log too
 			currentCommand = commandsLog.end(); // reset the command log position
 			m_inputBuff.clear();				// and then clear the buffer
-		} else if (c == '\t')					// Tab
+		} else if (c == '\t')						// Tab
 		{
-			/*
-			string autoCompText = autoComplete( m_inputBuff );
-			if (m_inputBuff == autoCompText)
-			{
-				listItems(m_inputBuff);
-			}else
-			{
-				m_inputBuff = autoCompText;
-			}
-			*/
-
 			m_inputBuff = autoComplete(m_inputBuff);
 		} else // No special keys where detected so the char gets added to the string
 		{
-			// m_inputBuff += toupper(c);
 			m_inputBuff += c;
 		}
 		return false;
@@ -609,6 +466,5 @@ void GConsole::addLogMsg(const std::string &msg) {
 	}
 	Console::addLogMsg(msg);
 }
-//============================= PRIVATE ======================================
 
 GConsole console;

@@ -116,7 +116,7 @@ void Particle::operator delete(void *block) {
 }
 
 Particle::Particle(PartType *type, Vec pos_, Vec spd_, int dir, BasePlayer *owner, Angle angle)
-	: BaseObject(owner, pos_, spd_), /*m_dir(dir), */ m_type(type), m_health(type->health), m_angle(angle),
+	: BaseObject(owner, pos_, spd_), m_type(type), m_health(type->health), m_angle(angle),
 	  m_angleSpeed(0)
 #ifndef DEDSERV
 	  ,
@@ -159,11 +159,6 @@ Particle::~Particle() {
 
 void Particle::assignNetworkRole(bool authority) {
 	m_node = new ZCom_Node();
-	/* operator new never returns 0
-	if (!m_node)
-	{
-		allegro_message("ERROR: Unable to create particle node.");
-	}*/
 
 	m_node->beginReplicationSetup(0);
 
@@ -179,25 +174,17 @@ void Particle::assignNetworkRole(bool authority) {
 	interceptor = new ParticleInterceptor(this);
 	m_node->setReplicationInterceptor(interceptor);
 
-	// DLOG("Registering node, type " << m_type->getIndex() << " of " << partTypeList.size());
 	if (authority) {
-
-		// DLOG("Announce data set");
 		m_node->setEventNotification(true, false); // Enables the eEvent_Init.
 		if (!m_node->registerNodeDynamic(classID, network.getZControl()))
 			allegro_message("ERROR: Unable to register particle authority node.");
 	} else {
 		m_node->setEventNotification(false, true); // Same but for the remove event.
-		// DLOG("Event notification set");
 		if (!m_node->registerRequestedNode(classID, network.getZControl()))
 			allegro_message("ERROR: Unable to register particle requested node.");
 	}
 
-	// DLOG("Node registered");
-
 	m_node->applyForZoidLevel(1);
-
-	// DLOG("Applied for zoidlevel");
 }
 
 inline Vec getCorrection(const Vec &objPos, const Vec &pointPos, float radius) {
@@ -370,15 +357,12 @@ void Particle::think() {
 #endif
 		}
 
-		// for ( vector< DetectEvent* >::iterator t = m_type->detectRanges.begin(); t != m_type->detectRanges.end(); ++t
-		// )
 		for (auto t : m_type->detectRanges) {
 			t->check(this);
 		}
 		if (deleteMe)
 			break;
 
-		// for ( vector< TimerEvent::State* >::iterator t = timer.begin(); t != timer.end(); t++)
 		for (auto &t : timer) {
 			if (t.tick()) {
 				t.event->run(this);
@@ -463,10 +447,6 @@ void Particle::drawLine2Origin(Viewport *viewport, BlitterContext const &blitter
 		IVec rPos = viewport->convertCoords(IVec(pos));
 		IVec rOPos = viewport->convertCoords(IVec(m_origin));
 		blitter.line(viewport->dest, rOPos.x, rOPos.y, rPos.x, rPos.y, m_type->colour);
-		// mooo.createPath( 7, 7);
-		// mooo.render(where, x,y,x2,y2, m_type->colour);
-		// mooo.createPath( 5, 10);
-		// mooo.render(where, x,y,x2,y2, m_type->colour);
 	}
 }
 
@@ -493,9 +473,6 @@ void Particle::draw(Viewport *viewport) {
 	} else {
 		if (!m_type->culled) {
 			m_sprite->getSprite(m_animator->getFrame(), m_angle)->draw(where, x, y, blitter);
-
-			// Blitters::drawSpriteRotate_solid_32(where, m_sprite->getSprite(m_animator->getFrame())->m_bitmap, x, y,
-			// -m_angle.toRad());
 		} else {
 			Sprite *renderSprite = m_sprite->getSprite(m_animator->getFrame(), m_angle);
 			game.level.culledDrawSprite(renderSprite, viewport, IVec(pos), (int)m_alpha);
@@ -528,7 +505,6 @@ void Particle::sendLuaEvent(LuaEventDef *event, eZCom_SendMode mode, zU8 rules, 
 	if (!m_node)
 		return;
 	ZCom_BitStream data;
-	// addEvent(&data, LuaEvent);
 	data.addInt(event->idx, 8);
 	if (userdata) {
 		data.addBitStream(userdata);
@@ -542,19 +518,6 @@ void Particle::sendLuaEvent(LuaEventDef *event, eZCom_SendMode mode, zU8 rules, 
 void Particle::makeReference() {
 	lua.pushFullReference(*this, metaTable);
 }
-
-/*
-LuaReference Particle::getLuaReference()
-{
-	if(luaReference)
-		return luaReference;
-	else
-	{
-		lua.pushFullReference(*this, metaTable);
-		luaReference = lua.createReference();
-		return luaReference;
-	}
-}*/
 
 void Particle::finalize() {
 	delete m_node;

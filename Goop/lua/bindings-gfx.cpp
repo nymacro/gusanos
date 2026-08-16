@@ -41,7 +41,6 @@ BlitterContext blitter;
 int l_gfx_draw_box(lua_State *L) {
 #ifndef DEDSERV
 	LuaContext context(L);
-	// BITMAP* b = *static_cast<BITMAP **>(lua_touserdata(L, 1));
 	BITMAP *b = ASSERT_OBJECT(BITMAP, 1);
 
 	int x1 = lua_tointeger(L, 2);
@@ -72,8 +71,6 @@ int l_gfx_draw_box_depr(lua_State *L) {
 	return l_gfx_draw_box(L);
 }
 #endif
-
-//! version 0.9c
 
 /*! Bitmap:line(x1, y1, x2, y2, color)
 
@@ -189,8 +186,6 @@ int l_color(lua_State *L) {
 	return 1;
 }
 
-//! version any
-
 /*! gfx_set_alpha(alpha)
 
 	Activates the alpha blender.
@@ -205,8 +200,6 @@ int l_gfx_set_alpha(lua_State *L) {
 	return 0;
 }
 
-//! version 0.9c
-
 /*! gfx_set_alphach(alpha)
 
 	Activates the alphach blender.
@@ -220,8 +213,6 @@ int l_gfx_set_alphach(lua_State *L) {
 #endif
 	return 0;
 }
-
-//! version any
 
 /*! gfx_set_add(alpha)
 
@@ -269,8 +260,6 @@ int l_viewport_getBitmap_depr(lua_State *L) {
 
 METHOD(Viewport, viewport_getGameBitmap, context.pushFullReference(*p->dest, BITMAPMetaTable); return 1;)
 
-//! version 0.9c
-
 /*! Viewport:from_map(x, y)
 
 	Converts the map coordinates (x, y) to
@@ -279,8 +268,6 @@ METHOD(Viewport, viewport_getGameBitmap, context.pushFullReference(*p->dest, BIT
 METHOD(Viewport, viewport_fromMap, lua_Integer x = lua_tointeger(context, 2); lua_Integer y = lua_tointeger(context, 3);
 
 	   IVec v(p->convertCoords(IVec(x, y))); context.push(v.x); context.push(v.y); return 2;)
-
-//! version any
 
 /*! Bitmap:w()
 
@@ -303,13 +290,6 @@ void initGfx() {
 #ifndef NO_DEPRECATED
 		("gfx_draw_box", l_gfx_draw_box_depr)
 #endif
-		/*
-		("gfx_line", l_gfx_line)
-		("gfx_linewu", l_gfx_linewu)
-		("gfx_putpixelwu", l_gfx_putpixelwu)
-		("gfx_putpixel", l_gfx_putpixel)
-		("gfx_hline", l_gfx_hline)*/
-		//("gfx_vline", l_gfx_vline)
 		("color", l_color)("gfx_set_alpha", l_gfx_set_alpha)("gfx_set_alphach", l_gfx_set_alphach)(
 			"gfx_set_add", l_gfx_set_add)("gfx_reset_blending", l_gfx_reset_blending);
 

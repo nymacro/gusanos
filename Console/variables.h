@@ -4,8 +4,6 @@
 #include "consoleitem.h"
 #include "util/text.h"
 #include <functional>
-// #include <boost/lexical_cast.hpp>
-// using boost::lexical_cast;
 
 #include <string>
 #include <map>
@@ -52,7 +50,6 @@ class TVariable : public Variable {
 
 			return std::string();
 		} else {
-			// return m_name + " IS \"" + cast<std::string>(*m_src) + '"';
 			return convert<std::string>::value(*m_src);
 		}
 	}
@@ -62,48 +59,6 @@ class TVariable : public Variable {
 	T m_defaultValue;
 	CallbackT m_callback;
 };
-
-/*
-template<class T, class IT>
-inline TVariable<T>* tVariable(std::string name, T* src, IT defaultValue, void (*callback)( T ) = NULL )
-{
-	return new TVariable<T>(name, src, defaultValue, callback);
-}*/
-
-/*
-class IntVariable : public Variable
-{
-	public:
-
-	IntVariable(int* src, std::string name, int defaultValue, void (*func)( int ) );
-	IntVariable();
-	~IntVariable();
-
-	std::string invoke(const std::list<std::string> &args);
-
-	private:
-
-	void (*callback)( int );
-	int* m_src;
-	int m_defaultValue;
-};
-
-class FloatVariable : public Variable
-{
-	public:
-
-	FloatVariable( float* src, std::string name, float defaultValue, void (*func)( float ) );
-	FloatVariable();
-	~FloatVariable();
-
-	std::string invoke(const std::list<std::string> &args);
-
-	private:
-
-	void (*callback)( float );
-	float* m_src;
-	float m_defaultValue;
-};*/
 
 typedef TVariable<int> IntVariable;
 typedef TVariable<float> FloatVariable;

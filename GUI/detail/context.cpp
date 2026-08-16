@@ -9,13 +9,6 @@ using std::endl;
 
 namespace OmfgGUI {
 
-/*
-Context::GSSpropertyMap Context::GSSpropertyMapStandard;
-Context::GSSstate Context::GSSstate::standard;
-Context::GSSid Context::GSSid::standard;
-Context::GSSclass Context::GSSclass::standard;
-*/
-
 void Context::destroy() {
 	// Clear keyboard focus so derived classes (GContext) can release any
 	// focus-driven binding lock. Otherwise a window that was focused at
@@ -59,7 +52,6 @@ void Context::updateGSS() {
 		m_rootWnd->doUpdateGSS();
 }
 
-// Sends a cursor relocation event
 void Context::mouseMove(ulong newX, ulong newY) {
 	m_cursorX = newX;
 	m_cursorY = newY;
@@ -70,7 +62,6 @@ void Context::mouseMove(ulong newX, ulong newY) {
 		m_rootWnd->doMouseMove(newX, newY);
 }
 
-// Sends a mouse button down event
 void Context::mouseDown(ulong newX, ulong newY, MouseKey::type button) {
 	if (m_mouseCaptureWnd)
 		m_mouseCaptureWnd->mouseDown(newX, newY, button);
@@ -78,7 +69,6 @@ void Context::mouseDown(ulong newX, ulong newY, MouseKey::type button) {
 		m_rootWnd->doMouseDown(newX, newY, button);
 }
 
-// Sends a mouse button up event
 void Context::mouseUp(ulong newX, ulong newY, MouseKey::type button) {
 	if (m_mouseCaptureWnd)
 		m_mouseCaptureWnd->mouseUp(newX, newY, button);
@@ -86,13 +76,10 @@ void Context::mouseUp(ulong newX, ulong newY, MouseKey::type button) {
 		m_rootWnd->doMouseUp(newX, newY, button);
 }
 
-// Sends a printable character
 void Context::charPressed(char c) {}
 
-// Sends a keydown event
 void Context::keyDown(KeyType k, bool shift, bool alt, bool ctrl) {}
 
-// Sends a keyup event
 void Context::keyUp(KeyType k, bool shift, bool alt, bool ctrl) {}
 
 void Context::render() {
@@ -183,16 +170,6 @@ void Context::registerNamedWindow(std::string const &id, Wnd *wnd) {
 		return;
 
 	m_namedWindows.insert(std::make_pair(id, wnd));
-
-	/*
-	std::map<std::string, Wnd*>::iterator i = m_namedWindows.find(id);
-	if(i != m_namedWindows.end())
-	{
-		//cerr << "Deleting conflicting window (named '" << id << "'): " << i->second << endl;
-		//delete i->second; //Delete conflicting window
-	}
-	m_namedWindows[id] = wnd;
-	*/
 }
 
 void Context::deregisterWindow(Wnd *wnd) {
@@ -206,7 +183,6 @@ void Context::deregisterWindow(Wnd *wnd) {
 		m_activeWnd = 0;
 	if (m_mouseFocusWnd == wnd)
 		m_mouseFocusWnd = 0;
-	// deregisterNamedWindow(wnd->m_id);
 	for (auto it = m_namedWindows.begin(); it != m_namedWindows.end();) {
 		if (it->second == wnd)
 			it = m_namedWindows.erase(it);

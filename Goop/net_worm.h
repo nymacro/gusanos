@@ -1,10 +1,7 @@
 #ifndef NET_WORM_H
 #define NET_WORM_H
 
-// #include "vec.h"
-// #include "base_object.h"
 #include "base_worm.h"
-// #include "sprite.h"
 
 #include "network_compat.h"
 
@@ -108,7 +105,6 @@ class NetWorm : public BaseWorm {
 	void setWeapon(size_t index, WeaponType *type);
 	void clearWeapons();
 
-	// virtual void deleteThis();
 	virtual void finalize();
 
 	Vec lastPosUpdate;

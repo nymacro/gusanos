@@ -20,20 +20,6 @@ LuaReference listIterator;
 
 #ifndef DEDSERV
 
-// std::vector<LuaReference> guiWndMetaTable;
-// LuaReference gui_listIterator;
-
-/* TODO
-void initWindow(Wnd* w)
-{
-	std::string v;
-	if(w->getAttrib("selectable", v))
-		newWindow->m_focusable = (v != "0");
-	else
-		newWindow->m_focusable = true;
-}
-*/
-
 template <class T>
 int l_gui_wnd(lua_State *L) {
 	LuaContext context(L);
@@ -93,8 +79,7 @@ int l_gui_loadxml(lua_State *L) {
 		OmfgGUI::Wnd *loadTo = gui.getRoot();
 
 		if (params > 1) {
-			// loadTo = static_cast<OmfgGUI::Wnd *>(lua_touserdata(context, 2));
-			loadTo = ASSERT_LOBJECT(OmfgGUI::Wnd, 2); //(lua_touserdata(context, 2));
+			loadTo = ASSERT_LOBJECT(OmfgGUI::Wnd, 2);
 		}
 
 		OmfgGUI::Wnd *w = gui.loadXMLFile(name, loadTo);
@@ -289,8 +274,7 @@ LMETHODC(OmfgGUI::Wnd, gui_wnd_focus, p->focus(); return 0;)
 */
 LMETHODC(
 	OmfgGUI::Wnd, gui_wnd_set_sub_focus,
-	// OmfgGUI::Wnd* sub = static_cast<OmfgGUI::Wnd*>(lua_touserdata(context, 2));
-	OmfgGUI::Wnd *sub = ASSERT_LOBJECT(OmfgGUI::Wnd, 2); //(lua_touserdata(context, 2));
+	OmfgGUI::Wnd *sub = ASSERT_LOBJECT(OmfgGUI::Wnd, 2);
 
 	// Make sure that 'sub' is a child of 'p'
 	OmfgGUI::Wnd *parent = sub->getParent();
@@ -359,7 +343,6 @@ int l_gui_listIterator(lua_State *L) {
 	if (lua_isnil(context, 2))
 		lua_pushvalue(context, 1);
 	else {
-		// OmfgGUI::ListNode* i = static_cast<OmfgGUI::ListNode *>(lua_touserdata(context, 2));
 		OmfgGUI::ListNode *i = ASSERT_LOBJECT(OmfgGUI::ListNode, 2);
 
 		i = OmfgGUI::ListNode::getNextVisible(i);
@@ -379,17 +362,10 @@ int l_gui_listIterator(lua_State *L) {
 */
 LMETHODC(OmfgGUI::List, gui_list_subinsert,
 
-		 // OmfgGUI::ListNode* parent = static_cast<OmfgGUI::ListNode *>(lua_touserdata(context, 2));
 		 OmfgGUI::ListNode *parent = ASSERT_LOBJECT(OmfgGUI::ListNode, 2);
 
-		 // if(!p->verify(parent))
-		 //	return 0;
-
 		 int c = lua_gettop(context);
-		 // void* mem = lua_newuserdata(context, sizeof(LuaListNode));
-		 // lua_pushvalue(context, -1);
 		 OmfgGUI::ListNode *n = lua_new_weak_keep(OmfgGUI::ListNode, (""), context);
-		 // LuaListNode* n = new (mem) LuaListNode(context.createReference(), "");
 		 p->push_back(n, parent); for (int i = 3; i <= c; ++i) n->setText(i - 3, lua_tostring(context, i));
 
 		 return 1;)
@@ -486,7 +462,6 @@ void addGUIWndFunctions(LuaContext &context) {
 				"set_sub_focus", l_gui_wnd_set_sub_focus)("activate", l_gui_wnd_activate)(
 				"deactivate", l_gui_wnd_deactivate)("child", l_gui_wnd_child)("switch_to",
 																			  l_gui_wnd_switch_to)("add", l_gui_wnd_add)
-		//("bind", l_gui_wnd_bind)
 		;
 }
 
@@ -572,7 +547,6 @@ void initGUI(OmfgGUI::Context &gui, LuaContext &context) {
 
 	lua_rawset(context, -3);
 	context.tableSetField(LuaID<OmfgGUI::Wnd>::value);
-	// LuaReference ref = context.createReference();
 	context.pushvalue(-1);
 	context.pushvalue(-1);
 	context.pushvalue(-1);
@@ -642,7 +616,6 @@ void initGUI(OmfgGUI::Context &gui, LuaContext &context) {
 	OmfgGUI::ListNode::metaTable = context.createReference();
 
 	context.push(l_gui_listIterator);
-	// context.regObject("gui_listIterator");
 	listIterator = context.createReference();
 #endif
 }

@@ -161,10 +161,10 @@ LuaReference LuaGameEventMetaTable, LuaPlayerEventMetaTable, LuaWormEventMetaTab
 
 class LuaSocket : public TCP::Socket {
   public:
-	LuaSocket(int s_ /*LuaReference ref, int s_, LuaContext context_, LuaReference recvCallback_*/)
-		: TCP::Socket(s_, 10 * 60) //, context(context_), recvCallback(recvCallback_)
+	LuaSocket(int s_)
+		: TCP::Socket(s_, 10 * 60)
 		  ,
-		  dataSender(0) //, luaReference(ref)
+		  dataSender(0)
 	{}
 
 	void send(char const *p, size_t len) {
@@ -226,8 +226,6 @@ class LuaSocket : public TCP::Socket {
   private:
 	TCP::Socket::ResumeSend *dataSender;
 	std::list<std::pair<char *, char *>> sendQueue;
-	// LuaContext context;
-	// LuaReference recvCallback;
 	LuaReference luaReference;
 };
 
@@ -242,9 +240,6 @@ int l_tcp_connect(lua_State *L) {
 	if (!addr)
 		return 0;
 	int port = lua_tointeger(context, 2);
-
-	// lua_pushvalue(context, 3);
-	// LuaReference recvCallback = context.createReference();
 
 	sockaddr_in server;
 
@@ -265,8 +260,6 @@ int l_tcp_connect(lua_State *L) {
 	}
 
 	void *space = lua_newuserdata(context, sizeof(LuaSocket));
-	// lua_pushvalue(context, -1);
-	// LuaSocket* sock = new (space) LuaSocket(context.createReference(), s, context, recvCallback);
 	new (space) LuaSocket(s);
 	context.push(SocketMetaTable);
 	lua_setmetatable(context, -2);
@@ -462,8 +455,6 @@ LUA_EVENT_SEND_METHOD(player, 1, BasePlayer *player = 0;, case 2 : player = ASSE
 LUA_EVENT_SEND_METHOD(worm, 1, BaseWorm *worm = 0;, case 2 : worm = ASSERT_OBJECT(BaseWorm, 2);
 					  , if (worm) worm->sendLuaEvent(p, mode, rules, userdata, connID);)
 
-//! version 0.9c
-
 /*! NetworkParticleEvent:send(particle, [data[, connection[, mode[, rules]]]])
 
 	Sends a particle event to one or more computers.
@@ -475,8 +466,6 @@ LUA_EVENT_SEND_METHOD(worm, 1, BaseWorm *worm = 0;, case 2 : worm = ASSERT_OBJEC
 LUA_EVENT_SEND_METHOD(particle, 1, Particle *particle = 0;
 					  , case 2 : particle = ASSERT_OBJECT(Particle, 2); /* fall through */
 					  , if (particle) particle->sendLuaEvent(p, mode, rules, userdata, connID);)
-
-//! version any
 
 /*! network_game_event(name, handler)
 
@@ -555,8 +544,6 @@ int l_network_worm_event(lua_State *L) {
 	return 1;
 }
 
-//! version 0.9c
-
 /*! network_particle_event(name, handler)
 
 	Creates and returns a NetworkParticleEvent object.
@@ -582,8 +569,6 @@ int l_network_particle_event(lua_State *L) {
 
 	return 1;
 }
-
-//! version any
 
 void initNetwork(LuaContext &context) {
 	context.functions()("tcp_connect", l_tcp_connect)("network_game_event", l_network_game_event)(

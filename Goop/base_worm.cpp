@@ -214,7 +214,6 @@ void BaseWorm::calculateReactionForce(BaseVec<long> origin, Direction d) {
 }
 
 void BaseWorm::calculateAllReactionForces(BaseVec<float> &nextPos, BaseVec<long> &inextPos) {
-	// static const float correctionSpeed = 70.0f / 100.0f;
 	static const float correctionSpeed = 1.0f;
 
 	// Calculate all reaction forces
@@ -346,11 +345,6 @@ void BaseWorm::processJumpingAndNinjaropeControls() {
 }
 
 void BaseWorm::processMoveAndDig(void) {
-	// ????????????? wtf is this for?
-	// if(!movable && !movingLeft && !movingRight)
-	//	movable = true;
-
-	// if(movable)
 	if (true) {
 		float acc = game.options.worm_acceleration;
 
@@ -437,9 +431,6 @@ void BaseWorm::think() {
 				if (m_fireconeTime == 0)
 					m_currentFirecone = NULL;
 				--m_fireconeTime;
-				/*
-				if(m_fireconeAnimator)
-					m_fireconeAnimator->tick();*/
 				m_fireconeAnimator->tick();
 			}
 		}
@@ -449,144 +440,6 @@ void BaseWorm::think() {
 		}
 		++m_timeSinceDeath;
 	}
-	/* TODO
-	}
-	else
-	{
-		//Respawn
-	}
-	*/
-	/* OLD CODE
-		spd.y+=game.options.worm_gravity;
-
-		if ( m_ninjaRope->attached && (m_ninjaRope->pos - pos).length() > currentRopeLength)
-		{
-			spd += (m_ninjaRope->pos - pos).normal() * game.options.ninja_rope_pullForce;
-		}
-
-		if ( movingRight )
-		{
-			if ( spd.x < game.options.worm_maxSpeed )
-			{
-				if (game.level.getMaterial( (int)pos.x, (int)(pos.y + spd.y + 1) ).particle_pass)
-					spd.x += game.options.worm_acceleration * game.options.worm_airAccelerationFactor;
-				else
-					spd.x += game.options.worm_acceleration;
-			}
-			dir = 1;
-		}
-
-		if ( movingLeft )
-		{
-			if ( -spd.x < game.options.worm_maxSpeed )
-			{
-				if (game.level.getMaterial( (int)pos.x, (int)(pos.y + spd.y + 1) ).particle_pass)
-					spd.x -= game.options.worm_acceleration * game.options.worm_airAccelerationFactor;
-				else
-					spd.x -= game.options.worm_acceleration;
-			}
-			dir = -1;
-		}
-
-
-		// Bottom collision
-		Material g = game.level.getMaterial( (int)pos.x, (int)(pos.y + spd.y) );
-		if (!g.particle_pass && spd.y > 0)
-		{
-			// Floor friction;
-			if ( fabs(spd.x) < game.options.worm_friction ) spd.x=0;
-			if ( spd.x < 0 ) spd.x += game.options.worm_friction;
-			if ( spd.x > 0 ) spd.x += -game.options.worm_friction;
-
-			if ( spd.y < game.options.worm_bounceLimit ) spd.y=0;
-			else
-			{
-				spd.y*=-game.options.worm_bounceQuotient;
-			}
-		}
-
-		// Top collision
-		g = game.level.getMaterial( (int)pos.x, (int)(pos.y + spd.y - game.options.worm_height) );
-		if (!g.particle_pass && spd.y < 0)
-		{
-			// Roof friction;
-			if ( fabs(spd.x) < game.options.worm_friction ) spd.x=0;
-			if ( spd.x < 0 ) spd.x += game.options.worm_friction;
-			if ( spd.x > 0 ) spd.x += -game.options.worm_friction;
-
-			if ( -spd.y < game.options.worm_bounceLimit ) spd.y=0;
-			else
-			{
-				spd.y*=-game.options.worm_bounceQuotient;
-			}
-		}
-
-		//Side collisions and climbing
-		//int o = 0;
-		int upper = -1;
-		int lower = -1;
-		for ( int i = 0; i < game.options.worm_height; i++ )
-		{
-			if (!game.level.getMaterial( (int)(pos.x + spd.x), (int)(pos.y - i) ).particle_pass) lower = i;
-		}
-		for ( int i = 0; i <= game.options.worm_height; i++ )
-		{
-			if (!game.level.getMaterial( (int)(pos.x + spd.x), (int)(pos.y - game.options.worm_height + i)
-	   ).particle_pass) upper = i;
-		}
-
-		// Floor climb
-		if (lower <= game.options.worm_maxClimb && lower != -1 && !spd.x == 0)
-		{
-			pos.y -= 1;
-		}
-
-		// Roof climb
-		if (upper <= game.options.worm_maxClimb && upper != -1 && !spd.x == 0)
-		{
-			pos.y += 1;
-		}
-
-		if ( lower >= game.options.worm_maxClimb / 2 )
-		{
-			if ( fabs( spd.x ) > game.options.worm_bounceLimit )
-			{
-				spd.x *= -game.options.worm_bounceQuotient;
-			}
-			else spd.x = 0;
-		}
-
-		if ( upper == -1 && lower == -1 )
-			pos.x += spd.x;
-		pos.y += spd.y;
-
-		if ( m_owner )
-		{
-			if ( fabs(aimSpeed) < m_owner->getOptions()->aimFriction ) aimSpeed = 0;
-			else if ( aimSpeed > 0 ) aimSpeed -= m_owner->getOptions()->aimFriction;
-			else if ( aimSpeed < 0 ) aimSpeed += m_owner->getOptions()->aimFriction;
-		}
-		aimAngle += aimSpeed;
-
-		if( aimAngle < 0 )
-		{
-			aimAngle = 0;
-			aimSpeed = 0;
-		}
-		if( aimAngle > 180 )
-		{
-			aimAngle = 180;
-			aimSpeed = 0;
-		}
-
-		if ( movingLeft || movingRight ) m_animator->tick();
-
-		// Make weapons think
-		for ( size_t i = 0; i < m_weapons.size(); ++i )
-		{
-			m_weapons[i]->think();
-		}
-	*/
 }
 
 Vec BaseWorm::getWeaponPos() {
@@ -595,14 +448,9 @@ Vec BaseWorm::getWeaponPos() {
 
 #ifndef DEDSERV
 Vec BaseWorm::getRenderPos() {
-	return renderPos; // - Vec(0,0.5);
+	return renderPos;
 }
 #endif
-/*
-Vec BaseWorm::getWeaponPos()
-{
-	return renderPos - Vec(0,game.options.worm_weaponHeight+0.5);
-}*/
 
 float BaseWorm::getHealth() {
 	return health;
@@ -635,38 +483,6 @@ int BaseWorm::getWeaponIndexOffset(int offset) {
 void BaseWorm::setDir(int d) {
 	m_dir = d;
 }
-
-/*
-bool BaseWorm::isCollidingWith( const Vec& point, float radius )
-{
-	if ( m_isActive )
-	if ( pos.x+game.options.worm_boxRadius > point.x-radius && pos.x-game.options.worm_boxRadius < point.x+radius )
-	if ( pos.y+game.options.worm_boxBottom > point.y-radius && pos.y-game.options.worm_boxTop < point.y+radius )
-	{
-		if ( point.x > pos.x+game.options.worm_boxRadius )
-		{
-			if ( point.y > pos.y+game.options.worm_boxBottom)
-			{
-				if ( (pos + Vec(game.options.worm_boxRadius,game.options.worm_boxBottom) - point).lengthSqr() <
-radius*radius ) return true; }else if (point.y < pos.y-game.options.worm_boxTop)
-			{
-				if ( (pos + Vec(game.options.worm_boxRadius,-game.options.worm_boxTop) - point).lengthSqr() <
-radius*radius ) return true; }else return true; }else if ( point.x < pos.x-game.options.worm_boxRadius )
-		{
-			if ( point.y > pos.y+game.options.worm_boxBottom)
-			{
-				if ( (pos + Vec(-game.options.worm_boxRadius,game.options.worm_boxBottom) - point).lengthSqr() <
-radius*radius ) return true; }else if (point.y < pos.y-game.options.worm_boxTop)
-			{
-				if ( (pos + Vec(-game.options.worm_boxRadius,-game.options.worm_boxTop) - point).lengthSqr() <
-radius*radius ) return true; }else return true; }else
-		{
-			return true;
-		}
-	}
-	return false;
-}
-*/
 
 bool BaseWorm::isCollidingWith(Vec const &point, float radius) {
 	if (!m_isActive)
@@ -728,10 +544,6 @@ void BaseWorm::draw(Viewport *viewport) {
 		return;
 
 	if (m_isActive) {
-		/*
-		bool flipped = false;
-		if ( m_dir < 0 ) flipped = true;*/
-
 		BITMAP *where = viewport->dest;
 		IVec rPos = viewport->convertCoords(IVec(renderPos));
 
@@ -742,29 +554,9 @@ void BaseWorm::draw(Viewport *viewport) {
 			int renderX = x;
 			int renderY = y;
 
-			/*
-			if ( m_weapons[currentWeapon] && m_weapons[currentWeapon]->reloading )
-			{
-				IVec crosshair = IVec(getAngle(), 25.0) + rPos;
-				float radius = m_weapons[currentWeapon]->reloadTime /
-			(float)m_weapons[currentWeapon]->m_type->reloadTime; circle(where,
-			crosshair.x,crosshair.y,2,makecol(static_cast<int>(255*radius), static_cast<int>(255*(1-radius)),0));
-			}
-			else for(int i = 0; i < 10; i++)
-			{
-				Vec crosshair = Vec(getAngle(), rnd()*10.0+20.0);
-				putpixel(where, x+static_cast<int>( crosshair.x ), y+static_cast<int>(crosshair.y), makecol(255,0,0));
-			}*/
-
 			if (m_ninjaRope->active) {
 				IVec nrPos = viewport->convertCoords(IVec(m_ninjaRope->pos));
 				line(where, x, y, nrPos.x, nrPos.y, m_ninjaRope->getColour());
-				/*linewu_solid(where
-					, x
-					, y
-					, nrPos.x
-					, nrPos.y
-				, m_ninjaRope->getColour());*/
 			}
 
 			if (Weapon *w = getCurrentWeapon())
@@ -791,17 +583,6 @@ void BaseWorm::draw(Viewport *viewport) {
 
 				game.infoFont->draw(where, weaponName, wx, wy);
 			}
-
-			/*
-			if ( false && m_owner && !dynamic_cast<Player*>(m_owner) )
-			{
-				std::string const& playerName = m_owner->m_name;
-				std::pair<int, int> dim = game.infoFont->getDimensions(playerName, 0, Font::Formatting);
-				int wx = x - dim.first / 2;
-				int wy = y - dim.second / 2 - 10;
-
-				game.infoFont->draw(where, playerName, wx, wy, 0, 256, 255, 255, 255, Font::Formatting);
-			}*/
 		}
 
 #ifdef DEBUG_WORM_REACTS
@@ -839,7 +620,6 @@ void BaseWorm::respawn(const Vec &newPos) {
 		if (m_weapons[i])
 			m_weapons[i]->reset();
 	}
-	// DBGOUT("Respawn", ...);
 }
 
 void BaseWorm::dig() {
@@ -880,7 +660,6 @@ void BaseWorm::die() {
 	m_ninjaRope->remove();
 	m_timeSinceDeath = 0;
 	if (game.deathObject) {
-		// game.insertParticle( new Particle( game.deathObject, pos, spd, m_dir, m_owner, spd.getAngle() ) );
 		game.deathObject->newParticle(game.deathObject, pos, spd, m_dir, m_owner, spd.getAngle());
 	}
 }
@@ -1016,28 +795,9 @@ void BaseWorm::actionStop(Actions action, float intensity) {
 	}
 }
 
-/*
-void BaseWorm::pushLuaReference()
-{
-	lua.pushReference(luaReference);
-}*/
-
 void BaseWorm::makeReference() {
 	lua.pushFullReference(*this, metaTable);
 }
-
-/*
-LuaReference BaseWorm::getLuaReference()
-{
-	if(luaReference)
-		return luaReference;
-	else
-	{
-		lua.pushFullReference(*this, metaTable);
-		luaReference = lua.createReference();
-		return luaReference;
-	}
-}*/
 
 void BaseWorm::finalize() {
 	dispatchCallbacks(LuaCallbacks::wormRemoved, getLuaReference());

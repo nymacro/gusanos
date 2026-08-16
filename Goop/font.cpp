@@ -2,7 +2,6 @@
 
 #include "font.h"
 
-// #include "resource_list.h"
 #include "resource_locator.h"
 #include "blitters/blitters.h"
 
@@ -33,20 +32,11 @@ boost::array<Font::Color, 16> Font::palette = {
 	Color(128, 0, 128),	  // 15
 };
 
-// ResourceList<Font> fontList("fonts/");
 ResourceLocator<Font> fontLocator;
 
 Font::Font() : m_bitmap(0), m_supportColoring(false) {}
 
 Font::~Font() {
-	/*
-	vector<BITMAP*>::iterator iter = m_char.begin();
-	while (iter != m_char.end())
-	{
-		destroy_bitmap(*iter);
-		++iter;
-	}*/
-
 	free();
 }
 
@@ -81,7 +71,6 @@ void Font::draw(BITMAP *where, string::const_iterator b, string::const_iterator 
 		}
 		CharInfo *c = lookupChar(*b);
 
-		// masked_blit(m_bitmap, where, c->rect.x1, c->rect.y1, x, y, c->width, c->height);
 		if (c->subBitmap) {
 			if (flags & Shadow) {
 				drawSprite_blendtint(where, c->subBitmap, x + 1, y + 1, fact, makecol(0, 0, 0));
@@ -92,30 +81,6 @@ void Font::draw(BITMAP *where, string::const_iterator b, string::const_iterator 
 		x += c->width + c->spacing + spacing;
 	}
 }
-
-/*
-void Font::drawFormatted( BITMAP* where, string::const_iterator b, string::const_iterator e, int x, int y, int spacing,
-int fact, int flags)
-{
-	for(; b != e; ++b)
-	{
-		while(checkFormatting(format, b, e))
-		{
-			if(b == e)
-				return;
-		}
-		CharInfo *c = lookupChar(*b);
-
-		if(c->subBitmap)
-		{
-			if(flags & Shadow)
-				drawSprite_blendtint(where, c->subBitmap, x + 2, y + 2, fact / 2, 0);
-			drawSprite_blendtint(where, c->subBitmap, x, y, fact, format.cur.color.toAllegro());
-		}
-
-		x += c->width + c->spacing + spacing;
-	}
-}*/
 
 pair<int, int> Font::getDimensions(std::string const &text, int spacing, int flags) {
 	return getDimensions(text.begin(), text.end(), spacing, flags);
@@ -183,45 +148,6 @@ int Font::getTextCoordToIndex(std::string::const_iterator b, std::string::const_
 	return i;
 }
 
-/*
-pair<int, int> Font::getFormattedDimensions(std::string const& text, int spacing)
-{
-	return getFormattedDimensions(text.begin(), text.end(), spacing);
-}
-
-pair<int, int> Font::getFormattedDimensions(std::string::const_iterator b, std::string::const_iterator e, int spacing)
-{
-	if(b == e)
-		return zeroDimensions();
-
-	while(skipFormatting(b, e))
-	{
-		if(b == e)
-			return zeroDimensions();
-	}
-	CharInfo *c = lookupChar(*b);
-	int w = c->width;
-	int h = c->height;
-
-	++b;
-
-	for(; b != e; ++b)
-	{
-		w += c->spacing + spacing;
-		while(skipFormatting(b, e))
-		{
-			if(b == e)
-				return make_pair(w, h);
-		}
-		c = lookupChar(*b);
-		w += c->width;
-		if(c->height > h)
-			h = c->height;
-	}
-
-	return make_pair(w, h);
-}*/
-
 pair<int, int> Font::zeroDimensions() {
 	return make_pair(0, 0);
 }
@@ -244,17 +170,5 @@ void Font::buildSubBitmaps() {
 		i->subBitmap = create_sub_bitmap(m_bitmap, i->rect.x1, i->rect.y1, i->width, i->height);
 	}
 }
-/*
-int Font::width()
-{
-	return m_char[0]->w;
-}
-
-int Font::height()
-{
-	return m_char[0]->h;
-}
-
-*/
 
 #endif // DEDSERV

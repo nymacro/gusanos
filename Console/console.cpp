@@ -20,35 +20,16 @@
 
 using namespace std;
 
-/////////////////////////////// Console //////////////////////////////////////
-
-//============================= LIFECYCLE ====================================
-
 Console::Console() : m_logMaxSize(256) {
-
-	// m_MaxMsgLength=40;
 }
 
 Console::Console(int logMaxSize) : m_logMaxSize(logMaxSize) {
-
-	// m_MaxMsgLength=MaxMsgLength;
 }
 
 Console::~Console() {
-	// Delete the registered variables
-	/*
-		map<string, ConsoleItem*>::iterator tempvar = items.begin();
-		while (tempvar != items.end())
-		{
-			delete tempvar->second;
-			tempvar++;
-		}*/
-
 	for (auto i = items.begin(), end = items.end(); i != end; ++i) {
 		delete i->second;
 	}
-
-	// items.clear();
 }
 
 //============================= INTERFACE ====================================
@@ -63,13 +44,12 @@ void Console::registerVariable(Variable *var) {
 	if (!name.empty()) {
 		std::map<std::string, ConsoleItem *, IStrCompare>::iterator i = items.find(name);
 		if (i != items.end()) {
-			// Replace old variable
 			delete i->second;
 		}
 
 		registerItem(name, var);
 	} else {
-		delete var; // Empty name
+		delete var;
 	}
 }
 
@@ -85,7 +65,6 @@ void Console::registerSpecialCommand(const std::string &name, int index,
 	if (!name.empty()) {
 		ItemMap::iterator tempItem = items.find(name);
 		if (tempItem == items.end()) {
-			// items[name] = new SpecialCommand(index,func);
 			registerItem(name, new SpecialCommand(index, func));
 		}
 	}
@@ -101,18 +80,8 @@ void Console::registerAlias(const std::string &name, const std::string &action) 
 		}
 	}
 }
-/*
-struct IsTemporary
-{
-	bool operator()(std::pair<std::string, ConsoleItem*> const& x) const
-	{
-		return x.second->temp;
-	}
-};
-*/
-void Console::clearTemporaries() {
-	// std::remove_if(items.begin(), items.end(), IsTemporary());
 
+void Console::clearTemporaries() {
 	for (auto it = items.begin(); it != items.end();) {
 		auto next = std::next(it);
 		if (it->second->temp) {
@@ -150,10 +119,9 @@ struct TestHandler : public ConsoleGrammarBase {
 };
 
 void Console::parseLine(const string &text, bool parseRelease) {
-	// Strip comments: '#' starts a comment (respects quoted strings).
-	// Lines that become empty after stripping are silently ignored.
+	// '#' starts a comment (respects quoted strings); lines that become
+	// empty after stripping are silently ignored.
 	string line = stripComment(text);
-	// Trim trailing whitespace
 	size_t end = line.find_last_not_of(" \t\r\n");
 	if (end != string::npos)
 		line = line.substr(0, end + 1);
@@ -179,29 +147,19 @@ void Console::parseLine(const string &text, bool parseRelease) {
 	}
 }
 
-//============================= PRIVATE ======================================
-
-// Strip a '#' comment from a line, respecting quoted strings.
-// Characters inside double-quoted strings are not treated as comments.
-// Leading whitespace before '#' is also stripped (full-line comments).
-// Escaped characters (preceded by '\') are skipped so that \' doesn't
-// toggle the quote state.
 string Console::stripComment(string const &text) {
 	bool inQuotes = false;
 	size_t firstNonSpace = 0;
 	for (size_t i = 0; i < text.size(); ++i) {
 		char c = text[i];
 		if (!inQuotes && c == '#') {
-			// Check if this is a full-line comment (only whitespace before #)
 			if (firstNonSpace == 0 || firstNonSpace > i) {
-				// Full-line comment: strip entire line
 				return "";
 			}
-			// Inline comment: strip from # onwards
 			return text.substr(0, i);
 		}
 		if (c == '\\') {
-			++i; // skip the escaped character
+			++i;
 			continue;
 		}
 		if (c == '"') {
@@ -231,34 +189,6 @@ std::string Console::invoke(string const &name, list<string> const &args, bool p
 
 	return "";
 }
-
-/*
-void Console::parse(list<string> &args, bool parseRelease)
-{
-	string itemName;
-	string arguments;
-	string retString;
-
-	if (!args.empty())
-	{
-		itemName = *args.begin();
-		if ( !parseRelease || (itemName[0] == '+') )
-		{
-			if (parseRelease) itemName[0]='-';
-			map<string, ConsoleItem*>::iterator tempItem = items.find(itemName);
-			if (tempItem != items.end())
-			{
-				args.pop_front();
-				retString = tempItem->second->invoke(args);
-				addLogMsg(retString);
-			}else
-			{
-				addLogMsg("UNKNOWN COMMAND \"" + itemName + "\"" );
-			}
-		}
-	}
-}
-*/
 
 void Console::addLogMsg(const string &msg) {
 	if (!msg.empty()) {
@@ -293,10 +223,7 @@ int Console::executeConfig(const string &filename) {
 
 	if (file.is_open() && file.good()) {
 		string text2Parse;
-		//...parse the file
 		while (portable_getline(file, text2Parse)) {
-			// getline(file,text2Parse);
-			// std::transform(text2Parse.begin(), text2Parse.end(), text2Parse.begin(), (int(*)(int)) toupper);
 			parseLine(text2Parse);
 		}
 
@@ -442,21 +369,18 @@ string Console::autoComplete(string const &text) {
 
 void Console::listItems(const string &text) {
 	if (!text.empty()) {
-		// Find the first item that matches that text
 		map<string, ConsoleItem *>::iterator item = items.lower_bound(text);
 		if (item != items.end() && text == item->first.substr(0, text.length())) // If found
 		{
-			// Temp item to check if there is only 1 item matching the given text
 			map<string, ConsoleItem *>::iterator tempItem = item;
 			tempItem++;
 
-			// If the temp item is equal to the first item found it means that there are more than 1 items that match
+			// If the temp item is equal to the first item found there are more than 1 matches
 			if (tempItem != items.end())
 				if (tempItem->first.substr(0, text.length()) == item->first.substr(0, text.length())) {
 
 					addLogMsg("]");
 
-					// Add a message with the name of all the matching items
 					while (item != items.end() && text == item->first.substr(0, text.length())) {
 						addLogMsg(item->first);
 						item++;
@@ -465,5 +389,3 @@ void Console::listItems(const string &text) {
 		}
 	}
 }
-
-//============================= PRIVATE ======================================

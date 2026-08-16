@@ -3,7 +3,7 @@
 
 #include <string>
 #include <map>
-// #include "vec.h"
+
 #include "luaapi/types.h"
 #include <stdexcept>
 #include <boost/shared_ptr.hpp>
@@ -17,16 +17,7 @@ class BasePlayerInterceptor;
 class WeaponType;
 struct LuaEventDef;
 
-// Note: None of the BaseActions should assume a combination of keys.
-// For example: Activating JUMP and CHANGE does nothing here ( instead
-// of shooting the Ninja Rope ) So key combinations should be created
-// on the Player class instead. Because of that, all actions in the
-// BasePlayer class are direct ( they do nothing more and nothing less
-// than what the name tells )
 
-// Note2: All access to the worm class from a derivation of BasePlayer
-// should pass by the BasePlayer class ( This is because the BasePlayer
-// class will be responsible of the network part )
 
 #define COMPACT_EVENTS
 #define COMPACT_ACTIONS

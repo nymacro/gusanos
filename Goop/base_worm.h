@@ -26,8 +26,6 @@ class BaseWorm : public BaseObject {
 	enum Actions {
 		MOVELEFT,
 		MOVERIGHT,
-		// AIMUP,
-		// AIMDOWN,
 		FIRE,
 		FIRE2,
 		JUMP,
@@ -47,14 +45,12 @@ class BaseWorm : public BaseObject {
 	};
 
 	static LuaReference metaTable;
-	// static int const luaID = 2;
 
 	BaseWorm();
 	virtual ~BaseWorm();
 
 	virtual void assignOwner(BasePlayer *owner);
 
-	// void draw(BITMAP* where,int xOff, int yOff);
 	void draw(Viewport *viewport);
 
 	void calculateReactionForce(BaseVec<long> origin, Direction dir);
@@ -140,11 +136,10 @@ class BaseWorm : public BaseObject {
 	virtual void setWeapons(std::vector<WeaponType *> const &weaps);
 	virtual void clearWeapons();
 
-	Weapon *getCurrentWeapon(); // Where and what for is this used? Lua maybe? >:O
+	Weapon *getCurrentWeapon();
 
-	// getWeaponIndexOffset can be used to get the currentWeapon index or
-	// to get the one to the right or the left or the one 1000 units to the
-	// right ( it will wrap the value so that its always inside the worm's weapons size )
+	// Returns the current weapon index, or one offset by any amount
+	// (wraps around within the worm's weapons).
 	int getWeaponIndexOffset(int offset);
 	Angle getAngle();
 	void setDir(int d); // Only use this if you are going to sync it over netplay with an event
@@ -170,10 +165,6 @@ class BaseWorm : public BaseObject {
 	virtual eZCom_NodeRole getRole() {
 		return eZCom_RoleUndefined;
 	}
-	/*
-	virtual LuaReference getLuaReference();
-	virtual void finalize();
-	*/
 
 	virtual void makeReference();
 	virtual void finalize();
@@ -182,8 +173,6 @@ class BaseWorm : public BaseObject {
 							  ZCom_ConnID connID) {}
 
   protected:
-	// LuaReference luaReference;
-
 	// Tick every weapon's Weapon::think() (timers, fire trigger ->
 	// primaryShoot->run() spawns the authoritative projectile, ammo/reload
 	// bookkeeping, SHOOT/OutOfAmmo net messages). Extracted from think() so
@@ -203,7 +192,6 @@ class BaseWorm : public BaseObject {
 
 	float aimRecoilSpeed;
 	float health;
-	// float currentRopeLength; //moved to Ninjarope
 
 #ifndef DEDSERV
 	int m_fireconeTime;
@@ -239,8 +227,8 @@ class BaseWorm : public BaseObject {
 	float m_movingRightIntensity;
 	bool jumping;
 	bool animate;
-	bool movable;  // What do we need this for? // Dunno, did I put this here? :o
-	bool changing; // This shouldnt be in the worm class ( its player stuff >:O )
+	bool movable;
+	bool changing; // This shouldn't be in the worm class (it's player stuff)
 	bool showingWeaponText;
 	int m_dir;
 

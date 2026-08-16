@@ -30,24 +30,12 @@ void SimpleParticle::think() {
 		deleteMe = true;
 	else
 		pos = nextPos;
-
-	/*
-	spdy += gravity;
-
-	if(!game.level.getMaterial(posx >> 8, posy >> 8).particle_pass
-	|| --timeout == 0)
-		deleteMe = true;
-
-	posx += spdx;
-	posy += spdy;
-	*/
 }
 
 #ifndef DEDSERV
 void SimpleParticle::draw(Viewport *viewport) {
 	IVec rPos = viewport->convertCoords(IVec(pos));
 	putpixel(viewport->dest, rPos.x, rPos.y, colour);
-	// putpixel(where, (posx >> 8)-xOff, (posy >> 8)-yOff, colour);
 }
 
 void SimpleParticle32::draw(Viewport *viewport) {
