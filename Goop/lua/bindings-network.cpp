@@ -161,11 +161,7 @@ LuaReference LuaGameEventMetaTable, LuaPlayerEventMetaTable, LuaWormEventMetaTab
 
 class LuaSocket : public TCP::Socket {
   public:
-	LuaSocket(int s_)
-		: TCP::Socket(s_, 10 * 60)
-		  ,
-		  dataSender(0)
-	{}
+	LuaSocket(int s_) : TCP::Socket(s_, 10 * 60), dataSender(0) {}
 
 	void send(char const *p, size_t len) {
 		char *m = new char[len];

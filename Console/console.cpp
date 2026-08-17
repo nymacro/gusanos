@@ -20,11 +20,9 @@
 
 using namespace std;
 
-Console::Console() : m_logMaxSize(256) {
-}
+Console::Console() : m_logMaxSize(256) {}
 
-Console::Console(int logMaxSize) : m_logMaxSize(logMaxSize) {
-}
+Console::Console(int logMaxSize) : m_logMaxSize(logMaxSize) {}
 
 Console::~Console() {
 	for (auto i = items.begin(), end = items.end(); i != end; ++i) {

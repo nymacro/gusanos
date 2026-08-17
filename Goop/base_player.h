@@ -17,8 +17,6 @@ class BasePlayerInterceptor;
 class WeaponType;
 struct LuaEventDef;
 
-
-
 #define COMPACT_EVENTS
 #define COMPACT_ACTIONS
 

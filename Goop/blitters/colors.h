@@ -96,7 +96,6 @@ inline void prepareBlendColorsFact_32(Pixel color2, Pixel &color2rb, Pixel &colo
 	color2g = color2 & 0x00FF00;
 }
 
-
 } // namespace Blitters
 
 #endif

@@ -269,8 +269,7 @@ METHODC(
 		if (p->getOwner() != *playerIter) {
 			BaseWorm *worm = (*playerIter)->getWorm();
 
-			if (worm->isActive())
-			{
+			if (worm->isActive()) {
 				float distSqr = (worm->pos - from).lengthSqr();
 				if (distSqr < minDistSqr && !game.level.trace(fromx, fromy, int(worm->pos.x), int(worm->pos.y),
 															  Level::ParticleBlockPredicate())) {
@@ -372,9 +371,7 @@ METHODC(Weapon, weaponinst_ammo, context.push(p->getAmmo()); return 1;)
 
 	Returns the weapon type in the form of a WeaponType object.
 */
-METHODC(Weapon, weaponinst_type,
-		p->getType()->pushLuaReference();
-		return 1;)
+METHODC(Weapon, weaponinst_type, p->getType()->pushLuaReference(); return 1;)
 
 METHOD(Weapon, weaponinst_destroy, if (!p) return 0; assert(!p->luaReference); delete p; return 1;)
 

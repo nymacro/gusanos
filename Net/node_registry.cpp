@@ -11,6 +11,8 @@ bool NodeRegistry::insert(ZCom_Node *node) {
 
 	uint32_t nodeID = node->getNetworkID();
 	assert(nodeID != 0 && "NodeRegistry::insert called before node ID was assigned");
+	if (nodeID == 0)
+		return false;
 
 	auto it = m_nodes.insert(m_nodes.end(), Entry{node});
 	m_byPtr[ptr] = it;
@@ -28,7 +30,12 @@ void NodeRegistry::remove(ZCom_Node *node) {
 
 	m_nodes.erase(it->second);
 	m_byPtr.erase(it);
-	m_byId.erase(node->getNetworkID());
+	// Only erase the byId entry if it still points at this node; a rekey()
+	// may have already rebound the old ID to a different node.
+	uint32_t id = node->getNetworkID();
+	auto idIt = m_byId.find(id);
+	if (idIt != m_byId.end() && idIt->second == node)
+		m_byId.erase(idIt);
 }
 
 void NodeRegistry::clear() {
@@ -46,7 +53,10 @@ bool NodeRegistry::rekey(ZCom_Node *node, uint32_t newNodeID) {
 	uint32_t oldID = node->getNetworkID();
 	if (oldID == newNodeID)
 		return true;
-	m_byId.erase(oldID);
+	// Only erase the old-ID entry if it still points at this node.
+	auto idIt = m_byId.find(oldID);
+	if (idIt != m_byId.end() && idIt->second == node)
+		m_byId.erase(idIt);
 	node->setNodeID(newNodeID);
 	m_byId[newNodeID] = node;
 	return true;

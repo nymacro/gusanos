@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <type_traits>
 
 // Forward declarations
 class ZCom_BitStream;
@@ -338,13 +339,12 @@ class ZCom_Replicator {
 // ---- Basic Replicator (default implementation holder) ----
 class ZCom_ReplicatorBasic : public ZCom_Replicator {
   public:
-	ZCom_ReplicatorBasic() : m_flags(0) {}
+	ZCom_ReplicatorBasic() {}
 	ZCom_ReplicatorBasic(ZCom_ReplicatorSetup *setup) {
 		if (setup)
 			m_setup = *setup;
 		m_flags = 0;
 	}
-	uint32_t m_flags;
 
 	// For auto-replications, peekData() returns the decoded value stashed via
 	// peekDataStore() (a pointer the caller can dereference). Custom replicators
@@ -539,7 +539,7 @@ class ZCom_Replicate_Memblock : public ZCom_Replicator {
 	ZCom_Replicate_Memblock(void *ptr, uint32_t blockSize, uint32_t flags, uint32_t rules)
 		: m_ptr(ptr), m_blockSize(blockSize), m_oldData(blockSize) {
 		m_setup = ZCom_ReplicatorSetup(flags, rules);
-		if (blockSize)
+		if (ptr && blockSize)
 			memcpy(m_oldData.data(), ptr, blockSize);
 	}
 
@@ -564,7 +564,7 @@ template <typename T, int N>
 class ZCom_Interpolate : public ZCom_Replicator {
   public:
 	ZCom_Interpolate(T *val, int bits, uint32_t flags, uint32_t rules, int threshold = 0)
-		: m_val(val), m_size(N), m_threshold(threshold) {
+		: m_val(val), m_recv{}, m_size(N), m_threshold(threshold) {
 		m_setup = ZCom_ReplicatorSetup(flags, rules);
 	}
 

@@ -135,8 +135,6 @@ inline bool dispatchCallbacksVeto(int type, A1 const &a1, A2 const &a2, A3 const
 	return veto;
 }
 
-
-
 struct LuaObject {
 	LuaObject() : deleted(false) {}
 

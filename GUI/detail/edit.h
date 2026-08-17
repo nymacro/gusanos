@@ -12,12 +12,8 @@ class Edit : public Wnd {
   public:
 	static LuaReference metaTable;
 
-	Edit(Wnd* parent, std::map<std::string, std::string> const& attributes)
-	: Wnd(parent, attributes, "edit")
-	, m_drag(false), m_caretPos(0), m_selTo(0)
-	, m_hscroll(0), m_lock(false)
-	{
-	}
+	Edit(Wnd *parent, std::map<std::string, std::string> const &attributes)
+		: Wnd(parent, attributes, "edit"), m_drag(false), m_caretPos(0), m_selTo(0), m_hscroll(0), m_lock(false) {}
 
 	virtual bool render();
 

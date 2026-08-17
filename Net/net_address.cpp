@@ -9,7 +9,7 @@ ZCom_Address::ZCom_Address() : m_valid(false), m_type(eZCom_AddressLocal), m_con
 }
 
 ZCom_Address::ZCom_Address(const ENetAddress &addr)
-	: m_address(addr), m_valid(true), m_type(eZCom_AddressLocal), m_controlID(0) {}
+	: m_address(addr), m_valid(true), m_type(eZCom_AddressUDP), m_controlID(0) {}
 
 ZCom_Address::ZCom_Address(const ZCom_Address &other)
 	: m_address(other.m_address), m_valid(other.m_valid), m_type(other.m_type), m_controlID(other.m_controlID),
@@ -36,24 +36,24 @@ bool ZCom_Address::setAddress(eZCom_AddressType type, zU8 controlID, const char 
 		return true;
 	}
 
-	// Zoidcom allows setAddress(type, controlID, "host:port") or just "host"
+	// Zoidcom allows setAddress(type, controlID, "host:port") or just "host".
+	// Validate the port strictly: a malformed/out-of-range port is a syntax
+	// error, not a hostname that happens to contain a colon.
 	const char *colon = strrchr(addr, ':');
 	int port = 0;
 
 	if (colon) {
-		port = std::atoi(colon + 1);
-		// Use only the host part if port is valid
-		if (port > 0 && port <= 65535) {
-			std::string hostStr(addr, colon - addr);
-			if (enet_address_set_host(&m_address, hostStr.c_str()) != 0) {
-				m_valid = false;
-				return false;
-			}
-		} else {
-			if (enet_address_set_host(&m_address, addr) != 0) {
-				m_valid = false;
-				return false;
-			}
+		char *endptr = nullptr;
+		long portVal = std::strtol(colon + 1, &endptr, 10);
+		if (endptr == colon + 1 || *endptr != '\0' || portVal < 1 || portVal > 65535) {
+			m_valid = false;
+			return false;
+		}
+		port = static_cast<int>(portVal);
+		std::string hostStr(addr, colon - addr);
+		if (enet_address_set_host(&m_address, hostStr.c_str()) != 0) {
+			m_valid = false;
+			return false;
 		}
 	} else {
 		if (enet_address_set_host(&m_address, addr) != 0) {

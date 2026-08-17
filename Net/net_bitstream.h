@@ -35,6 +35,12 @@ class ZCom_BitStream {
 	void addDouble(double val, int bits);
 	bool addString(const char *str);
 	bool addStringW(const wchar_t *str);
+	// Buffer API is length-prefixed, not caller-sized: addBuffer writes a
+	// 16-bit byte count then the payload; getBuffer/getBufferMax/skipBuffer
+	// read/peek that count. The Zoidcom reference is caller-sized (no count
+	// stored; the caller tracks the size; skipBuffer takes the byte count).
+	// Both ends of a connection are this engine, so the wire format is
+	// self-consistent.
 	bool addBuffer(const char *buf, zU16 len);
 	bool addBitStream(ZCom_BitStream *other, bool _allow_align = false);
 
@@ -69,7 +75,7 @@ class ZCom_BitStream {
 	void skipBool();
 	void skipFloat(zU8 bits);
 	void skipString();
-	void skipBuffer(zU16 len);
+	void skipBuffer(); // skip a length-prefixed buffer; no size arg (reference is skipBuffer(zU16))
 	void skipBits(zU32 amount);
 
 	// State save/restore
@@ -94,7 +100,7 @@ class ZCom_BitStream {
 	// past end for back-compat; this flag makes such a read observable so
 	// processInput can detect protocol desync and close the connection
 	// instead of cascading garbage through every following read. The flag
-	// is sticky until reset()/Clear()/assign()/clearReadError().
+	// is sticky until reset()/Clear()/assign()/Deserialize()/clearReadError().
 	bool getReadError() const {
 		return m_readError;
 	}
@@ -128,8 +134,7 @@ class ZCom_BitStream {
 		return m_writeBit;
 	}
 	void resetRead() {
-		m_readBit = 0;
-		m_readPos = {0, 0};
+		resetReadState();
 	}
 	void reset() {
 		m_data.clear();
@@ -140,12 +145,7 @@ class ZCom_BitStream {
 		m_readError = false;
 	}
 	void Clear() {
-		m_data.clear();
-		m_writeBit = 0;
-		m_readBit = 0;
-		m_readPos = {0, 0};
-		m_fillPos = {0, 0};
-		m_readError = false;
+		reset();
 	}
 
 	// For reading from a prepared buffer

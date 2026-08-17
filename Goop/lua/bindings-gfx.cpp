@@ -290,8 +290,8 @@ void initGfx() {
 #ifndef NO_DEPRECATED
 		("gfx_draw_box", l_gfx_draw_box_depr)
 #endif
-		("color", l_color)("gfx_set_alpha", l_gfx_set_alpha)("gfx_set_alphach", l_gfx_set_alphach)(
-			"gfx_set_add", l_gfx_set_add)("gfx_reset_blending", l_gfx_reset_blending);
+			("color", l_color)("gfx_set_alpha", l_gfx_set_alpha)("gfx_set_alphach", l_gfx_set_alphach)(
+				"gfx_set_add", l_gfx_set_add)("gfx_reset_blending", l_gfx_reset_blending);
 
 #ifndef DEDSERV
 	// Viewport method and metatable

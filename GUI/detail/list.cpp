@@ -91,7 +91,6 @@ void ListNode::render(Renderer *renderer, long &y) {
 						   list->m_formatting.fontColor);
 		x += h->widthFactor * w;
 	}
-
 }
 
 void ListNode::renderFrom(Renderer *renderer, long &y) {

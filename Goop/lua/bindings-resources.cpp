@@ -81,8 +81,7 @@ int l_sprites_load(lua_State *L) {
 
 	Draws the frame //frame// of the sprite set on //bitmap// with the pivot at position (x, y).
 */
-METHODC(SpriteSet, sprites_render,
-		BITMAP *b = ASSERT_OBJECT(BITMAP, 2);
+METHODC(SpriteSet, sprites_render, BITMAP *b = ASSERT_OBJECT(BITMAP, 2);
 
 		int frame = lua_tointeger(context, 3); int x = lua_tointeger(context, 4); int y = lua_tointeger(context, 5);
 		p->getSprite(frame)->draw(b, x, y, blitter);
@@ -98,8 +97,7 @@ METHODC(SpriteSet, sprites_render,
 	three parameters. This has been deprecated.**
 */
 METHODC(
-	SpriteSet, sprites_render_skinned_box,
-	BITMAP *b = ASSERT_OBJECT(BITMAP, 2);
+	SpriteSet, sprites_render_skinned_box, BITMAP *b = ASSERT_OBJECT(BITMAP, 2);
 
 	int x1 = lua_tointeger(context, 3); int y1 = lua_tointeger(context, 4); int x2 = lua_tointeger(context, 5);
 	int y2 = lua_tointeger(context, 6); int c = lua_tointeger(context, 7);

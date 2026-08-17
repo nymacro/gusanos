@@ -359,6 +359,9 @@ ZCom_ConnID Network::getServerID() {
 }
 
 void Network::update() {
+	// Sync the Net layer's verbose-log toggle from the NET_LOG cvar (off by
+	// default; was previously dead — net_control logged unconditionally).
+	g_netLogVerbose = (logZoidcom != 0);
 	if (m_control) {
 		m_control->ZCom_processReplicators(16);
 		m_control->ZCom_processOutput();
@@ -548,14 +551,15 @@ void Network::kick(ZCom_ConnID connID) {
 void Network::ban(ZCom_ConnID connID) {
 	if (m_control) {
 		ZCom_Address const *addr = m_control->ZCom_getPeer(connID);
-		bannedIPs.insert(addr->getIP());
+		if (addr)
+			bannedIPs.insert(addr->getIP());
 	}
 }
 
 bool Network::isBanned(ZCom_ConnID connID) {
 	if (m_control) {
 		ZCom_Address const *addr = m_control->ZCom_getPeer(connID);
-		if (bannedIPs.find(addr->getIP()) != bannedIPs.end())
+		if (addr && bannedIPs.find(addr->getIP()) != bannedIPs.end())
 			return true;
 	}
 	return false;

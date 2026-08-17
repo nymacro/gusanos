@@ -7,9 +7,7 @@ Alias::Alias() {}
 
 Alias::~Alias() {}
 
-Alias::Alias(const std::string &name, const std::string &action)
-	: ConsoleItem(false), m_name(name), m_action(action)
-{}
+Alias::Alias(const std::string &name, const std::string &action) : ConsoleItem(false), m_name(name), m_action(action) {}
 
 string Alias::invoke(const std::list<std::string> &args) {
 	if (!m_action.empty()) {

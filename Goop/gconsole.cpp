@@ -204,11 +204,11 @@ void GConsole::init() {
 
 	console.registerCommands()
 #ifndef DEDSERV
-		(string("BIND"), bindCmd, bindCompleter)
-		(string("SETCONSOLEKEY"), [this](std::list<std::string> const &args) { return setConsoleKey(args); })
+		(string("BIND"), bindCmd, bindCompleter)(
+			string("SETCONSOLEKEY"), [this](std::list<std::string> const &args) { return setConsoleKey(args); })
 #endif
-			(string("EXEC"), execCmd)
-		(string("ALIAS"), aliasCmd)(string("ECHO"), echoCmd)(string("RND_SEED"), rndSeedCmd)(string("REST"), restCmd);
+			(string("EXEC"), execCmd)(string("ALIAS"), aliasCmd)(string("ECHO"), echoCmd)(
+				string("RND_SEED"), rndSeedCmd)(string("REST"), restCmd);
 
 	currentCommand = commandsLog.end(); // To workaround a crashbug with uninitialized iterator
 	logRenderPos = log.rbegin();
@@ -248,8 +248,8 @@ void GConsole::render(BITMAP *where, bool fullScreen) {
 
 		std::pair<int, int> dim;
 		string::const_reverse_iterator b = tempString.rbegin(), e = tempString.rend();
-			// fitString on reverse iterators also fits the last char's spacing,
-			// which isn't wanted
+		// fitString on reverse iterators also fits the last char's spacing,
+		// which isn't wanted
 		e = m_font->fitString(b, e, 320 - 5, dim);
 		y -= dim.second;
 		m_font->draw(where, e.base(), b.base(), 5, y);
@@ -414,7 +414,7 @@ bool GConsole::eventPrintableChar(char c, int k) {
 			commandsLog.push_back(m_inputBuff); // add the text to the commands log too
 			currentCommand = commandsLog.end(); // reset the command log position
 			m_inputBuff.clear();				// and then clear the buffer
-		} else if (c == '\t')						// Tab
+		} else if (c == '\t')					// Tab
 		{
 			m_inputBuff = autoComplete(m_inputBuff);
 		} else // No special keys where detected so the char gets added to the string

@@ -453,14 +453,13 @@ void init() {
 	initGame();
 
 	context.functions()("print", print)("console_register_command", l_console_register_command)(
-		"console_key_for_action", l_console_key_for_action)("console_bind", l_console_bind)("console_action_for_key",
-																							l_console_action_for_key)
-		("fetch_server_list", l_fetch_server_list)
+		"console_key_for_action", l_console_key_for_action)("console_bind", l_console_bind)(
+		"console_action_for_key", l_console_action_for_key)("fetch_server_list", l_fetch_server_list)
 #ifndef DEDSERV
-			("clear_keybuf", l_clear_keybuf)("key_name", l_key_name)
+		("clear_keybuf", l_clear_keybuf)("key_name", l_key_name)
 #endif
 
-				("quit", l_quit)("bind", l_bind)("connect", l_connect)("host", l_host)("map", l_map);
+			("quit", l_quit)("bind", l_bind)("connect", l_connect)("host", l_host)("map", l_map);
 
 	// Bindings table and metatable
 	lua_pushstring(context, "bindings");

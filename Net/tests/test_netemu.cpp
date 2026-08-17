@@ -170,4 +170,34 @@ BOOST_AUTO_TEST_CASE(lag_delays_delivery) {
 	cli.Shutdown();
 }
 
+// Item 37 — connID 0 is the global sim default: ZCom_simulateLag(0,...) must
+// apply to every peer even though sendPacket looks up per-peer state. Without
+// the global fallback, the game's NET_SIM_LAG cvar (which targets connID 0)
+// would be silently dead.
+BOOST_AUTO_TEST_CASE(global_lag_applies_to_all_peers) {
+	g_currentControl = nullptr;
+	int port = s_port++;
+	MonSrv srv(port);
+	MonCli cli(port);
+	cli.ConnectTo("127.0.0.1", port);
+	processBoth(&srv, &cli, 30);
+	BOOST_REQUIRE(cli.connected);
+	setupMonitoredNode(srv);
+	processBoth(&srv, &cli, 20);
+
+	g_currentControl = &srv;
+	ZCom_simulateLag(0, 60); // connID 0 = global default
+	g_currentControl = nullptr;
+
+	srv.m_serverVal = 888;
+	processBoth(&srv, &cli, 1);
+	BOOST_CHECK_NE(cli.m_clientVal, 888); // deferred by global lag
+
+	std::this_thread::sleep_for(std::chrono::milliseconds(120));
+	processBoth(&srv, &cli, 1);
+	BOOST_CHECK_EQUAL(cli.m_clientVal, 888);
+	srv.Shutdown();
+	cli.Shutdown();
+}
+
 BOOST_AUTO_TEST_SUITE_END()

@@ -141,7 +141,6 @@ void NinjaRope::think() {
 		if (m_animator)
 			m_animator->tick();
 #endif
-
 	}
 }
 

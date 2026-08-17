@@ -23,17 +23,7 @@ class Viewport;
 
 class BaseWorm : public BaseObject {
   public:
-	enum Actions {
-		MOVELEFT,
-		MOVERIGHT,
-		FIRE,
-		FIRE2,
-		JUMP,
-		DIG,
-		NINJAROPE,
-		CHANGEWEAPON,
-		RESPAWN
-	};
+	enum Actions { MOVELEFT, MOVERIGHT, FIRE, FIRE2, JUMP, DIG, NINJAROPE, CHANGEWEAPON, RESPAWN };
 
 	enum Direction {
 		Down = 0,

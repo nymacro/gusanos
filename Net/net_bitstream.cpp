@@ -12,7 +12,8 @@ ZCom_BitStream::ZCom_BitStream(zU16 _maxfill) : m_writeBit(0), m_readBit(0), m_f
 
 ZCom_BitStream::ZCom_BitStream(const uint8_t *data, size_t bytes)
 	: m_data(data, data + bytes), m_writeBit(bytes * 8), m_readBit(0),
-	  m_fillPos{static_cast<uint16_t>(bytes * 8), static_cast<uint16_t>(bytes)}, m_readPos{0, 0} {}
+	  // m_fillPos.bit is the sub-byte offset (invariant [0,7]), not total bits.
+	  m_fillPos{0, static_cast<uint16_t>(bytes)}, m_readPos{0, 0} {}
 
 ZCom_BitStream::ZCom_BitStream(const ZCom_BitStream &other)
 	: m_data(other.m_data), m_writeBit(other.m_writeBit), m_readBit(other.m_readBit), m_fillPos(other.m_fillPos),
@@ -50,25 +51,27 @@ void ZCom_BitStream::ensureCapacity(size_t neededBits) {
 }
 
 bool ZCom_BitStream::addInt(zU32 val, zU8 bits) {
-	if (bits <= 0)
+	if (bits == 0)
 		return true;
-	// `1u << i` below is UB for i >= 32; clamp instead of only asserting so
-	// release/dedserv (NDEBUG) builds don't hit UB on misuse.
 	if (bits > 32)
-		bits = 32;
+		bits = 32; // addInt carries at most 32 bits
 	ensureCapacity(m_writeBit + bits);
 
-	for (int i = 0; i < bits; ++i) {
-		size_t byteIdx = m_writeBit / 8;
-		size_t bitIdx = m_writeBit % 8;
-		if (bitIdx == 0 && byteIdx >= m_data.size())
-			m_data.push_back(0);
+	// Masked word write (was a per-bit loop, ~8 ops/bit on the hottest path:
+	// every replicator x every node x every tick). Little-endian bit packing
+	// lets the value OR into a byte-aligned window with a sub-byte shift. OR
+	// (not assign) preserves bits a restoreWriteState rewind may have left,
+	// matching the original per-bit `|=` semantics.
+	size_t byteOffset = m_writeBit / 8;
+	unsigned bitOffset = static_cast<unsigned>(m_writeBit % 8);
+	uint64_t mask = (bits < 32) ? ((1ULL << bits) - 1) : 0xFFFFFFFFULL;
+	size_t span = (bitOffset + bits + 7) / 8; // bytes touched, <= 5
+	uint64_t cur = 0;
+	std::memcpy(&cur, &m_data[byteOffset], span);
+	cur |= (static_cast<uint64_t>(val) & mask) << bitOffset;
+	std::memcpy(&m_data[byteOffset], &cur, span);
 
-		if (val & (1u << i))
-			m_data[byteIdx] |= (1 << bitIdx);
-
-		++m_writeBit;
-	}
+	m_writeBit += bits;
 	m_fillPos.bit = static_cast<uint16_t>(m_writeBit % 8);
 	m_fillPos.pos = static_cast<uint16_t>(m_writeBit / 8);
 	return true;
@@ -88,31 +91,21 @@ bool ZCom_BitStream::addSignedInt(zS32 val, zU8 bits) {
 void ZCom_BitStream::addInt64(int64_t val, int bits) {
 	if (bits <= 0)
 		return;
-	// `1ULL << i` is UB for i >= 64; clamp at 64.
 	if (bits > 64)
 		bits = 64;
-	ensureCapacity(m_writeBit + bits);
-
-	for (int i = 0; i < bits; ++i) {
-		size_t byteIdx = m_writeBit / 8;
-		size_t bitIdx = m_writeBit % 8;
-		if (bitIdx == 0 && byteIdx >= m_data.size())
-			m_data.push_back(0);
-
-		uint64_t uval = static_cast<uint64_t>(val);
-		if (uval & (1ULL << i))
-			m_data[byteIdx] |= (1 << static_cast<int>(bitIdx));
-
-		++m_writeBit;
-	}
-	m_fillPos.bit = static_cast<uint16_t>(m_writeBit % 8);
-	m_fillPos.pos = static_cast<uint16_t>(m_writeBit / 8);
+	// Delegate to the 32-bit masked-word path in two contiguous halves. A
+	// single 64-bit window could span up to 9 bytes (64 bits + sub-byte
+	// offset), overflowing a uint64; splitting keeps the window <= 5 bytes.
+	// The bit layout is identical (contiguous little-endian).
+	uint64_t uval = static_cast<uint64_t>(val);
+	addInt(static_cast<zU32>(uval & 0xFFFFFFFFu), static_cast<zU8>(std::min(bits, 32)));
+	if (bits > 32)
+		addInt(static_cast<zU32>((uval >> 32) & 0xFFFFFFFFu), static_cast<zU8>(bits - 32));
 }
 
 zU32 ZCom_BitStream::getInt(zU8 bits) {
-	if (bits <= 0)
+	if (bits == 0)
 		return 0;
-	// `1u << i` below is UB for i >= 32; clamp at 32 (matches addInt).
 	if (bits > 32)
 		bits = 32;
 	if (m_readBit + static_cast<size_t>(bits) > m_writeBit) {
@@ -120,14 +113,22 @@ zU32 ZCom_BitStream::getInt(zU8 bits) {
 		return 0;
 	}
 
-	zU32 val = 0;
-	for (int i = 0; i < bits; ++i) {
-		size_t byteIdx = m_readBit / 8;
-		size_t bitIdx = m_readBit % 8;
-		if (byteIdx < m_data.size() && (m_data[byteIdx] & (1 << bitIdx)))
-			val |= (1u << i);
-		++m_readBit;
-	}
+	// Masked word read (was a per-bit loop on the hottest replicator/event
+	// path). Read a byte-aligned window, shift out the sub-byte offset, mask.
+	size_t byteOffset = m_readBit / 8;
+	unsigned bitOffset = static_cast<unsigned>(m_readBit % 8);
+	uint64_t cur = 0;
+	size_t avail = (byteOffset < m_data.size()) ? (m_data.size() - byteOffset) : 0;
+	if (avail > sizeof(uint64_t))
+		avail = sizeof(uint64_t);
+	size_t span = (bitOffset + bits + 7) / 8;
+	size_t rd = (span < avail) ? span : avail;
+	if (rd)
+		std::memcpy(&cur, &m_data[byteOffset], rd);
+	uint64_t mask = (bits < 32) ? ((1ULL << bits) - 1) : 0xFFFFFFFFULL;
+	zU32 val = static_cast<zU32>((cur >> bitOffset) & mask);
+
+	m_readBit += bits;
 	m_readPos.bit = static_cast<uint16_t>(m_readBit % 8);
 	m_readPos.pos = static_cast<uint16_t>(m_readBit / 8);
 	return val;
@@ -135,34 +136,32 @@ zU32 ZCom_BitStream::getInt(zU8 bits) {
 
 zS32 ZCom_BitStream::getSignedInt(zU8 bits) {
 	zS32 val = static_cast<zS32>(getInt(bits));
-	// Sign extend
-	if (bits > 0 && bits < 32 && (val & (1 << (bits - 1))))
-		val |= ~((1 << bits) - 1);
+	// Sign extend. `1 << bits` is UB for bits==31 (shift into the sign bit),
+	// so derive the fill mask from `1 << (bits-1)` (shift <= 30). The guard
+	// already guarantees bit (bits-1) is set, so filling from bit (bits-1)
+	// is equivalent to filling from bit `bits`.
+	if (bits > 0 && bits < 32) {
+		zS32 signbit = 1 << (bits - 1);
+		if (val & signbit)
+			val |= ~(signbit - 1);
+	}
 	return val;
 }
 
 int64_t ZCom_BitStream::getInt64(int bits) {
 	if (bits <= 0)
 		return 0;
-	// `1ULL << i` is UB for i >= 64; cap at 64 (matches addInt64).
 	if (bits > 64)
 		bits = 64;
 	if (m_readBit + static_cast<size_t>(bits) > m_writeBit) {
 		m_readError = true; // over-read: make the desync observable (T3.1)
 		return 0;
 	}
-
-	uint64_t val = 0;
-	for (int i = 0; i < bits; ++i) {
-		size_t byteIdx = m_readBit / 8;
-		size_t bitIdx = m_readBit % 8;
-		if (byteIdx < m_data.size() && (m_data[byteIdx] & (1 << bitIdx)))
-			val |= (1ULL << i);
-		++m_readBit;
-	}
-	m_readPos.bit = static_cast<uint16_t>(m_readBit % 8);
-	m_readPos.pos = static_cast<uint16_t>(m_readBit / 8);
-	return static_cast<int64_t>(val);
+	// Two contiguous 32-bit reads (see addInt64). The upfront over-read check
+	// guarantees both sub-reads fit, so neither sets m_readError spuriously.
+	uint64_t lo = getInt(static_cast<zU8>(std::min(bits, 32)));
+	uint64_t hi = (bits > 32) ? (static_cast<uint64_t>(getInt(static_cast<zU8>(bits - 32))) << 32) : 0;
+	return static_cast<int64_t>(lo | hi);
 }
 
 bool ZCom_BitStream::addBool(bool val) {
@@ -189,6 +188,8 @@ bool ZCom_BitStream::addFloat(zFloat val, zU8 bits) {
 		// wraps/aliases through addSignedInt), so callers replicating
 		// arbitrary-magnitude floats with bits < 32 must pre-scale the value
 		// into [-1, 1] first. For full IEEE-754 fidelity use bits >= 32.
+		if (bits < 2)
+			bits = 2; // <2: shift-by-negative UB (bits==0) and maxVal==0 → NaN (bits==1); keep add/get in sync
 		int maxVal = (1 << (bits - 1)) - 1;
 		int intVal = static_cast<int>(val * maxVal);
 		addSignedInt(intVal, bits);
@@ -205,6 +206,8 @@ zFloat ZCom_BitStream::getFloat(zU8 bits) {
 	} else {
 		// Inverse of the addFloat quantization above: recover the signed
 		// integer and divide by maxVal = 2^(bits-1) - 1 to map back to [-1,1].
+		if (bits < 2)
+			bits = 2; // <2: shift-by-negative UB / maxVal==0 → NaN; matches addFloat
 		int maxVal = (1 << (bits - 1)) - 1;
 		int intVal = getSignedInt(bits);
 		return static_cast<float>(intVal) / maxVal;
@@ -222,6 +225,8 @@ void ZCom_BitStream::addDouble(double val, int bits) {
 		addFloat(fval, 32);
 	} else {
 		// Quantize
+		if (bits < 2)
+			bits = 2; // <2: shift-by-negative UB / maxVal==0 → NaN; matches getDouble
 		int maxVal = (1 << (bits - 1)) - 1;
 		int intVal = static_cast<int>(val * maxVal);
 		addSignedInt(intVal, bits);
@@ -237,6 +242,8 @@ double ZCom_BitStream::getDouble(int bits) {
 	} else if (bits >= 32) {
 		return static_cast<double>(getFloat(32));
 	} else {
+		if (bits < 2)
+			bits = 2; // <2: shift-by-negative UB / maxVal==0 → NaN; matches addDouble
 		int maxVal = (1 << (bits - 1)) - 1;
 		int intVal = getSignedInt(bits);
 		return static_cast<double>(intVal) / maxVal;
@@ -249,7 +256,25 @@ bool ZCom_BitStream::addString(const char *str) {
 		return true;
 	}
 	size_t len = strlen(str);
+	// Length prefix is 16 bits and counts the null terminator; >= 65535 chars
+	// would wrap the prefix to 0 while the payload writes every char,
+	// desyncing the reader. Refuse instead.
+	if (len + 1 > 0xFFFF)
+		return false;
 	addInt(static_cast<int>(len + 1), 16); // length includes null terminator (per spec §6.7)
+	// Byte-aligned fast path: memcpy the body + null terminator in one shot
+	// (was a per-char addInt(c,8) loop on the announce/event string path).
+	// Bit-identical to the loop when the write head is byte-aligned.
+	if ((m_writeBit & 7) == 0) {
+		size_t bytes = len + 1; // body + null terminator
+		ensureCapacity(m_writeBit + bytes * 8);
+		std::memcpy(&m_data[m_writeBit / 8], str, len);
+		m_data[m_writeBit / 8 + len] = 0; // null terminator
+		m_writeBit += bytes * 8;
+		m_fillPos.bit = 0;
+		m_fillPos.pos = static_cast<uint16_t>(m_writeBit / 8);
+		return true;
+	}
 	for (size_t i = 0; i < len; ++i)
 		addInt(static_cast<unsigned char>(str[i]), 8);
 	addInt(0, 8); // null terminator
@@ -260,6 +285,17 @@ const char *ZCom_BitStream::getStringStatic() {
 	int len = getInt(16);
 	if (len <= 0)
 		return "";
+
+	// Byte-aligned fast path: bulk-copy the len bytes (incl. null terminator)
+	// when the read head is aligned and enough bits remain. Bit-identical to
+	// the per-byte getInt(8) loop.
+	if ((m_readBit & 7) == 0 && m_readBit + static_cast<size_t>(len) * 8 <= m_writeBit) {
+		m_lastString.assign(reinterpret_cast<const char *>(&m_data[m_readBit / 8]), static_cast<size_t>(len));
+		m_readBit += static_cast<size_t>(len) * 8;
+		m_readPos.bit = 0;
+		m_readPos.pos = static_cast<uint16_t>(m_readBit / 8);
+		return m_lastString.c_str();
+	}
 
 	m_lastString.clear();
 	m_lastString.reserve(len);
@@ -274,6 +310,18 @@ std::string ZCom_BitStream::getString() {
 	int len = getInt(16);
 	if (len <= 0) {
 		return std::string();
+	}
+	// Byte-aligned fast path: bulk-copy the len bytes (incl. null terminator)
+	// when the read head is aligned and enough bits remain. Bit-identical to
+	// the per-byte getInt(8) loop; the trailing-null strip is unchanged.
+	if ((m_readBit & 7) == 0 && m_readBit + static_cast<size_t>(len) * 8 <= m_writeBit) {
+		std::string buf(reinterpret_cast<const char *>(&m_data[m_readBit / 8]), static_cast<size_t>(len));
+		m_readBit += static_cast<size_t>(len) * 8;
+		m_readPos.bit = 0;
+		m_readPos.pos = static_cast<uint16_t>(m_readBit / 8);
+		if (!buf.empty() && buf.back() == '\0')
+			buf.pop_back();
+		return buf;
 	}
 	std::string buf;
 	buf.reserve(len);
@@ -306,6 +354,21 @@ void ZCom_BitStream::getString(char *buf, zU16 bufsize) {
 			buf[0] = '\0';
 		return;
 	}
+	// Byte-aligned fast path: when aligned and the whole payload fits, copy
+	// the caller's portion via memcpy and advance past the rest in one step.
+	// Bit-identical to the per-byte getInt(8) loops (including the skip).
+	if ((m_readBit & 7) == 0 && m_readBit + static_cast<size_t>(len) * 8 <= m_writeBit) {
+		size_t avail = (bufsize > 0) ? static_cast<size_t>(bufsize) - 1 : 0;
+		size_t copyLen = static_cast<size_t>(len) < avail ? static_cast<size_t>(len) : avail;
+		if (copyLen > 0 && buf)
+			std::memcpy(buf, &m_data[m_readBit / 8], copyLen);
+		if (bufsize > 0 && buf)
+			buf[copyLen] = '\0';
+		m_readBit += static_cast<size_t>(len) * 8;
+		m_readPos.bit = 0;
+		m_readPos.pos = static_cast<uint16_t>(m_readBit / 8);
+		return;
+	}
 	if (bufsize == 0) {
 		for (int i = 0; i < len; ++i)
 			getInt(8);
@@ -327,6 +390,8 @@ bool ZCom_BitStream::addStringW(const wchar_t *str) {
 		return true;
 	}
 	size_t len = wcslen(str);
+	if (len + 1 > 0xFFFF) // 16-bit length prefix would wrap → reader desync
+		return false;
 	addInt(static_cast<int>(len + 1), 16); // length includes null terminator
 	for (size_t i = 0; i < len; ++i)
 		addInt(static_cast<int>(str[i]), 16);
@@ -378,6 +443,16 @@ const wchar_t *ZCom_BitStream::getStringWStatic() {
 
 bool ZCom_BitStream::addBuffer(const char *buf, zU16 len) {
 	addInt(len, 16);
+	// Byte-aligned fast path: memcpy the payload in one shot (was a
+	// per-byte addInt(c,8) loop). Bit-identical when the write head is aligned.
+	if ((m_writeBit & 7) == 0 && len > 0) {
+		ensureCapacity(m_writeBit + static_cast<size_t>(len) * 8);
+		std::memcpy(&m_data[m_writeBit / 8], buf, len);
+		m_writeBit += static_cast<size_t>(len) * 8;
+		m_fillPos.bit = 0;
+		m_fillPos.pos = static_cast<uint16_t>(m_writeBit / 8);
+		return true;
+	}
 	for (zU16 i = 0; i < len; ++i)
 		addInt(static_cast<unsigned char>(buf[i]), 8);
 	return true;
@@ -386,6 +461,17 @@ bool ZCom_BitStream::addBuffer(const char *buf, zU16 len) {
 uint16_t ZCom_BitStream::getBuffer(char *buf, uint16_t len) {
 	uint16_t actualLen = static_cast<uint16_t>(getInt(16));
 	uint16_t copyLen = actualLen < len ? actualLen : len;
+	// Byte-aligned fast path: when aligned and the whole buffer fits, memcpy
+	// the caller's portion and advance past the rest in one step. Bit-identical
+	// to the per-byte getInt(8) loops (including the skip).
+	if ((m_readBit & 7) == 0 && m_readBit + static_cast<size_t>(actualLen) * 8 <= m_writeBit) {
+		if (copyLen > 0)
+			std::memcpy(buf, &m_data[m_readBit / 8], copyLen);
+		m_readBit += static_cast<size_t>(actualLen) * 8;
+		m_readPos.bit = 0;
+		m_readPos.pos = static_cast<uint16_t>(m_readBit / 8);
+		return actualLen;
+	}
 	for (uint16_t i = 0; i < copyLen; ++i)
 		buf[i] = static_cast<char>(getInt(8));
 	// Skip remaining bytes
@@ -410,6 +496,16 @@ bool ZCom_BitStream::addBitStream(ZCom_BitStream *other, bool _allow_align) {
 	(void)_allow_align;
 	if (!other)
 		return false;
+	// Self-embedding reads and writes the same buffer. Route through a
+	// snapshot so source and destination never alias — the byte-aligned
+	// fast path's memcpy and the per-bit loop otherwise mutate the very
+	// stream they append to. Content is unchanged (the direct path also
+	// resets the read head first, so the snapshot spans the whole stream).
+	if (other == this) {
+		this->resetReadState();
+		auto snap = this->Duplicate();
+		return addBitStream(snap.get(), _allow_align);
+	}
 	// Inline the source stream's written bits directly (no length prefix),
 	// matching original Zoidcom semantics: addBitStream embeds bits that the
 	// receiver reads back with getBitStream(bits) or direct getInt/getBool
@@ -456,6 +552,28 @@ bool ZCom_BitStream::addBitStream(ZCom_BitStream *other, bool _allow_align) {
 std::unique_ptr<ZCom_BitStream> ZCom_BitStream::getBitStream(uint32_t bits, bool copyData) {
 	(void)copyData;
 	auto extracted = std::make_unique<ZCom_BitStream>();
+	if (bits == 0) {
+		extracted->resetReadState();
+		return extracted;
+	}
+	// Byte-aligned fast path: bulk-copy whole bytes, finish the <8 trailing
+	// bits with the bit loop. Bit-identical to the per-bit copy when the read
+	// head is aligned; only copies bytes that actually fit (an over-read falls
+	// through to the per-bit loop, which sets m_readError like getBool).
+	if ((m_readBit & 7) == 0) {
+		size_t fullBytes = bits / 8;
+		if (fullBytes > 0 && m_readBit + fullBytes * 8 <= m_writeBit) {
+			extracted->ensureCapacity(fullBytes * 8);
+			std::memcpy(&extracted->m_data[0], &m_data[m_readBit / 8], fullBytes);
+			extracted->m_writeBit = fullBytes * 8;
+			extracted->m_fillPos.pos = static_cast<uint16_t>(fullBytes);
+			extracted->m_fillPos.bit = 0;
+			m_readBit += fullBytes * 8;
+			m_readPos.bit = 0;
+			m_readPos.pos = static_cast<uint16_t>(m_readBit / 8);
+			bits -= static_cast<uint32_t>(fullBytes * 8);
+		}
+	}
 	for (uint32_t i = 0; i < bits; ++i) {
 		if (getBool())
 			extracted->addBool(true);
@@ -471,9 +589,12 @@ std::unique_ptr<ZCom_BitStream> ZCom_BitStream::getBitStream(uint32_t bits, bool
 void ZCom_BitStream::skipInt(zU8 bits) {
 	if (bits <= 0)
 		return;
-	m_readBit += static_cast<size_t>(bits);
-	if (m_readBit > m_writeBit)
+	if (m_readBit + static_cast<size_t>(bits) > m_writeBit) {
+		m_readError = true; // over-read: make the desync observable (T3.1)
 		m_readBit = m_writeBit;
+	} else {
+		m_readBit += static_cast<size_t>(bits);
+	}
 	m_readPos.bit = static_cast<uint16_t>(m_readBit % 8);
 	m_readPos.pos = static_cast<uint16_t>(m_readBit / 8);
 }
@@ -497,18 +618,21 @@ void ZCom_BitStream::skipString() {
 	}
 }
 
-void ZCom_BitStream::skipBuffer(uint16_t len) {
-	(void)len;
-	// In ZoidCom reference, skipBuffer skips a *stored* buffer by given byte count
-	// We need to read the length prefix and skip
+void ZCom_BitStream::skipBuffer() {
+	// Length-prefixed model: read the stored 16-bit byte count, then skip
+	// that many bytes. (Reference skipBuffer(zU16) skips a caller-supplied
+	// count with no stored prefix — see the addBuffer deviation note.)
 	uint16_t actualLen = static_cast<uint16_t>(getInt(16));
 	skipBits(actualLen * 8);
 }
 
 void ZCom_BitStream::skipBits(uint32_t amount) {
-	m_readBit += amount;
-	if (m_readBit > m_writeBit)
+	if (m_readBit + amount > m_writeBit) {
+		m_readError = true; // over-read: make the desync observable (T3.1)
 		m_readBit = m_writeBit;
+	} else {
+		m_readBit += amount;
+	}
 	m_readPos.bit = static_cast<uint16_t>(m_readBit % 8);
 	m_readPos.pos = static_cast<uint16_t>(m_readBit / 8);
 }
@@ -581,6 +705,7 @@ bool ZCom_BitStream::Deserialize(char *ptr, uint16_t size) {
 	m_fillPos.bit = 0;
 	m_fillPos.pos = static_cast<uint16_t>(size);
 	m_readPos = {0, 0};
+	m_readError = false; // fresh content: clear any prior over-read flag (T3.1)
 	return true;
 }
 
@@ -600,11 +725,35 @@ bool ZCom_BitStream::isEqual(const ZCom_BitStream &other) const {
 
 std::unique_ptr<ZCom_BitStream> ZCom_BitStream::Duplicate() const {
 	auto dup = std::make_unique<ZCom_BitStream>();
+	if (m_readBit >= m_writeBit)
+		return dup;
+	size_t bitsToCopy = m_writeBit - m_readBit;
 	size_t byteStart = m_readBit / 8;
-	if (byteStart < m_data.size()) {
-		dup->m_data.assign(m_data.begin() + byteStart, m_data.end());
+	size_t bitOffset = m_readBit % 8;
+	if (bitOffset == 0) {
+		// Byte-aligned read head: copy whole bytes directly.
+		size_t bytes = (bitsToCopy + 7) / 8;
+		if (byteStart < m_data.size()) {
+			size_t avail = m_data.size() - byteStart;
+			if (bytes > avail)
+				bytes = avail;
+			dup->m_data.assign(m_data.begin() + byteStart, m_data.begin() + byteStart + bytes);
+		}
+	} else {
+		// Unaligned read head: bit-shift so the first unconsumed bit lands at
+		// dup bit 0. Copying raw bytes here (the old code) would retain the
+		// already-consumed partial byte and desync the duplicate (live on the
+		// Lua-event path: Goop/network.cpp Duplicate() of inbound streams).
+		size_t outBytes = (bitsToCopy + 7) / 8;
+		dup->m_data.assign(outBytes, 0);
+		for (size_t i = 0; i < bitsToCopy; ++i) {
+			size_t src = m_readBit + i;
+			size_t bIdx = src / 8;
+			if (bIdx < m_data.size() && (m_data[bIdx] & (1u << (src % 8))))
+				dup->m_data[i / 8] |= static_cast<uint8_t>(1u << (i % 8));
+		}
 	}
-	dup->m_writeBit = m_writeBit - m_readBit;
+	dup->m_writeBit = bitsToCopy;
 	dup->m_readBit = 0;
 	dup->m_fillPos.bit = static_cast<uint16_t>(dup->m_writeBit % 8);
 	dup->m_fillPos.pos = static_cast<uint16_t>(dup->m_writeBit / 8);

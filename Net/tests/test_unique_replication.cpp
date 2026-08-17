@@ -413,26 +413,27 @@ BOOST_AUTO_TEST_CASE(unique_proxy_before_announce_is_rekeyed) {
 	g_currentControl = nullptr;
 
 	// Register the client proxy FIRST (before connecting/pumping), so it gets
-	// a local m_nextNodeID. Bump the client's counter with a throwaway unique
-	// node first so the proxy's local ID differs from the server's nodeID
-	// (both controls start m_nextNodeID at 1); this makes the re-key a real
-	// re-key rather than a coincidental no-op.
+	// a local node ID. Keep a throwaway unique node alive while the proxy is
+	// registered so its freed ID isn't recycled over the proxy — this
+	// forces the proxy's local ID to differ from the server's nodeID (both
+	// controls start at ID 1), making the re-key a real re-key rather than a
+	// coincidental no-op. (With node-ID recycling, a create-then-remove
+	// throwaway would hand its ID straight back to the proxy.)
 	uint32_t throwClass = cli.ZCom_registerClass("UQ4_dummy", 0);
 	g_currentControl = &cli;
-	{
-		ZCom_Node *dummy = new ZCom_Node();
-		dummy->registerNodeUnique(throwClass, eZCom_RoleProxy, &cli);
-		dummy->unregisterNode();
-		delete dummy;
-	}
+	ZCom_Node *dummy = new ZCom_Node();
+	dummy->registerNodeUnique(throwClass, eZCom_RoleProxy, &cli); // occupies ID 1
 	cli.node = new ZCom_Node();
 	cli.node->beginReplicationSetup(1);
 	cli.node->addReplicationInt((zS32 *)&cli.rval, 32, false, ZCOM_REPFLAG_MOSTRECENT, ZCOM_REPRULE_AUTH_2_ALL, 0);
 	cli.node->endReplicationSetup();
-	cli.node->registerNodeUnique(cli.cls, eZCom_RoleProxy, &cli);
+	cli.node->registerNodeUnique(cli.cls, eZCom_RoleProxy, &cli); // gets ID 2 (1 in use)
 	uint32_t localIDBefore = cli.node->getNetworkID();
 	g_currentControl = nullptr;
 	BOOST_REQUIRE_NE(localIDBefore, 0u);
+	// Throwaway can go now; its freed ID is recycled but the proxy keeps ID 2.
+	dummy->unregisterNode();
+	delete dummy;
 
 	cli.ConnectTo("127.0.0.1", port);
 	pumpBoth(&srv, &cli, 80);

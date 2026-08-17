@@ -46,7 +46,7 @@ ZBS_CHECK_SIG(skipInt, void (ZCom_BitStream::*)(zU8));
 ZBS_CHECK_SIG(skipSignedInt, void (ZCom_BitStream::*)(zU8));
 ZBS_CHECK_SIG(skipFloat, void (ZCom_BitStream::*)(zU8));
 ZBS_CHECK_SIG(skipString, void (ZCom_BitStream::*)());
-ZBS_CHECK_SIG(skipBuffer, void (ZCom_BitStream::*)(zU16));
+ZBS_CHECK_SIG(skipBuffer, void (ZCom_BitStream::*)());
 ZBS_CHECK_SIG(skipBits, void (ZCom_BitStream::*)(zU32));
 
 ZBS_CHECK_SIG(saveWriteState, void (ZCom_BitStream::*)(ZCom_BitStream::BitPos &) const);
@@ -193,7 +193,7 @@ BOOST_AUTO_TEST_CASE(skip_buffer_large) {
 	BOOST_CHECK(bs.addBuffer(buf, 64));
 	BOOST_CHECK(bs.addInt(0xAB, 8));
 	bs.resetReadState();
-	bs.skipBuffer(64);
+	bs.skipBuffer();
 	BOOST_CHECK_EQUAL(bs.getInt(8), 0xABu);
 }
 

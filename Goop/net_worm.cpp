@@ -73,7 +73,7 @@ NetWorm::NetWorm(bool isAuthority) : BaseWorm() {
 	m_node->addReplicationBool(&m_ninjaRope->active, ZCOM_REPFLAG_MOSTRECENT,
 							   ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
 	m_node->addReplicationBool(&m_ninjaRope->attached, ZCOM_REPFLAG_MOSTRECENT,
-						   ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
+							   ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
 
 	m_node->setInterceptID(PlayerID);
 

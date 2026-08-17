@@ -115,7 +115,7 @@ BOOST_AUTO_TEST_CASE(skip_buffer) {
 	bs.addBuffer("ABC", 3);
 	bs.addBuffer("XYZ", 3);
 
-	bs.skipBuffer(3);
+	bs.skipBuffer();
 	char buf[4] = {0};
 	bs.getBuffer(buf, 3);
 	BOOST_CHECK_EQUAL(std::string(buf, 3), "XYZ");

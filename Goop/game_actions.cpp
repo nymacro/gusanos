@@ -486,8 +486,7 @@ void RunCustomEvent::run(ActionParams const &params) {
 
 RunCustomEvent::~RunCustomEvent() {}
 
-RunScript::RunScript(vector<OmfgScript::TokenBase *> const &params)
-	: script(params[0]->toString()) {}
+RunScript::RunScript(vector<OmfgScript::TokenBase *> const &params) : script(params[0]->toString()) {}
 
 void RunScript::run(ActionParams const &params) {
 	AssertStack as(lua);

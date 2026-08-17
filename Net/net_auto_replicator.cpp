@@ -22,6 +22,10 @@ inline void writeAligned(void *p, T v) {
 // AutoReplicatorInt
 // ---------------------------------------------------------------------------
 
+bool AutoReplicatorInt::isChanged() const {
+	return m_ptr && (initial || readAligned<int32_t>(m_ptr) != m_old);
+}
+
 bool AutoReplicatorInt::detect(bool force) {
 	if (!m_ptr)
 		return false;
@@ -70,6 +74,10 @@ void AutoReplicatorInt::skip(ZCom_BitStream &in) {
 // AutoReplicatorFloat
 // ---------------------------------------------------------------------------
 
+bool AutoReplicatorFloat::isChanged() const {
+	return m_ptr && (initial || readAligned<float>(m_ptr) != m_old);
+}
+
 bool AutoReplicatorFloat::detect(bool force) {
 	if (!m_ptr)
 		return false;
@@ -111,6 +119,10 @@ void AutoReplicatorFloat::skip(ZCom_BitStream &in) {
 // ---------------------------------------------------------------------------
 // AutoReplicatorBool
 // ---------------------------------------------------------------------------
+
+bool AutoReplicatorBool::isChanged() const {
+	return m_ptr && (initial || *m_ptr != m_old);
+}
 
 bool AutoReplicatorBool::detect(bool force) {
 	if (!m_ptr)

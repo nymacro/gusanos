@@ -49,5 +49,3 @@ void BaseObject::removeRefsToPlayer(BasePlayer *player) {
 void BaseObject::makeReference() {
 	lua.pushFullReference(*this, metaTable);
 }
-
-

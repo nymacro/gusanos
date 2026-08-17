@@ -23,9 +23,8 @@ zU32 ZoidCom::s_connectionTimeout = 20000;
 
 ZCom_Node::ZCom_Node()
 	: m_nodeID(0), m_classID(0), m_ownerID(0), m_role(0), m_isUnique(false), m_isPrivate(false),
-	  m_eventNotification(false), m_eventNotificationRemove(false), m_authority(false), m_control(nullptr),
-	  m_announceData(nullptr), m_userData(nullptr), m_eventInterceptor(nullptr), m_updatePriority(0),
-	  m_defaultRelevance(1.0f), m_relevantConnectionCount(0), m_zoidLevel(0), m_interceptID(-1),
+	  m_eventNotification(false), m_eventNotificationRemove(false), m_control(nullptr), m_announceData(nullptr),
+	  m_userData(nullptr), m_eventInterceptor(nullptr), m_zoidLevel(0), m_interceptID(-1),
 	  m_replicationInterceptor(nullptr) {}
 
 ZCom_Node::~ZCom_Node() {
@@ -158,7 +157,7 @@ void ZCom_Node::applyForZoidLevel(int level) {
 
 void ZCom_Node::setOwner(ZCom_ConnID id, bool auth) {
 	m_ownerID = id;
-	m_authority = auth;
+	(void)auth; // retained for API compatibility; authority flag is unused
 	// If already registered, re-announce with owner-aware roles
 	if (m_control && m_nodeID > 0 && !m_isUnique) {
 		m_control->clearAnnouncedNode(m_nodeID);
@@ -168,6 +167,18 @@ void ZCom_Node::setOwner(ZCom_ConnID id, bool auth) {
 
 void ZCom_Node::pushEvent(eZCom_Event type, eZCom_NodeRole role, uint32_t connID, ZCom_BitStream *data,
 						  zU32 estimatedTimeSent) {
+	// Consult the event interceptor (if registered) before queueing. It inspects
+	// a private duplicate of the payload and may veto the event by returning
+	// false (Zoidcom reference contract: incoming events are observable/droppable
+	// before the node receives them). The queued copy is built from the original
+	// stream, untouched by the probe, so the node's getNextEvent() read head is
+	// pristine regardless of what the interceptor reads.
+	if (m_eventInterceptor) {
+		auto probe = data ? data->Duplicate() : nullptr;
+		if (!invokeEventInterceptor(type, role, connID, probe.get(), estimatedTimeSent))
+			return;
+	}
+
 	NodeEvent ev;
 	ev.type = type;
 	ev.role = role;
@@ -175,6 +186,58 @@ void ZCom_Node::pushEvent(eZCom_Event type, eZCom_NodeRole role, uint32_t connID
 	ev.data = data ? data->Duplicate() : nullptr;
 	ev.estimatedTimeSent = estimatedTimeSent;
 	m_eventQueue.push_back(std::move(ev));
+}
+
+// Map an incoming event to the matching ZCom_NodeEventInterceptor callback.
+// File events carry [fid(ZCOM_FTRANS_ID_BITS)] (+ length-prefixed offer for
+// File_Incoming) in `probe`; we parse the fid (and offer) for the interceptor
+// and pass the offer as a fresh stream matching the reference's _request.
+bool ZCom_Node::invokeEventInterceptor(eZCom_Event type, eZCom_NodeRole role, uint32_t connID, ZCom_BitStream *probe,
+									   zU32 estimatedTimeSent) {
+	if (!m_eventInterceptor)
+		return true;
+	switch (type) {
+		case eZCom_EventUser: {
+			ZCom_BitStream empty;
+			ZCom_BitStream &d = probe ? *probe : empty;
+			return m_eventInterceptor->recUserEvent(this, connID, role, d, estimatedTimeSent);
+		}
+		case eZCom_EventInit:
+			return m_eventInterceptor->recInit(this, connID, role);
+		case eZCom_EventSyncRequest:
+			return m_eventInterceptor->recSyncRequest(this, connID, role);
+		case eZCom_EventRemoved:
+			return m_eventInterceptor->recRemoved(this, connID, role);
+		case eZCom_EventFile_Incoming: {
+			ZCom_FileTransID fid = probe ? probe->getInt(ZCOM_FTRANS_ID_BITS) : 0;
+			ZCom_BitStream request;
+			if (probe) {
+				zU16 offerLen = probe->getBufferMax();
+				if (offerLen > 0) {
+					std::vector<char> offerBuf(offerLen);
+					probe->getBuffer(offerBuf.data(), offerLen);
+					request.Deserialize(offerBuf.data(), offerLen);
+				}
+			}
+			return m_eventInterceptor->recFileIncoming(this, connID, role, fid, request);
+		}
+		case eZCom_EventFile_Data: {
+			ZCom_FileTransID fid = probe ? probe->getInt(ZCOM_FTRANS_ID_BITS) : 0;
+			return m_eventInterceptor->recFileData(this, connID, role, fid);
+		}
+		case eZCom_EventFile_Aborted: {
+			ZCom_FileTransID fid = probe ? probe->getInt(ZCOM_FTRANS_ID_BITS) : 0;
+			return m_eventInterceptor->recFileAborted(this, connID, role, fid);
+		}
+		case eZCom_EventFile_Complete: {
+			ZCom_FileTransID fid = probe ? probe->getInt(ZCOM_FTRANS_ID_BITS) : 0;
+			return m_eventInterceptor->recFileComplete(this, connID, role, fid);
+		}
+		default:
+			// eZCom_EventNoEvent / eZCom_EventReplicator are not part of the
+			// event-interceptor API; let them through.
+			return true;
+	}
 }
 
 void ZCom_Node::sendEvent(eZCom_SendMode mode, zU8 rules, ZCom_BitStream *stream) {
@@ -369,13 +432,38 @@ void ZCom_Node::packReplicatorsForRouting(std::vector<PackedReplicator> &out) {
 		out.push_back(std::move(p));
 	}
 
-	// Auto-replications.
+	// Auto-replications. T1.3: apply the same per-replicator min/max-delay
+	// throttling as explicit replicators above. A change within minDelay is
+	// skipped but left dirty (isChanged peeks without consuming, so the value
+	// retries next tick); a stale-but-unchanged entry past maxDelay is
+	// force-sent as a heartbeat. forceAll bypasses both (new-peer initial
+	// state). Mirrors the reference, which throttles every replicator
+	// regardless of type.
 	for (auto &entry : m_autoReplications) {
 		PackedReplicator p;
 		p.rule = entry->rule;
-		p.hasUpdate = entry->detect(forceAll);
-		if (p.hasUpdate)
+		bool force = forceAll;
+		if (!force && entry->maxDelay > 0 && (nowTicks - entry->lastSendTime) >= static_cast<uint32_t>(entry->maxDelay))
+			force = true;
+		bool send;
+		if (force) {
+			send = entry->detect(true);
+		} else {
+			bool changed = entry->isChanged();
+			if (!changed) {
+				send = false;
+			} else if (entry->minDelay > 0 &&
+					   (nowTicks - entry->lastSendTime) < static_cast<uint32_t>(entry->minDelay)) {
+				send = false; // too soon since last send; leave dirty (not consumed)
+			} else {
+				send = entry->detect(false); // consume snapshot + emit
+			}
+		}
+		p.hasUpdate = send;
+		if (send) {
 			entry->emit(p.data);
+			entry->lastSendTime = nowTicks;
+		}
 		out.push_back(std::move(p));
 	}
 }

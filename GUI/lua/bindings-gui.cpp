@@ -273,8 +273,7 @@ LMETHODC(OmfgGUI::Wnd, gui_wnd_focus, p->focus(); return 0;)
 	this window is focused.
 */
 LMETHODC(
-	OmfgGUI::Wnd, gui_wnd_set_sub_focus,
-	OmfgGUI::Wnd *sub = ASSERT_LOBJECT(OmfgGUI::Wnd, 2);
+	OmfgGUI::Wnd, gui_wnd_set_sub_focus, OmfgGUI::Wnd *sub = ASSERT_LOBJECT(OmfgGUI::Wnd, 2);
 
 	// Make sure that 'sub' is a child of 'p'
 	OmfgGUI::Wnd *parent = sub->getParent();
@@ -364,8 +363,7 @@ LMETHODC(OmfgGUI::List, gui_list_subinsert,
 
 		 OmfgGUI::ListNode *parent = ASSERT_LOBJECT(OmfgGUI::ListNode, 2);
 
-		 int c = lua_gettop(context);
-		 OmfgGUI::ListNode *n = lua_new_weak_keep(OmfgGUI::ListNode, (""), context);
+		 int c = lua_gettop(context); OmfgGUI::ListNode *n = lua_new_weak_keep(OmfgGUI::ListNode, (""), context);
 		 p->push_back(n, parent); for (int i = 3; i <= c; ++i) n->setText(i - 3, lua_tostring(context, i));
 
 		 return 1;)
@@ -459,10 +457,9 @@ void addGUIWndFunctions(LuaContext &context) {
 		("get_text", l_gui_wnd_get_text_depr)
 #endif
 			("text", l_gui_wnd_get_text)("set_text", l_gui_wnd_set_text)("focus", l_gui_wnd_focus)(
-				"set_sub_focus", l_gui_wnd_set_sub_focus)("activate", l_gui_wnd_activate)(
-				"deactivate", l_gui_wnd_deactivate)("child", l_gui_wnd_child)("switch_to",
-																			  l_gui_wnd_switch_to)("add", l_gui_wnd_add)
-		;
+				"set_sub_focus", l_gui_wnd_set_sub_focus)("activate", l_gui_wnd_activate)("deactivate",
+																						  l_gui_wnd_deactivate)(
+				"child", l_gui_wnd_child)("switch_to", l_gui_wnd_switch_to)("add", l_gui_wnd_add);
 }
 
 void addGUIListFunctions(LuaContext &context) {

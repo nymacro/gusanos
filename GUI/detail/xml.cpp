@@ -61,20 +61,15 @@ struct XMLHandler {
 		if (tag.label == "window") {
 			newWindow = lua_new_weak(Wnd, (windows.top().wnd, tag.attributes), lua);
 		} else if (tag.label == "list") {
-			newWindow =
-				lua_new_weak(List, (windows.top().wnd, tag.attributes), lua);
+			newWindow = lua_new_weak(List, (windows.top().wnd, tag.attributes), lua);
 		} else if (tag.label == "button") {
-			newWindow = lua_new_weak(
-				Button, (windows.top().wnd, tag.attributes), lua);
+			newWindow = lua_new_weak(Button, (windows.top().wnd, tag.attributes), lua);
 		} else if (tag.label == "group") {
-			newWindow =
-				lua_new_weak(Group, (windows.top().wnd, tag.attributes), lua);
+			newWindow = lua_new_weak(Group, (windows.top().wnd, tag.attributes), lua);
 		} else if (tag.label == "edit") {
-			newWindow =
-				lua_new_weak(Edit, (windows.top().wnd, tag.attributes), lua);
+			newWindow = lua_new_weak(Edit, (windows.top().wnd, tag.attributes), lua);
 		} else if (tag.label == "check") {
-			newWindow =
-				lua_new_weak(Check, (windows.top().wnd, tag.attributes), lua);
+			newWindow = lua_new_weak(Check, (windows.top().wnd, tag.attributes), lua);
 		}
 
 		if (!windows.top().wnd) {

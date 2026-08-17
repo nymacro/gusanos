@@ -5,14 +5,12 @@
 #include "game.h"
 
 DetectEvent::DetectEvent(float range, bool detectOwner, int detectFilter)
-	: m_range(range), m_detectOwner(detectOwner), m_detectFilter(detectFilter) {
-}
+	: m_range(range), m_detectOwner(detectOwner), m_detectFilter(detectFilter) {}
 
 DetectEvent::DetectEvent(std::vector<BaseAction *> &actions_, float range, bool detectOwner, int detectFilter)
 	: Event(actions_), m_range(range), m_detectOwner(detectOwner), m_detectFilter(detectFilter) {}
 
-DetectEvent::~DetectEvent() {
-}
+DetectEvent::~DetectEvent() {}
 
 void DetectEvent::check(BaseObject *ownerObject) {
 	int x = int(ownerObject->pos.x);

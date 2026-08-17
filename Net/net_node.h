@@ -149,8 +149,6 @@ class ZCom_Node {
 	// Replication setup
 	void beginReplicationSetup(int level);
 	void endReplicationSetup();
-	void beginReplication() {}
-	void endReplication() {}
 	void registerReplicator(void *replicator);
 	void addReplicator(std::unique_ptr<ZCom_Replicator> replicator, bool flag);
 	void addReplicationInt(zS32 *val, zU8 bits, bool sign, zU8 flags, zU8 rules, zS16 mindelay = -1,
@@ -161,6 +159,12 @@ class ZCom_Node {
 	void setInterceptID(ZCom_InterceptID id);
 	void setReplicationInterceptor(ZCom_NodeReplicationInterceptor *interceptor) {
 		m_replicationInterceptor = interceptor;
+	}
+	// Fires outPreDereplicateNode on the node's replication interceptor (if any).
+	// Called by ZCom_Control::removeNode before deannouncing the node to a peer.
+	void notifyPreDereplicate(uint32_t to, eZCom_NodeRole remoteRole) {
+		if (m_replicationInterceptor)
+			m_replicationInterceptor->outPreDereplicateNode(this, to, remoteRole);
 	}
 	void setEventNotification(bool init, bool remove);
 	void setAnnounceData(std::unique_ptr<ZCom_BitStream> data);
@@ -173,6 +177,11 @@ class ZCom_Node {
 	bool registerRequestedNode(uint32_t classID, void *control);
 	void applyForZoidLevel(int level);
 	void setOwner(ZCom_ConnID id, bool auth);
+	// sendEvent/sendEventDirect do NOT take ownership of `stream` (the
+	// reference Zoidcom deletes the passed `_data` after sending). Ours copy
+	// the stream into an internal packet and leave the caller's pointer
+	// valid — Goop always passes stack-allocated bitstreams (address-of a
+	// local), so non-owning is safe.
 	void sendEvent(eZCom_SendMode mode, zU8 rules, ZCom_BitStream *stream);
 	void sendEventDirect(eZCom_SendMode mode, ZCom_BitStream *stream, ZCom_ConnID id);
 	uint32_t getNetworkID() {
@@ -212,6 +221,9 @@ class ZCom_Node {
 	bool getEventNotification() const {
 		return m_eventNotification;
 	}
+	bool getEventNotificationRemove() const {
+		return m_eventNotificationRemove;
+	}
 
 	void setUserData(void *data) {
 		m_userData = data;
@@ -226,14 +238,14 @@ class ZCom_Node {
 	bool isPrivate() const {
 		return m_isPrivate;
 	}
-	void setUpdatePriority(zU16 pri) {
-		m_updatePriority = pri;
-	}
-	void setDefaultRelevance(float rel) {
-		m_defaultRelevance = rel;
-	}
+	// ZoidCom API-compat stubs: the ENet port has no per-node update
+	// priority, relevance negotiation, or connection-relevance count, so
+	// these are no-ops. Kept for API surface (game code and signature tests
+	// call them).
+	void setUpdatePriority(zU16) {}
+	void setDefaultRelevance(float) {}
 	uint32_t getRelevantConnectionCount() {
-		return m_relevantConnectionCount;
+		return 0;
 	}
 
 	void removeFromZoidLevel(int) {}
@@ -292,6 +304,13 @@ class ZCom_Node {
 	void packReplicatorsForRouting(std::vector<PackedReplicator> &out);
 
   private:
+	// Dispatch one incoming event to the registered event interceptor (if any).
+	// `probe` is a throwaway duplicate the interceptor may inspect freely; the
+	// queued copy is built separately from the original stream. Returns false to
+	// veto (drop) the event, true to forward it to the node's queue.
+	bool invokeEventInterceptor(eZCom_Event type, eZCom_NodeRole role, uint32_t connID, ZCom_BitStream *probe,
+								zU32 estimatedTimeSent);
+
 	uint32_t m_nodeID;
 	uint32_t m_classID;
 	uint32_t m_ownerID;
@@ -300,14 +319,10 @@ class ZCom_Node {
 	bool m_isPrivate;
 	bool m_eventNotification;
 	bool m_eventNotificationRemove;
-	bool m_authority;
 	ZCom_Control *m_control; // non-owning (game owns the node)
 	std::unique_ptr<ZCom_BitStream> m_announceData;
 	void *m_userData;							   // non-owning (set by game)
 	ZCom_NodeEventInterceptor *m_eventInterceptor; // non-owning
-	int m_updatePriority;
-	float m_defaultRelevance;
-	uint32_t m_relevantConnectionCount;
 
 	std::vector<std::unique_ptr<ZCom_Replicator>> m_replicators;
 	std::vector<std::unique_ptr<AutoReplicator>> m_autoReplications;

@@ -8,16 +8,17 @@
 #include <cstdlib>
 #include <ctime>
 
-// Verbose logging for network debugging
-#define NET_DEBUG
-#ifdef NET_DEBUG
+// Verbose per-packet logging. Off by default; flip g_netLogVerbose (synced
+// from the NET_LOG/logZoidcom console var in Goop/network.cpp) to enable.
+// Was an unconditional #define, so every announce/replicator packet did a
+// flushed std::cerr per peer per tick. Runtime-gated so the Net lib stays
+// standalone-testable and the hot path pays one cheap branch.
+bool g_netLogVerbose = false;
 #define NET_LOG(x_)                                                                                                    \
 	do {                                                                                                               \
-		std::cerr << "[NET] " << x_ << std::endl;                                                                      \
+		if (g_netLogVerbose)                                                                                           \
+			std::cerr << "[NET] " << x_ << std::endl;                                                                  \
 	} while (0)
-#else
-#define NET_LOG(x_) (void)0
-#endif
 
 // Current control for global function dispatch
 ZCom_Control *g_currentControl = nullptr;
@@ -103,7 +104,8 @@ void pushFileEvent(ZCom_Node *node, eZCom_Event type, ZCom_ConnID connID, ZCom_F
 } // namespace
 
 ZCom_Control::ZCom_Control()
-	: m_logFn(nullptr), m_host(nullptr), m_isServer(false), m_nextConnID(1), m_nextNodeID(1), m_nextClassID(1) {
+	: m_logFn(nullptr), m_host(nullptr), m_isServer(false), m_nextConnID(1), m_nextNodeID(1), m_nextClassID(1),
+	  m_netEmuRng(std::random_device{}()) {
 	g_currentControl = this;
 }
 
@@ -211,7 +213,7 @@ void ZCom_Control::ZCom_processOutput() {
 
 			ENetPacket *packet =
 				enet_packet_create(m_routingPkt.getData(), m_routingPkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
-			ENetPeer *peer = findPeer(connID);
+			ENetPeer *peer = pair.second;
 			if (peer)
 				sendPacket(connID, peer, CH_REPLICATOR, packet, false);
 			else
@@ -266,11 +268,7 @@ void ZCom_Control::routeNodeEvent(ZCom_NodeID nid, eZCom_NodeRole localRole, zU8
 		if (!repruleMatches(rules, localRole, peerRole))
 			continue;
 		ENetPacket *packet = enet_packet_create(pkt.getData(), pkt.getDataLength(), flags);
-		ENetPeer *peer = findPeer(connID);
-		if (peer)
-			enet_peer_send(peer, 0, packet);
-		else
-			enet_packet_destroy(packet);
+		sendPacket(connID, pair.second, 0, packet, false);
 	}
 	// No per-call flush: ENet buffers the queued packets and the single batch
 	// flush in ZCom_processOutput() drains them (one flush/tick instead of one
@@ -315,9 +313,12 @@ ZCom_ConnID ZCom_Control::ZCom_Connect(const ZCom_Address &addr, ZCom_BitStream 
 	// C6: apply the global connection-timeout default to the new peer.
 	enet_peer_timeout(peer, ENET_PEER_TIMEOUT_LIMIT, ENET_PEER_TIMEOUT_MINIMUM, ZoidCom::getConnectionTimeout());
 
-	// Connection request data is stored but not sent directly —
-	// the application-level handshake happens after ENet transport connects.
-	(void)data;
+	// Stash the caller's connect payload; it is sent as MSG_CONNECTION_REQUEST
+	// once ENet transport connects (see the outgoing ENET_EVENT_TYPE_CONNECT
+	// handler), and delivered to the server's cbConnectionRequest::_request.
+	// Reference semantics: the data reaches the server, not just the reply.
+	if (data && data->getDataLength() > 0)
+		m_connectData[connID].assign(data->getData(), data->getData() + data->getDataLength());
 
 	return connID;
 }
@@ -326,22 +327,19 @@ void ZCom_Control::ZCom_disconnectAll(ZCom_BitStream *data) {
 	if (!m_host)
 		return;
 
-	// Send disconnect reason data to peers before disconnecting
-	if (data) {
-		ZCom_BitStream pkt;
-		pkt.addInt(MSG_DISCONNECT_DATA, 8);
-		for (size_t i = 0; i < data->getDataLength(); ++i)
-			pkt.addInt(data->getData()[i], 8);
-
-		ENetPacket *packet = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
-		enet_host_broadcast(m_host, 0, packet);
-		enet_host_flush(m_host);
-	}
-
 	for (auto &pair : m_peerMap) {
-		if (pair.second) {
-			enet_peer_disconnect(pair.second, 0);
+		if (!pair.second)
+			continue;
+		if (data && data->getDataLength() > 0) {
+			ZCom_BitStream pkt;
+			pkt.addInt(MSG_DISCONNECT_DATA, 8);
+			// Raw bytes, no length prefix: the receiver captures the rest of the packet verbatim.
+			for (size_t i = 0; i < data->getDataLength(); ++i)
+				pkt.addInt(data->getData()[i], 8);
+			ENetPacket *packet = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
+			sendPacket(pair.first, pair.second, 0, packet, true);
 		}
+		enet_peer_disconnect(pair.second, 0);
 	}
 	m_peerMap.clear();
 	m_addressMap.clear();
@@ -354,11 +352,12 @@ void ZCom_Control::ZCom_Disconnect(ZCom_ConnID id, ZCom_BitStream *data) {
 	if (peer && data && data->getDataLength() > 0) {
 		ZCom_BitStream pkt;
 		pkt.addInt(MSG_DISCONNECT_DATA, 8);
+		// Raw bytes, no length prefix: the receiver captures the rest of the packet verbatim.
 		for (size_t i = 0; i < data->getDataLength(); ++i)
 			pkt.addInt(data->getData()[i], 8);
 
 		ENetPacket *packet = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
-		enet_peer_send(peer, 0, packet);
+		sendPacket(id, peer, 0, packet, true);
 		enet_host_flush(m_host);
 	}
 
@@ -397,6 +396,9 @@ void ZCom_Control::Shutdown() {
 	m_pendingUniqueAnnounce.clear();
 	m_pendingFileOffers.clear();
 	m_fileTransfers.clear();
+	m_freeNodeIDs.clear();
+	m_pendingConnectRequest.clear();
+	m_connectData.clear();
 }
 
 void ZCom_Control::disconnectPeer(uint32_t connID) {
@@ -421,7 +423,7 @@ void ZCom_Control::ZCom_sendData(ZCom_ConnID connID, ZCom_BitStream *stream, eZC
 	enet_uint32 flags = enetPacketFlags(mode);
 
 	ENetPacket *packet = enet_packet_create(stream->getData(), stream->getDataLength(), flags);
-	enet_peer_send(peer, 0, packet);
+	sendPacket(connID, peer, 0, packet, false);
 }
 
 void ZCom_Control::sendToAll(int mode, ZCom_BitStream *stream) {
@@ -429,9 +431,10 @@ void ZCom_Control::sendToAll(int mode, ZCom_BitStream *stream) {
 		return;
 
 	enet_uint32 flags = enetPacketFlags(static_cast<eZCom_SendMode>(mode));
-
-	ENetPacket *packet = enet_packet_create(stream->getData(), stream->getDataLength(), flags);
-	enet_host_broadcast(m_host, 0, packet);
+	for (auto &pair : m_peerMap) {
+		ENetPacket *packet = enet_packet_create(stream->getData(), stream->getDataLength(), flags);
+		sendPacket(pair.first, pair.second, 0, packet, false);
+	}
 }
 
 void ZCom_Control::replayPendingReplicators(ZCom_Node *node) {
@@ -468,7 +471,10 @@ bool ZCom_Control::registerExistingNode(ZCom_Node *node) {
 bool ZCom_Control::registerNode(ZCom_Node *node) {
 	if (!node)
 		return false;
-	node->setNodeID(m_nextNodeID++);
+	uint32_t newID = allocateNodeID();
+	if (newID == 0)
+		return false; // 16-bit node-ID space exhausted (65535 nodes live)
+	node->setNodeID(newID);
 	node->setControl(this);
 	m_nodeRegistry.insert(node);
 
@@ -535,21 +541,14 @@ void ZCom_Control::sendNodeAnnouncement(uint32_t connID, ZCom_Node *node, int ro
 	pkt.addInt(role, 8);
 
 	ZCom_BitStream *ad = node->buildAnnounceData(connID, static_cast<eZCom_NodeRole>(role));
-	if (ad && ad->getDataLength() > 0) {
-		pkt.addInt(static_cast<int>(ad->getDataLength()), 16);
-		for (size_t i = 0; i < ad->getDataLength(); ++i)
-			pkt.addInt(ad->getData()[i], 8);
-	} else {
-		pkt.addInt(0, 16);
-	}
-
-	ENetPacket *packet = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
+	if (ad && ad->getDataLength() > 0)
+		pkt.addBuffer(reinterpret_cast<const char *>(ad->getData()), static_cast<zU16>(ad->getDataLength()));
+	else
+		pkt.addBuffer("", 0);
 
 	ENetPeer *peer = findPeer(connID);
-	if (peer)
-		enet_peer_send(peer, 0, packet);
-	else
-		enet_packet_destroy(packet);
+	ENetPacket *packet = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
+	sendPacket(connID, peer, 0, packet, false);
 
 	// Push eEvent_Init for nodes with event notification enabled
 	if (node->getEventNotification()) {
@@ -574,21 +573,27 @@ void ZCom_Control::sendUniqueAnnouncement(uint32_t connID, ZCom_Node *node) {
 	pkt.addInt(role, 8);
 
 	ZCom_BitStream *ad = node->buildAnnounceData(connID, static_cast<eZCom_NodeRole>(role));
-	if (ad && ad->getDataLength() > 0) {
-		pkt.addInt(static_cast<int>(ad->getDataLength()), 16);
-		for (size_t i = 0; i < ad->getDataLength(); ++i)
-			pkt.addInt(ad->getData()[i], 8);
-	} else {
-		pkt.addInt(0, 16);
-	}
-
-	ENetPacket *packet = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
-	ENetPeer *peer = findPeer(connID);
-	if (peer)
-		enet_peer_send(peer, 0, packet);
+	if (ad && ad->getDataLength() > 0)
+		pkt.addBuffer(reinterpret_cast<const char *>(ad->getData()), static_cast<zU16>(ad->getDataLength()));
 	else
-		enet_packet_destroy(packet);
+		pkt.addBuffer("", 0);
+
+	ENetPeer *peer = findPeer(connID);
+	ENetPacket *packet = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
+	sendPacket(connID, peer, 0, packet, false);
 	// eEvent_Init is pushed by the caller (connect-spawn loop), not here.
+}
+
+void ZCom_Control::sendNodeRemoval(uint32_t connID, uint32_t nid) {
+	if (!m_host)
+		return;
+	NET_LOG("sendNodeRemoval: connID=" << connID << " nodeID=" << nid);
+	ZCom_BitStream pkt;
+	pkt.addInt(MSG_NODE_REMOVE, 8);
+	pkt.addInt(nid, 16);
+	ENetPeer *peer = findPeer(connID);
+	ENetPacket *packet = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
+	sendPacket(connID, peer, 0, packet, false);
 }
 
 void ZCom_Control::linkUniqueNode(ZCom_Node *node, uint32_t classID, uint32_t serverNodeID, int role, uint32_t connID) {
@@ -616,6 +621,9 @@ void ZCom_Control::linkUniqueNode(ZCom_Node *node, uint32_t classID, uint32_t se
 				m_pendingNodeEvents.erase(evIt);
 				m_pendingNodeEvents[serverNodeID] = std::move(vec);
 			}
+			// The transient local ID is now orphaned by the re-key; recycle
+			// it so unique-proxy registration churn can't starve the space.
+			releaseNodeID(oldID);
 		}
 	} else {
 		node->setNodeID(serverNodeID);
@@ -719,12 +727,31 @@ void ZCom_Control::announceNodeWithOwner(ZCom_Node *node) {
 void ZCom_Control::removeNode(ZCom_Node *node) {
 	if (!node)
 		return;
+	uint32_t nid = node->getNetworkID();
+
+	// Deannounce the node to every peer it was announced to. The receiver
+	// fires eZCom_EventRemoved on its proxy (gated on remove-notification) and
+	// clears its own bookkeeping; without this, remote proxies linger forever.
+	// outPreDereplicateNode fires before the wire send (reference: the node is
+	// "about to be removed from a remote control"). Captured before erasing
+	// m_announcedNodes/m_peerRole below.
+	for (auto &pair : m_peerMap) {
+		uint32_t connID = pair.first;
+		if (!m_announcedNodes[connID].count(nid))
+			continue;
+		eZCom_NodeRole remoteRole = eZCom_RoleProxy;
+		auto rit = m_peerRole[connID].find(nid);
+		if (rit != m_peerRole[connID].end())
+			remoteRole = rit->second;
+		node->notifyPreDereplicate(connID, remoteRole);
+		sendNodeRemoval(connID, nid);
+	}
+
 	// Remove immediately from the registry. NodeRegistry uses a std::list so
 	// erasing one entry invalidates only that entry's iterator; the forEach
 	// helper pre-advances before invoking its callback, so destroying the
 	// current node during iteration is safe. Clear per-peer bookkeeping now
 	// so the node stops being routed to peers.
-	uint32_t nid = node->getNetworkID();
 	m_nodeRegistry.remove(node);
 	for (auto &pair : m_peerMap) {
 		m_announcedNodes[pair.first].erase(nid);
@@ -739,6 +766,9 @@ void ZCom_Control::removeNode(ZCom_Node *node) {
 			m_uniqueByClass.erase(it);
 		m_pendingUniqueAnnounce.erase(classID);
 	}
+	// Recycle the freed ID so transient nodes (e.g. per-particle ZCom_Nodes)
+	// don't exhaust the 16-bit wire space in a long match.
+	releaseNodeID(nid);
 }
 
 const ZCom_Address *ZCom_Control::ZCom_getPeer(ZCom_ConnID id) const {
@@ -747,25 +777,88 @@ const ZCom_Address *ZCom_Control::ZCom_getPeer(ZCom_ConnID id) const {
 }
 
 const ZCom_ConnStats &ZCom_Control::ZCom_getConnectionStats(ZCom_ConnID id) const {
+	// Only cache stats for connections with a live peer; a query for a dead
+	// or unknown id must not insert a permanent empty entry (operator[]
+	// would). Return a stable null reference instead.
+	static const ZCom_ConnStats nullStats{};
+	ENetPeer *peer = findPeer(id);
+	if (!peer)
+		return nullStats;
 	ZCom_ConnStats &stats = m_statsCache[id];
 	stats = ZCom_ConnStats();
-	ENetPeer *peer = findPeer(id);
-	if (peer) {
-		stats.avg_ping = peer->roundTripTime;
-		stats.min_ping = peer->lowestRoundTripTime;
-		stats.max_ping = peer->roundTripTime != 0 ? peer->roundTripTime + peer->roundTripTimeVariance : 0;
-		stats.last_sec_out = peer->lastSendTime;
-		stats.last_sec_in = peer->lastReceiveTime;
-		stats.total_out = peer->outgoingDataTotal;
-		stats.total_in = peer->incomingDataTotal;
-		stats.last_sec_loss_percent = peer->packetLoss;
-		stats.current_loss_count = peer->packetsLost;
+
+	stats.avg_ping = peer->roundTripTime;
+	stats.min_ping = peer->lowestRoundTripTime;
+	stats.total_out = static_cast<int>(peer->outgoingDataTotal);
+	stats.total_in = static_cast<int>(peer->incomingDataTotal);
+	// ENet scales packetLoss by ENET_PEER_PACKET_LOSS_SCALE (1<<16); report percent.
+	stats.last_sec_loss_percent = static_cast<int>(peer->packetLoss * 100.0f / ENET_PEER_PACKET_LOSS_SCALE);
+	stats.current_loss_count = peer->packetsLost;
+
+	// ENet exposes only cumulative byte totals, so per-second rates need
+	// delta-tracking. Maintain a 1s rolling window per connection; last_sec_*
+	// is the last completed second, current_* is the in-progress window.
+	ConnStatsHistory &h = m_statsHistory[id];
+	zU32 now = ZCom_getCurrentTime();
+	if (peer->roundTripTime > h.maxPing)
+		h.maxPing = peer->roundTripTime;
+	stats.max_ping = h.maxPing;
+
+	if (!h.init) {
+		h.init = true;
+		h.windowStart = now;
+		h.outAtStart = peer->outgoingDataTotal;
+		h.inAtStart = peer->incomingDataTotal;
+	} else {
+		zU32 elapsed = now - h.windowStart;
+		if (elapsed >= 1000) {
+			h.lastOutRate = static_cast<int>((peer->outgoingDataTotal - h.outAtStart) * 1000 / elapsed);
+			h.lastInRate = static_cast<int>((peer->incomingDataTotal - h.inAtStart) * 1000 / elapsed);
+			h.windowStart = now;
+			h.outAtStart = peer->outgoingDataTotal;
+			h.inAtStart = peer->incomingDataTotal;
+		}
 	}
+	stats.last_sec_out = h.lastOutRate;
+	stats.last_sec_in = h.lastInRate;
+	zU32 curElapsed = (now > h.windowStart) ? (now - h.windowStart) : 1;
+	stats.current_out = static_cast<int>((peer->outgoingDataTotal - h.outAtStart) * 1000 / curElapsed);
+	stats.current_in = static_cast<int>((peer->incomingDataTotal - h.inAtStart) * 1000 / curElapsed);
 	return stats;
 }
 
 uint32_t ZCom_Control::allocateConnID() {
 	return m_nextConnID++;
+}
+
+uint32_t ZCom_Control::allocateNodeID() {
+	// Recycle a freed ID first; fall back to the next fresh ID. The
+	// m_nodeRegistry guard skips any ID still in use (e.g. a server-adopted
+	// ID on a client that the local counter hasn't reached), so local and
+	// adopted ID spaces can't collide. Returns 0 when the 16-bit space is
+	// exhausted — callers (registerNode) fail the registration rather than
+	// wrapping the wire field.
+	while (!m_freeNodeIDs.empty()) {
+		auto it = m_freeNodeIDs.begin();
+		uint32_t id = *it;
+		m_freeNodeIDs.erase(it);
+		if (m_nodeRegistry.find(id) == nullptr)
+			return id;
+	}
+	while (m_nextNodeID <= MAX_NODE_ID) {
+		uint32_t id = m_nextNodeID++;
+		if (m_nodeRegistry.find(id) == nullptr)
+			return id;
+	}
+	return 0;
+}
+
+void ZCom_Control::releaseNodeID(uint32_t id) {
+	if (id == 0 || id > MAX_NODE_ID)
+		return;
+	if (m_nodeRegistry.find(id) != nullptr)
+		return; // still registered (defensive)
+	m_freeNodeIDs.insert(id);
 }
 
 // --- B1b: reference API members (game-unused; stubs/delegations) ---
@@ -821,7 +914,7 @@ void ZCom_Control::ZCom_requestDownstreamLimit(ZCom_ConnID _id, zU16 _pps, zU16 
 	pkt.addInt(static_cast<int>(_pps), 16);
 	pkt.addInt(static_cast<int>(_bpp), 16);
 	ENetPacket *p = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
-	enet_peer_send(peer, 0, p); // reliable control message
+	sendPacket(_id, peer, 0, p, false); // reliable control message
 }
 void ZCom_Control::ZCom_simulateLag(ZCom_ConnID _id, zU32 _lagmsec) {
 	m_peerState[_id].lagMsec = _lagmsec;
@@ -838,7 +931,8 @@ bool ZCom_Control::ZCom_requestZoidMode(ZCom_ConnID _id, zU8 _level) {
 	pkt.addInt(MSG_ZOID_REQUEST, 8);
 	pkt.addInt(_level, 8);
 	ENetPacket *packet = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
-	return enet_peer_send(peer, 0, packet) == 0;
+	sendPacket(_id, peer, 0, packet, false);
+	return true;
 }
 
 bool ZCom_Control::ZCom_Discover(const ZCom_Address &, ZCom_BitStream *) {
@@ -870,8 +964,11 @@ void ZCom_Control::ZCom_sendDataToGroup(ZCom_GroupID _gid, ZCom_BitStream *_stre
 		NET_LOG("ZCom_sendDataToGroup: non-ALL group " << (unsigned)_gid << " not implemented");
 		return;
 	}
-	ENetPacket *packet = enet_packet_create(_stream->getData(), _stream->getDataLength(), enetPacketFlags(_mode));
-	enet_host_broadcast(m_host, 0, packet);
+	enet_uint32 flags = enetPacketFlags(_mode);
+	for (auto &pair : m_peerMap) {
+		ENetPacket *packet = enet_packet_create(_stream->getData(), _stream->getDataLength(), flags);
+		sendPacket(pair.first, pair.second, 0, packet, false);
+	}
 }
 
 void ZCom_Control::ZCom_sendDataRaw(ZCom_Address &, void *, zU32) {
@@ -935,6 +1032,18 @@ void ZCom_Control::dropPeerState(uint32_t connID) {
 		else
 			++it;
 	}
+	// In-progress transfers for the lost peer are never marked done/aborted,
+	// so the pumpFileTransfers reaper skips them — drop them here to avoid
+	// leaking their std::string/fstream. The peer is gone, so no further file
+	// events will arrive for these fids.
+	for (auto it = m_fileTransfers.begin(); it != m_fileTransfers.end();) {
+		if (it->second.peerConnID == connID)
+			it = m_fileTransfers.erase(it);
+		else
+			++it;
+	}
+	m_statsCache.erase(connID);
+	m_statsHistory.erase(connID);
 }
 
 void ZCom_Control::sendPacket(uint32_t connID, ENetPeer *peer, int channel, ENetPacket *packet, bool critical) {
@@ -946,24 +1055,27 @@ void ZCom_Control::sendPacket(uint32_t connID, ENetPeer *peer, int channel, ENet
 	}
 
 	PeerNetState &ps = m_peerState[connID];
+	// connID 0 holds the global sim default (set via
+	// ZCom_simulateLag/Loss(0,...)). A per-peer value overrides only when
+	// non-zero; otherwise the global default applies, so the game's
+	// NET_SIM_LAG/NET_SIM_LOSS cvars (which target connID 0) take effect.
+	PeerNetState &global = m_peerState[0];
+	zU32 lagMsec = (ps.lagMsec > 0) ? ps.lagMsec : global.lagMsec;
+	zFloat lossPct = (ps.lossPct > 0.0f) ? ps.lossPct : global.lossPct;
 
 	// T1.2 — loss injection (debug/emulation): drop a fraction of non-critical
 	// packets. Critical control messages always go so connections stay alive.
-	if (!critical && ps.lossPct > 0.0f) {
-		static bool seeded = false;
-		if (!seeded) {
-			std::srand(static_cast<unsigned>(std::time(nullptr)));
-			seeded = true;
-		}
-		if (static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX) < ps.lossPct) {
+	if (!critical && lossPct > 0.0f) {
+		std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+		if (dist(m_netEmuRng) < lossPct) {
 			enet_packet_destroy(packet);
 			return;
 		}
 	}
 
 	// T1.2 — lag injection: defer the actual ENet send until later.
-	if (!critical && ps.lagMsec > 0) {
-		m_lagQueue.push_back({connID, peer, channel, packet, ZCom_getCurrentTime() + ps.lagMsec});
+	if (!critical && lagMsec > 0) {
+		m_lagQueue.push_back({connID, peer, channel, packet, ZCom_getCurrentTime() + lagMsec});
 		return;
 	}
 
@@ -974,11 +1086,15 @@ void ZCom_Control::drainLagQueue() {
 	if (m_lagQueue.empty())
 		return;
 	uint32_t now = ZCom_getCurrentTime();
-	std::vector<PendingLagSend> remaining;
-	remaining.reserve(m_lagQueue.size());
-	for (auto &e : m_lagQueue) {
+	// In-place compaction: avoids a fresh vector allocation every tick while
+	// lag emulation holds entries across multiple ticks.
+	size_t write = 0;
+	for (size_t read = 0; read < m_lagQueue.size(); ++read) {
+		PendingLagSend &e = m_lagQueue[read];
 		if (now < e.sendAt) {
-			remaining.push_back(std::move(e));
+			if (write != read)
+				m_lagQueue[write] = std::move(e);
+			++write;
 			continue;
 		}
 		ENetPeer *peer = findPeer(e.connID);
@@ -988,7 +1104,7 @@ void ZCom_Control::drainLagQueue() {
 		}
 		enet_peer_send(peer, e.channel, e.packet);
 	}
-	m_lagQueue = std::move(remaining);
+	m_lagQueue.resize(write);
 }
 
 void ZCom_Control::processENetEvent(ENetEvent &event) {
@@ -999,14 +1115,20 @@ void ZCom_Control::processENetEvent(ENetEvent &event) {
 		case ENET_EVENT_TYPE_CONNECT: {
 			if (event.peer->data != nullptr) {
 				// Outgoing connection (client-side): ENet transport connected.
-				// Do NOT fire cbConnectResult yet — wait for the server to
-				// send MSG_CONNECTION_REPLY with the reply data.
+				// Send our app-level connect request (carrying the ZCom_Connect
+				// payload) so the server can deliver it to
+				// cbConnectionRequest::_request, then wait for the server's
+				// MSG_CONNECTION_REPLY. Do NOT fire cbConnectResult yet.
 				connID = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(event.peer->data));
+				sendConnectRequest(connID, event.peer);
 				m_waitingForReply.insert(connID);
 				break;
 			}
 
-			// Incoming connection (server-side)
+			// Incoming connection (server-side): transport connected. Defer the
+			// app-level handshake until the client's MSG_CONNECTION_REQUEST
+			// arrives with its payload (previously cbConnectionRequest fired here
+			// with an empty request, dropping the client's ZCom_Connect data).
 			connID = allocateConnID();
 			event.peer->data = reinterpret_cast<void *>(static_cast<uintptr_t>(connID));
 			m_peerMap[connID] = event.peer;
@@ -1016,93 +1138,7 @@ void ZCom_Control::processENetEvent(ENetEvent &event) {
 			enet_peer_timeout(event.peer, ENET_PEER_TIMEOUT_LIMIT, ENET_PEER_TIMEOUT_MINIMUM,
 							  ZoidCom::getConnectionTimeout());
 
-			// Call the connection request callback to get reply data
-			ZCom_BitStream request;
-			ZCom_BitStream reply;
-
-			if (ZCom_cbConnectionRequest(connID, request, reply)) {
-				// Send reply data back to client as MSG_CONNECTION_REPLY
-				sendConnectionReply(event.peer, reply, true);
-				// Sync existing nodes to the new client. Dynamic nodes are
-				// announced via MSG_NODE_ANNOUNCE; unique nodes (Game/Updater)
-				// are announced via MSG_NODE_ANNOUNCE_UNIQUE so the client links
-				// its already-registered counterpart by class.
-				m_nodeRegistry.forEach([&](ZCom_Node *node) {
-					if (node->isUnique()) {
-						// Unique authority node: announce to the new peer. The
-						// client links by class to its already-registered (or
-						// soon-to-be-registered) proxy, adopting this nodeID.
-						if (m_announcedNodes[connID].count(node->getNetworkID()))
-							return;
-						m_announcedNodes[connID].insert(node->getNetworkID());
-						int role = eZCom_RoleProxy; // unique nodes have no owner today
-						m_peerRole[connID][node->getNetworkID()] = static_cast<eZCom_NodeRole>(role);
-						sendUniqueAnnouncement(connID, node);
-						// Push eEvent_Init so the authority's per-new-client logic
-						// fires (e.g. Game::gameNetworkInit). Previously dead for
-						// unique nodes.
-						if (node->getEventNotification())
-							node->pushEvent(eZCom_EventInit, static_cast<eZCom_NodeRole>(role), connID, nullptr);
-						// Force a full replicator pack so the new peer receives the
-						// current state (worm_gravity/teamPlay) on the next output.
-						node->forceReplicationUpdate();
-						return;
-					}
-					// Track per-peer so re-announcements are skipped
-					if (m_announcedNodes[connID].count(node->getNetworkID()))
-						return;
-					m_announcedNodes[connID].insert(node->getNetworkID());
-
-					// Determine role for this client: Owner if node is owned by them, otherwise Proxy
-					int role = eZCom_RoleProxy;
-					uint32_t ownerID = node->getOwner();
-					if (ownerID != 0 && connID == ownerID) {
-						role = eZCom_RoleOwner;
-					}
-					m_peerRole[connID][node->getNetworkID()] = static_cast<eZCom_NodeRole>(role);
-
-					ZCom_BitStream pkt;
-					pkt.addInt(MSG_NODE_ANNOUNCE, 8);
-					pkt.addInt(node->getClassID(), 8);
-					pkt.addInt(node->getNetworkID(), 16);
-					pkt.addInt(role, 8);
-
-					ZCom_BitStream *ad = node->buildAnnounceData(connID, static_cast<eZCom_NodeRole>(role));
-					if (ad && ad->getDataLength() > 0) {
-						pkt.addInt(static_cast<int>(ad->getDataLength()), 16);
-						for (size_t i = 0; i < ad->getDataLength(); ++i)
-							pkt.addInt(ad->getData()[i], 8);
-					} else {
-						pkt.addInt(0, 16);
-					}
-
-					ENetPacket *packet =
-						enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
-					enet_peer_send(event.peer, 0, packet);
-
-					// Push eEvent_Init for nodes with event notification enabled
-					if (node->getEventNotification()) {
-						node->pushEvent(eZCom_EventInit, static_cast<eZCom_NodeRole>(role), connID, nullptr);
-					}
-
-					// Force a full replicator pack on the next processOutput so
-					// this new peer receives the current node state. Without this,
-					// authority nodes created before any client connected have
-					// already had their initial=true entries consumed by empty
-					// processOutput passes, so the new peer would only see future
-					// dirty updates — missing the worm's position, health, etc.
-					node->forceReplicationUpdate();
-				});
-				// Fire connection spawned after reply is sent
-				ZCom_cbConnectionSpawned(connID);
-			} else {
-				// Send rejection reply, flush, then disconnect
-				sendConnectionReply(event.peer, reply, false);
-				enet_host_flush(m_host);
-				enet_peer_disconnect(event.peer, 0);
-				m_peerMap.erase(connID);
-				m_addressMap.erase(connID);
-			}
+			m_pendingConnectRequest.insert(connID);
 			break;
 		}
 
@@ -1117,12 +1153,33 @@ void ZCom_Control::processENetEvent(ENetEvent &event) {
 				msgType = static_cast<const uint8_t *>(event.packet->data)[0];
 			}
 
+			// Server: client's app-level connect request carrying the ZCom_Connect
+			// payload. Completes the handshake deferred from the incoming
+			// ENET_EVENT_TYPE_CONNECT (only the server populates
+			// m_pendingConnectRequest, so this is a no-op on the client).
+			if (msgType == MSG_CONNECTION_REQUEST && m_pendingConnectRequest.count(connID)) {
+				m_pendingConnectRequest.erase(connID);
+				streamData.getInt(8); // consume msgType
+				zU16 reqLen = streamData.getBufferMax();
+				std::vector<uint8_t> reqBuf(reqLen);
+				if (reqLen)
+					streamData.getBuffer(reinterpret_cast<char *>(reqBuf.data()), reqLen);
+				else
+					streamData.getBuffer(nullptr, 0);
+				ZCom_BitStream request;
+				if (reqLen)
+					request.assign(reqBuf.data(), reqLen);
+				handleConnectionRequest(connID, event.peer, request);
+				enet_packet_destroy(event.packet);
+				break;
+			}
+
 			// Handle connection reply (sent by server after ENet connect)
 			if (msgType == MSG_CONNECTION_REPLY && m_waitingForReply.count(connID)) {
 				streamData.getInt(8); // consume msgType
 				eZCom_ConnectResult result = static_cast<eZCom_ConnectResult>(streamData.getInt(8));
 				int serverVersion = streamData.getInt(8);
-				int byteLen = streamData.getInt(16);
+				zU16 byteLen = streamData.getBufferMax();
 
 				// Protocol-version gate: refuse a version-skewed server cleanly
 				// instead of silently desyncing on the reply payload that follows.
@@ -1138,8 +1195,10 @@ void ZCom_Control::processENetEvent(ENetEvent &event) {
 				}
 
 				std::vector<uint8_t> buf(byteLen);
-				for (int i = 0; i < byteLen; ++i)
-					buf[i] = streamData.getInt(8);
+				if (byteLen)
+					streamData.getBuffer(reinterpret_cast<char *>(buf.data()), byteLen);
+				else
+					streamData.getBuffer(nullptr, 0);
 
 				ZCom_BitStream reply;
 				reply.assign(buf.data(), byteLen);
@@ -1166,7 +1225,7 @@ void ZCom_Control::processENetEvent(ENetEvent &event) {
 
 				ENetPacket *pkt =
 					enet_packet_create(result.getData(), result.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
-				enet_peer_send(event.peer, 0, pkt);
+				sendPacket(connID, event.peer, 0, pkt, false);
 
 				enet_packet_destroy(event.packet);
 				break;
@@ -1271,13 +1330,12 @@ void ZCom_Control::processENetEvent(ENetEvent &event) {
 				uint32_t classID = streamData.getInt(8);
 				uint32_t net_id = streamData.getInt(16);
 				int role = streamData.getInt(8);
-				int announceLen = streamData.getInt(16);
-				std::vector<uint8_t> announceData;
-				if (announceLen > 0) {
-					announceData.resize(announceLen);
-					for (int i = 0; i < announceLen; ++i)
-						announceData[i] = static_cast<uint8_t>(streamData.getInt(8));
-				}
+				zU16 announceLen = streamData.getBufferMax();
+				std::vector<uint8_t> announceData(announceLen);
+				if (announceLen)
+					streamData.getBuffer(reinterpret_cast<char *>(announceData.data()), announceLen);
+				else
+					streamData.getBuffer(nullptr, 0);
 
 				NET_LOG("Received MSG_NODE_ANNOUNCE_UNIQUE classID="
 						<< classID << " (" << ZCom_getClassName(classID) << ")"
@@ -1309,7 +1367,7 @@ void ZCom_Control::processENetEvent(ENetEvent &event) {
 				uint32_t classID = streamData.getInt(8);
 				uint32_t net_id = streamData.getInt(16);
 				int role = streamData.getInt(8);
-				int announceLen = streamData.getInt(16);
+				zU16 announceLen = streamData.getBufferMax();
 
 				// If node already exists locally, update its role (handles re-announcements from setOwner)
 				ZCom_Node *existingNode = ZCom_getNode(net_id);
@@ -1340,9 +1398,10 @@ void ZCom_Control::processENetEvent(ENetEvent &event) {
 				std::unique_ptr<ZCom_BitStream> announceData;
 				if (announceLen > 0) {
 					std::vector<uint8_t> buf(announceLen);
-					for (int i = 0; i < announceLen; ++i)
-						buf[i] = streamData.getInt(8);
+					streamData.getBuffer(reinterpret_cast<char *>(buf.data()), announceLen);
 					announceData = std::make_unique<ZCom_BitStream>(buf.data(), buf.size());
+				} else {
+					streamData.getBuffer(nullptr, 0);
 				}
 
 				// Set the node-request context so that registerNodeDynamic /
@@ -1358,6 +1417,31 @@ void ZCom_Control::processENetEvent(ENetEvent &event) {
 				m_requestCtx.active = false;
 
 				// announceData (unique_ptr) frees at scope end
+				enet_packet_destroy(event.packet);
+				break;
+			}
+
+			// Handle node removal — authority deleted a node; deliver
+			// eZCom_EventRemoved to the local proxy (if any) and clear
+			// per-peer bookkeeping so the node stops being routed.
+			if (msgType == MSG_NODE_REMOVE) {
+				streamData.getInt(8); // consume msgType
+				uint32_t net_id = streamData.getInt(16);
+
+				NET_LOG("Received MSG_NODE_REMOVE net_id=" << net_id << " from connID=" << connID);
+
+				ZCom_Node *proxy = ZCom_getNode(net_id);
+				if (proxy) {
+					// The sender is the authority for this node.
+					eZCom_NodeRole remoteRole = getPeerRole(connID, net_id);
+					if (remoteRole == eZCom_RoleUndefined)
+						remoteRole = eZCom_RoleAuthority;
+					if (proxy->getEventNotificationRemove())
+						proxy->pushEvent(eZCom_EventRemoved, remoteRole, connID, nullptr);
+				}
+				m_announcedNodes[connID].erase(net_id);
+				m_peerRole[connID].erase(net_id);
+
 				enet_packet_destroy(event.packet);
 				break;
 			}
@@ -1504,6 +1588,8 @@ void ZCom_Control::processENetEvent(ENetEvent &event) {
 			m_peerMap.erase(connID);
 			m_addressMap.erase(connID);
 			m_waitingForReply.erase(connID);
+			m_pendingConnectRequest.erase(connID);
+			m_connectData.erase(connID);
 			m_announcedNodes.erase(connID);
 			m_peerRole.erase(connID);
 			// Per-connID purge of the shared per-nodeID buffers (pending
@@ -1564,13 +1650,117 @@ void ZCom_Control::sendConnectionReply(ENetPeer *peer, ZCom_BitStream &reply, bo
 	pkt.addInt(MSG_CONNECTION_REPLY, 8);
 	pkt.addInt(accepted ? static_cast<int>(eZCom_ConnAccepted) : static_cast<int>(eZCom_ConnDenied), 8);
 	pkt.addInt(getProtocolVersion(), 8);
-	pkt.addInt(static_cast<int>(replyBytes), 16);
-	for (size_t i = 0; i < replyBytes; ++i) {
-		pkt.addInt(replyData[i], 8);
-	}
+	pkt.addBuffer(reinterpret_cast<const char *>(replyData), static_cast<zU16>(replyBytes));
 
+	uint32_t connID = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(peer->data));
 	ENetPacket *packet = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
-	enet_peer_send(peer, 0, packet);
+	sendPacket(connID, peer, 0, packet, true);
+}
+
+void ZCom_Control::sendConnectRequest(uint32_t connID, ENetPeer *peer) {
+	// Serialize: MSG_CONNECTION_REQUEST (8 bits) + byteLen (16 bits) + raw
+	// request bytes (the ZCom_Connect payload). An empty payload is sent when
+	// the caller passed NULL — the server still gets cbConnectionRequest, just
+	// with an empty request (source-compatible with the former behaviour).
+	ZCom_BitStream pkt;
+	pkt.addInt(MSG_CONNECTION_REQUEST, 8);
+	auto it = m_connectData.find(connID);
+	if (it != m_connectData.end()) {
+		pkt.addBuffer(reinterpret_cast<const char *>(it->second.data()), static_cast<zU16>(it->second.size()));
+		m_connectData.erase(it);
+	} else {
+		pkt.addBuffer("", 0);
+	}
+	ENetPacket *packet = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
+	sendPacket(connID, peer, 0, packet, true);
+}
+
+void ZCom_Control::handleConnectionRequest(uint32_t connID, ENetPeer *peer, ZCom_BitStream &request) {
+	// Server-side completion of the deferred handshake (moved here from the
+	// incoming ENET_EVENT_TYPE_CONNECT handler so the client's ZCom_Connect
+	// payload is delivered to cbConnectionRequest::_request).
+	ZCom_BitStream reply;
+	if (ZCom_cbConnectionRequest(connID, request, reply)) {
+		sendConnectionReply(peer, reply, true);
+		// Sync existing nodes to the new client. Dynamic nodes are announced via
+		// MSG_NODE_ANNOUNCE; unique nodes (Game/Updater) via
+		// MSG_NODE_ANNOUNCE_UNIQUE so the client links its already-registered
+		// counterpart by class.
+		m_nodeRegistry.forEach([&](ZCom_Node *node) {
+			if (node->isUnique()) {
+				// Unique authority node: announce to the new peer. The client
+				// links by class to its already-registered (or soon-to-be-
+				// registered) proxy, adopting this nodeID.
+				if (m_announcedNodes[connID].count(node->getNetworkID()))
+					return;
+				m_announcedNodes[connID].insert(node->getNetworkID());
+				int role = eZCom_RoleProxy; // unique nodes have no owner today
+				m_peerRole[connID][node->getNetworkID()] = static_cast<eZCom_NodeRole>(role);
+				sendUniqueAnnouncement(connID, node);
+				// Push eEvent_Init so the authority's per-new-client logic fires
+				// (e.g. Game::gameNetworkInit). Previously dead for unique nodes.
+				if (node->getEventNotification())
+					node->pushEvent(eZCom_EventInit, static_cast<eZCom_NodeRole>(role), connID, nullptr);
+				// Force a full replicator pack so the new peer receives the
+				// current state (worm_gravity/teamPlay) on the next output.
+				node->forceReplicationUpdate();
+				return;
+			}
+			// Track per-peer so re-announcements are skipped
+			if (m_announcedNodes[connID].count(node->getNetworkID()))
+				return;
+			m_announcedNodes[connID].insert(node->getNetworkID());
+
+			// Determine role for this client: Owner if node is owned by them, otherwise Proxy
+			int role = eZCom_RoleProxy;
+			uint32_t ownerID = node->getOwner();
+			if (ownerID != 0 && connID == ownerID) {
+				role = eZCom_RoleOwner;
+			}
+			m_peerRole[connID][node->getNetworkID()] = static_cast<eZCom_NodeRole>(role);
+
+			ZCom_BitStream pkt;
+			pkt.addInt(MSG_NODE_ANNOUNCE, 8);
+			pkt.addInt(node->getClassID(), 8);
+			pkt.addInt(node->getNetworkID(), 16);
+			pkt.addInt(role, 8);
+
+			ZCom_BitStream *ad = node->buildAnnounceData(connID, static_cast<eZCom_NodeRole>(role));
+			if (ad && ad->getDataLength() > 0)
+				pkt.addBuffer(reinterpret_cast<const char *>(ad->getData()), static_cast<zU16>(ad->getDataLength()));
+			else
+				pkt.addBuffer("", 0);
+
+			ENetPacket *packet = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
+			sendPacket(connID, peer, 0, packet, false);
+
+			// Push eEvent_Init for nodes with event notification enabled
+			if (node->getEventNotification()) {
+				node->pushEvent(eZCom_EventInit, static_cast<eZCom_NodeRole>(role), connID, nullptr);
+			}
+
+			// Force a full replicator pack on the next processOutput so this new
+			// peer receives the current node state. Without this, authority nodes
+			// created before any client connected have already had their
+			// initial=true entries consumed by empty processOutput passes, so
+			// the new peer would only see future dirty updates — missing the
+			// worm's position, health, etc.
+			node->forceReplicationUpdate();
+		});
+		// Fire connection spawned after reply is sent
+		ZCom_cbConnectionSpawned(connID);
+	} else {
+		// Send rejection reply, then disconnect once the client has
+		// received it. disconnect_later waits for all queued reliable
+		// packets (the reply) to be acknowledged before sending the
+		// DISCONNECT command — a plain enet_peer_disconnect can fire the
+		// client's DISCONNECT event before the reply is processed, which
+		// clears m_waitingForReply and silently drops the denial.
+		sendConnectionReply(peer, reply, false);
+		enet_peer_disconnect_later(peer, 0);
+		m_peerMap.erase(connID);
+		m_addressMap.erase(connID);
+	}
 }
 
 void ZCom_Control::dispatchNodeEvent(uint32_t nodeID, int type, int role, uint32_t connID, ZCom_BitStream *data,
@@ -1672,12 +1862,12 @@ bool ZCom_initSockets(bool isServer, int port, int maxClients, int something) {
 								0  // unlimited outgoing bandwidth
 		);
 	}
-	// Enable ENet's built-in range-coder compression (negotiated per-connection).
-	enet_host_compress_with_range_coder(host);
-
 	if (!host) {
 		return false;
 	}
+
+	// Enable ENet's built-in range-coder compression (negotiated per-connection).
+	enet_host_compress_with_range_coder(host);
 
 	if (g_currentControl) {
 		g_currentControl->setHost(host, isServer);
@@ -1697,11 +1887,13 @@ void ZCom_simulateLoss(int val, float loss) {
 }
 
 void ZCom_setControlID(int id) {
-	(void)id;
+	if (g_currentControl)
+		g_currentControl->ZCom_setControlID(static_cast<zU8>(id));
 }
 
 void ZCom_setDebugName(const char *name) {
-	(void)name;
+	if (g_currentControl)
+		g_currentControl->ZCom_setDebugName(name);
 }
 
 void ZCom_setUpstreamLimit(int limit, int something) {
@@ -1721,20 +1913,8 @@ void ZCom_requestDownstreamLimit(uint32_t connID, int pps, int bpp) {
 }
 
 void ZCom_requestZoidMode(uint32_t connID, uint8_t level) {
-	if (!g_currentControl)
-		return;
-
-	ENetPeer *peer = g_currentControl->findPeer(connID);
-	if (!peer)
-		return;
-
-	// Send zoid mode request to the server
-	ZCom_BitStream pkt;
-	pkt.addInt(MSG_ZOID_REQUEST, 8);
-	pkt.addInt(level, 8);
-
-	ENetPacket *packet = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
-	enet_peer_send(peer, 0, packet);
+	if (g_currentControl)
+		g_currentControl->ZCom_requestZoidMode(connID, level);
 }
 
 void ZCom_Disconnect(uint32_t id, ZCom_BitStream *data) {
@@ -1796,7 +1976,7 @@ ZCom_FileTransID ZCom_Control::ZCom_sendFile(ZCom_Node *node, const char *_path,
 		pkt.addBuffer("", 0);
 
 	ENetPacket *p = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
-	enet_peer_send(peer, 0, p);
+	sendPacket(_destconn, peer, 0, p, false);
 	enet_host_flush(m_host);
 
 	NET_LOG("ZCom_sendFile fid=" << fid << " size=" << ft.size << " destconn=" << _destconn << " path=" << _path);
@@ -1822,7 +2002,7 @@ void ZCom_Control::ZCom_acceptFile(ZCom_Node *node, ZCom_ConnID _src_id, ZCom_Fi
 		pkt.addInt(1, 1);
 		if (ENetPeer *peer = findPeer(_src_id)) {
 			ENetPacket *p = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
-			enet_peer_send(peer, 0, p);
+			sendPacket(_src_id, peer, 0, p, false);
 			enet_host_flush(m_host);
 		}
 		NET_LOG("ZCom_acceptFile accept fid=" << ft.id << " savePath=" << savePath);
@@ -1836,7 +2016,7 @@ void ZCom_Control::ZCom_acceptFile(ZCom_Node *node, ZCom_ConnID _src_id, ZCom_Fi
 		pkt.addInt(ft.id, ZCOM_FTRANS_ID_BITS);
 		if (ENetPeer *peer = findPeer(_src_id)) {
 			ENetPacket *p = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
-			enet_peer_send(peer, 0, p);
+			sendPacket(_src_id, peer, 0, p, false);
 			enet_host_flush(m_host);
 		}
 		// Raise the Aborted event on the receiver's own node.
@@ -1907,7 +2087,7 @@ void ZCom_Control::pumpFileTransfers() {
 					// File data + complete share channel 1 so they stay ordered
 					// among themselves AND don't head-of-line-block gameplay
 					// traffic on channel 0 during large level downloads.
-					enet_peer_send(peer, CH_FILE, p);
+					sendPacket(ft.peerConnID, peer, CH_FILE, p, false);
 					anySent = true;
 				}
 				// Notify the SENDER's own node that the transfer completed,
@@ -1930,7 +2110,7 @@ void ZCom_Control::pumpFileTransfers() {
 				pkt.addInt(ft.id, ZCOM_FTRANS_ID_BITS);
 				if (ENetPeer *peer = findPeer(ft.peerConnID)) {
 					ENetPacket *p = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
-					enet_peer_send(peer, CH_FILE, p);
+					sendPacket(ft.peerConnID, peer, CH_FILE, p, false);
 					anySent = true;
 				}
 				pushFileEvent(ZCom_getNode(ft.nodeID), eZCom_EventFile_Aborted, ft.peerConnID, ft.id, nullptr);
@@ -1947,7 +2127,7 @@ void ZCom_Control::pumpFileTransfers() {
 			ENetPacket *p = enet_packet_create(pkt.getData(), pkt.getDataLength(), ENET_PACKET_FLAG_RELIABLE);
 			// Channel 1 (dedicated file stream): chunks are reliable+ordered
 			// among themselves but independent of game traffic on channel 0.
-			enet_peer_send(peer, 1, p);
+			sendPacket(ft.peerConnID, peer, CH_FILE, p, false);
 			ft.transferred += sendLen;
 			ft.bytesThisSec += sendLen;
 			anySent = true;

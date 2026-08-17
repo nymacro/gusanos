@@ -20,6 +20,9 @@ class TestServer : public ZCom_Control {
 	int m_dataReceivedCount;
 	int m_port;
 	std::string m_lastData;
+	bool m_sendReply = false;
+	bool m_reject = false;
+	std::string m_lastRequestData;
 
 	TestServer(int udpPort)
 		: ZCom_Control(), m_connCount(0), m_disconnectCount(0), m_dataReceivedCount(0), m_port(udpPort) {}
@@ -30,6 +33,12 @@ class TestServer : public ZCom_Control {
 
   protected:
 	bool ZCom_cbConnectionRequest(ZCom_ConnID id, ZCom_BitStream &request, ZCom_BitStream &reply) override {
+		if (request.getBitLength() > 0)
+			m_lastRequestData = request.getStringStatic();
+		if (m_reject)
+			return false;
+		if (m_sendReply)
+			reply.addString("welcome-to-the-server");
 		return true;
 	}
 
@@ -59,6 +68,7 @@ class TestClient : public ZCom_Control {
 	bool m_disconnected;
 	int m_dataReceivedCount;
 	std::string m_lastReply;
+	std::string m_connectReply;
 
 	TestClient()
 		: ZCom_Control(), m_connected(false), m_accepted(false), m_disconnected(false), m_dataReceivedCount(0) {}
@@ -71,6 +81,8 @@ class TestClient : public ZCom_Control {
 	void ZCom_cbConnectResult(ZCom_ConnID id, eZCom_ConnectResult result, ZCom_BitStream &reply) override {
 		m_connected = true;
 		m_accepted = (result == eZCom_ConnAccepted);
+		if (reply.getBitLength() > 0)
+			m_connectReply = reply.getStringStatic();
 	}
 
 	void ZCom_cbConnectionClosed(ZCom_ConnID id, eZCom_CloseReason reason, ZCom_BitStream &reasondata) override {
@@ -146,6 +158,24 @@ BOOST_AUTO_TEST_CASE(server_can_accept_client) {
 	BOOST_CHECK_EQUAL(f.server->m_connCount, 1);
 	BOOST_CHECK(f.client->m_connected);
 	BOOST_CHECK(f.client->m_accepted);
+}
+
+BOOST_AUTO_TEST_CASE(connection_reply_payload_roundtrips) {
+	ConnectFixture f;
+	f.Setup();
+	f.server->m_sendReply = true;
+
+	g_currentControl = f.client;
+	uint32_t cid = f.client->ZCom_Connect(f.serverAddr, nullptr);
+	g_currentControl = nullptr;
+
+	BOOST_REQUIRE(cid != ZCom_Invalid_ID);
+
+	f.ProcessAll(200);
+
+	BOOST_REQUIRE(f.client->m_connected);
+	BOOST_REQUIRE(f.client->m_accepted);
+	BOOST_CHECK_EQUAL(f.client->m_connectReply, "welcome-to-the-server");
 }
 
 BOOST_AUTO_TEST_CASE(client_can_send_data_to_server) {
@@ -264,6 +294,44 @@ BOOST_AUTO_TEST_CASE(reconnect_after_disconnect) {
 
 	BOOST_CHECK_EQUAL(f.server->m_connCount, 1);
 	BOOST_CHECK(f.client->m_connected);
+}
+
+BOOST_AUTO_TEST_CASE(connect_request_payload_delivered) {
+	ConnectFixture f;
+	f.Setup();
+	f.server->m_sendReply = true;
+
+	g_currentControl = f.client;
+	ZCom_BitStream payload;
+	payload.addString("client-connect-secret");
+	uint32_t cid = f.client->ZCom_Connect(f.serverAddr, &payload);
+	g_currentControl = nullptr;
+
+	BOOST_REQUIRE(cid != ZCom_Invalid_ID);
+	f.ProcessAll(300);
+
+	BOOST_REQUIRE(f.client->m_connected);
+	BOOST_REQUIRE(f.client->m_accepted);
+	BOOST_CHECK_EQUAL(f.server->m_lastRequestData, "client-connect-secret");
+}
+
+BOOST_AUTO_TEST_CASE(connect_request_rejected_by_server) {
+	ConnectFixture f;
+	f.Setup();
+	f.server->m_reject = true;
+
+	g_currentControl = f.client;
+	ZCom_BitStream payload;
+	payload.addString("rejected-payload");
+	uint32_t cid = f.client->ZCom_Connect(f.serverAddr, &payload);
+	g_currentControl = nullptr;
+
+	BOOST_REQUIRE(cid != ZCom_Invalid_ID);
+	f.ProcessAll(300);
+
+	BOOST_CHECK(f.client->m_connected);
+	BOOST_CHECK(!f.client->m_accepted);
+	BOOST_CHECK_EQUAL(f.server->m_lastRequestData, "rejected-payload");
 }
 
 BOOST_AUTO_TEST_SUITE_END()

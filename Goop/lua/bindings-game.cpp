@@ -363,8 +363,8 @@ void initGame() {
 			   "data", l_player_data)("stats", l_player_stats)("worm", l_player_worm)(
 			   "select_weapons", l_player_selectWeapons)("is_local", l_player_isLocal))
 
-	ENUM(EndReason, ("ServerQuit", Game::ServerQuit)("ServerChangeMap", Game::ServerChangeMap)("Kicked", Game::Kicked)
-		 ("IncompatibleProtocol", Game::IncompatibleProtocol)("IncompatibleData", Game::IncompatibleData))
+	ENUM(EndReason, ("ServerQuit", Game::ServerQuit)("ServerChangeMap", Game::ServerChangeMap)("Kicked", Game::Kicked)(
+						"IncompatibleProtocol", Game::IncompatibleProtocol)("IncompatibleData", Game::IncompatibleData))
 
 	ENUM(Error, ("None", Game::ErrorNone)("MapNotFound", Game::ErrorMapNotFound)("MapLoading", Game::ErrorMapLoading)(
 					"ModNotFound", Game::ErrorModNotFound)("ModLoading", Game::ErrorModLoading))
