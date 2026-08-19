@@ -101,17 +101,34 @@ void Weapon::think(bool isFocused, size_t index) {
 					// counter. The authority and the owning client predict with
 					// the same counter (confirmed via SHOOT), so their spawned
 					// particles match byte-for-byte; proxies reproduce the burst
-					// from the seq carried in the SHOOT event. See game_rng.h.
+					// from the seq carried in the SHOOT event. Local/single-player
+					// worms share this path: BaseWorm owns a real counter and a
+					// stable seed id, so they get the same burst-varying spread.
+					// See game_rng.h.
 					uint32_t seq = m_owner->fireActionSeq();
+					uint32_t seed = mix32(m_owner->fireSeedNodeID(), seq);
 					GameRng rg;
-					rg.seed(mix32(m_owner->fireSeedNodeID(), seq));
+					rg.seed(seed);
 					GameplayRngScope scope(rg);
 					m_type->primaryShoot->run(m_owner, NULL, NULL, this);
 					m_owner->advanceFireActionSeq();
+					if (m_owner->getRole() == eZCom_RoleOwner && m_type->syncHax) {
+						// Record the prediction so the server's confirmation can be
+						// matched (and, under NET_RNG_CHECK, checksum-verified).
+						m_owner->recordPredictedBurst(seq, rg.checksum());
+					}
 					if (m_owner->getRole() == eZCom_RoleAuthority && m_type->syncHax) {
 						ZCom_BitStream data;
 						Encoding::encode(data, SHOOT, EventsCount);
-						data.addInt(seq, 32); // pre-increment action sequence
+						// Ship everything a peer needs to replay the identical burst:
+						// pre-increment action sequence, the burst seed (peers never
+						// recompute it from local state), fire-tick pos/angle, and the
+						// burst draw checksum.
+						data.addInt(seq, 32);
+						data.addInt(seed, 32);
+						game.level.vectorEncoding.encode<Vec>(data, m_owner->pos);
+						data.addInt(int(m_owner->getAngle()), Angle::prec);
+						data.addInt(rg.checksum(), 32);
 						// AUTH_2_ALL so the owner receives its own confirmed SHOOT
 						// for counter reconciliation (it does not re-run the fire).
 						m_owner->sendWeaponMessage(index, &data, ZCOM_REPRULE_AUTH_2_ALL);
@@ -226,20 +243,36 @@ void Weapon::recieveMessage(ZCom_BitStream *data) {
 
 		case SHOOT: {
 			// Deterministic fire reproduction. The authority packed the
-			// pre-increment action sequence; peers seed the burst RNG from it.
+			// pre-increment action sequence, the burst seed, its fire-tick
+			// pos/angle, and the burst draw checksum.
 			uint32_t seq = data->getInt(32);
+			uint32_t seed = data->getInt(32);
+			Vec firePos = game.level.vectorEncoding.decode<Vec>(*data);
+			Angle fireAngle((int)data->getInt(Angle::prec));
+			uint32_t shippedChecksum = data->getInt(32);
 			eZCom_NodeRole role = m_owner->getRole();
 			if (role == eZCom_RoleProxy) {
+				// Replay the burst from the shipped seed and the authority's
+				// fire-tick state — never from local node state or the proxy's
+				// lagged/interpolated pos/aim.
 				GameRng rg;
-				rg.seed(mix32(m_owner->fireSeedNodeID(), seq));
-				GameplayRngScope scope(rg);
-				m_type->primaryShoot->run(m_owner, NULL, NULL, this);
+				rg.seed(seed);
+				{
+					BurstStateScope burstState(*m_owner);
+					burstState.applyPos(firePos);
+					burstState.applyAim(fireAngle);
+					GameplayRngScope scope(rg);
+					m_type->primaryShoot->run(m_owner, NULL, NULL, this);
+				}
+				burstChecksumMismatch("SHOOT", m_owner->fireSeedNodeID(), seq, shippedChecksum, rg.checksum());
 				ammo--;
 				m_owner->reconcileFireActionSeq(seq + 1);
 			} else if (role == eZCom_RoleOwner) {
 				// Owner reconciliation: the owner already predicted this fire in
-				// think(); the server's seq is authoritative. Correct any drift
-				// and do NOT re-run (would double-spawn / double-decrement ammo).
+				// think(); the server's seq is authoritative. Match the prediction
+				// (surfaces rejected/ghost bursts), correct any drift, and do NOT
+				// re-run (would double-spawn / double-decrement ammo).
+				m_owner->confirmPredictedBurst(seq, shippedChecksum);
 				m_owner->reconcileFireActionSeq(seq + 1);
 			}
 		} break;

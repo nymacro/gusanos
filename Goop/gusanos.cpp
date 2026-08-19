@@ -1,5 +1,6 @@
 #include "allegro_compat.h"
 
+#include "dedicated.h"
 #include "gconsole.h"
 #include "resource_list.h"
 #include "sprite.h"
@@ -69,16 +70,15 @@ int showGamepadInputs;
 void shutdown() {
 	game.unload();
 	network.shutDown();
-#ifndef DEDSERV
-	OmfgGUI::menu.destroy();
-#endif
+	if (!g_dedicated)
+		OmfgGUI::menu.destroy();
 	console.shutDown();
-#ifndef DEDSERV
-	sfx.shutDown();
+	if (!g_dedicated) {
+		sfx.shutDown();
 
-	/* Shut down gamepad */
-	gamepadHandler.shutDown();
-#endif
+		/* Shut down gamepad */
+		gamepadHandler.shutDown();
+	}
 	gfx.shutDown();
 	lua.close();
 
@@ -202,8 +202,21 @@ struct CrashHandlerSetup {
 #endif
 
 int main(int argc, char **argv) try {
-	console.registerVariables()("CL_SHOWFPS", &showFps, 1)("CL_SHOWDEBUG", &showDebug, 0)(
-		"CL_SHOWGAMEPADINPUTS", &showGamepadInputs, 0)
+	// Detect dedicated (headless) mode before any subsystem init so runtime
+	// gating matches the old compile-time DEDSERV selection. Must precede
+	// registerVariables() (CL_SHOWPARTICLES) and game.init() so cvar
+	// registration and config-file selection observe the flag.
+	for (int i = 1; i < argc; ++i) {
+		std::string a = argv[i];
+		if (a == "--dedicated" || a == "-dedicated") {
+			g_dedicated = true;
+		} else if (a.rfind("--dedicated=", 0) == 0) {
+			g_dedicated = a.substr(12) != "0";
+		}
+	}
+
+	console.registerVariables()("CL_SHOWFPS", &showFps, 1)("CL_SHOWDEBUG", &showDebug, 0)("CL_SHOWGAMEPADINPUTS",
+																						  &showGamepadInputs, 0)
 #ifndef DEDSERV
 		("CL_SHOWPARTICLES", &g_drawParticleWorldOverlay, 0)
 #endif
@@ -215,9 +228,8 @@ int main(int argc, char **argv) try {
 
 	console.parseLine("BIND F12 SCREENSHOT");
 
-#ifndef DEDSERV
-	OmfgGUI::menu.clear();
-#endif
+	if (!g_dedicated)
+		OmfgGUI::menu.clear();
 	// game.loadMod();
 	game.reloadModWithoutMap();
 	// game.runInitScripts();
@@ -228,39 +240,24 @@ int main(int argc, char **argv) try {
 	int fps = 0;
 	unsigned int logicLast = SDL_GetTicks();
 
-#ifndef DEDSERV
-	console.executeConfig("autoexec.cfg");
-#else
-	console.executeConfig("autoexec-ded.cfg");
-#endif
+	if (g_dedicated)
+		console.executeConfig("autoexec-ded.cfg");
+	else
+		console.executeConfig("autoexec.cfg");
 
 	// main game loop
 	while (!quit || !network.isDisconnected()) {
 
 		while (logicLast + LOGIC_DELTA <= SDL_GetTicks()) {
 
-#ifdef USE_GRID
 			for (Grid::iterator iter = game.objects.beginAll(); iter;) {
 				if (iter->deleteMe)
 					iter.erase();
 				else
 					++iter;
 			}
-#else
-			for (ObjectsList::Iterator iter = game.objects.begin(); iter;) {
-				if ((*iter)->deleteMe) {
-					ObjectsList::Iterator tmp = iter;
-					++iter;
-					delete *tmp;
-					game.objects.erase(tmp);
-				} else
-					++iter;
-			}
-#endif
 
-		if (game.isLoaded() && game.level.isLoaded()) {
-
-#ifdef USE_GRID
+			if (game.isLoaded() && game.level.isLoaded()) {
 
 				for (Grid::iterator iter = game.objects.beginAll(); iter; ++iter) {
 					iter->think();
@@ -268,11 +265,6 @@ int main(int argc, char **argv) try {
 				}
 
 				game.objects.flush(); // Insert all new objects
-#else
-				for (ObjectsList::Iterator iter = game.objects.begin(); (bool)iter; ++iter) {
-					(*iter)->think();
-				}
-#endif
 
 				for (list<BasePlayer *>::iterator iter = game.players.begin(); iter != game.players.end(); iter++) {
 					(*iter)->think();
@@ -282,9 +274,8 @@ int main(int argc, char **argv) try {
 			game.think();
 			updater.think(); // TODO: Move?
 
-#ifndef DEDSERV
-			sfx.think(); // WARNING: THIS �MUST! BE PLACED BEFORE THE OBJECT DELETE LOOP
-#endif
+			if (!g_dedicated)
+				sfx.think(); // WARNING: THIS MUST! BE PLACED BEFORE THE OBJECT DELETE LOOP
 
 			for (auto it = game.players.begin(); it != game.players.end();) {
 				BasePlayer *iter = *it;
@@ -323,19 +314,17 @@ int main(int argc, char **argv) try {
 
 			network.update();
 
-#ifndef DEDSERV
-			console.checkInput();
-			mouseHandler.poll();
-			/* Poll gamepad */
-			gamepadHandler.poll();
-#endif
+			if (!g_dedicated) {
+				console.checkInput();
+				mouseHandler.poll();
+				/* Poll gamepad */
+				gamepadHandler.poll();
+			}
 			console.think();
 
 			spriteList.think();
 
-			EACH_CALLBACK(i, afterUpdate) {
-				(lua.call(*i))();
-			}
+			dispatchCallbacks(LuaCallbacks::afterUpdate);
 
 			logicLast += LOGIC_DELTA;
 		}
@@ -343,223 +332,215 @@ int main(int argc, char **argv) try {
 #ifdef WINDOWS
 		Sleep(0);
 #else
-#ifndef DEDSERV
-		SDL_Delay(0);
-#else
-		SDL_Delay(2);
+		if (g_dedicated)
+			SDL_Delay(2);
+		else
+			SDL_Delay(0);
 #endif
-#endif
 
-#ifndef DEDSERV
-		// Update FPS
-		if (fpsLast + 1000 <= SDL_GetTicks()) {
-			fps = fpsCount;
-			fpsCount = 0;
-			fpsLast = SDL_GetTicks();
+		if (!g_dedicated) {
+			// Update FPS
+			if (fpsLast + 1000 <= SDL_GetTicks()) {
+				fps = fpsCount;
+				fpsCount = 0;
+				fpsLast = SDL_GetTicks();
 
-			// console.addLogMsg(cast<string>(fps));
-		}
-
-		static std::string overlayBuf; // reused across frames to avoid per-frame string allocs (A18)
-
-		if (game.isLoaded() && game.level.isLoaded()) {
-
-			for (list<BasePlayer *>::iterator iter = game.players.begin(); iter != game.players.end(); iter++) {
-				(*iter)->render();
+				// console.addLogMsg(cast<string>(fps));
 			}
 
-			// debug info
-			if (showDebug) {
-				char dbgTmp[48];
-				std::snprintf(dbgTmp, sizeof dbgTmp, "OBJECTS: \01303%d", (int)game.objects.size());
-				overlayBuf = dbgTmp;
-				game.infoFont->draw(gfx.buffer, overlayBuf, 5, 10, 0, 255,
-									255, 255, 255, Font::Formatting);
-				std::snprintf(dbgTmp, sizeof dbgTmp, "PLAYERS: \01303%d", (int)game.players.size());
-				overlayBuf = dbgTmp;
-				game.infoFont->draw(gfx.buffer, overlayBuf, 5, 15, 0, 255,
-									255, 255, 255, Font::Formatting);
-				std::snprintf(dbgTmp, sizeof dbgTmp, "PING:    \01303%d", (int)network.getServerPing());
-				overlayBuf = dbgTmp;
-				game.infoFont->draw(gfx.buffer, overlayBuf, 5, 20, 0,
-									255, 255, 255, 255, Font::Formatting);
-				std::snprintf(dbgTmp, sizeof dbgTmp, "LUA MEM: \01303%d", (int)lua_gc(lua, LUA_GCCOUNT, 0));
-				overlayBuf = dbgTmp;
-				game.infoFont->draw(gfx.buffer, overlayBuf, 5, 25, 0,
-									255, 255, 255, 255, Font::Formatting);
+			static std::string overlayBuf; // reused across frames to avoid per-frame string allocs (A18)
+
+			if (game.isLoaded() && game.level.isLoaded()) {
+
+				for (list<BasePlayer *>::iterator iter = game.players.begin(); iter != game.players.end(); iter++) {
+					(*iter)->render();
+				}
+
+				// debug info
+				if (showDebug) {
+					char dbgTmp[48];
+					std::snprintf(dbgTmp, sizeof dbgTmp, "OBJECTS: \01303%d", (int)game.objects.size());
+					overlayBuf = dbgTmp;
+					game.infoFont->draw(gfx.buffer, overlayBuf, 5, 10, 0, 255, 255, 255, 255, Font::Formatting);
+					std::snprintf(dbgTmp, sizeof dbgTmp, "PLAYERS: \01303%d", (int)game.players.size());
+					overlayBuf = dbgTmp;
+					game.infoFont->draw(gfx.buffer, overlayBuf, 5, 15, 0, 255, 255, 255, 255, Font::Formatting);
+					std::snprintf(dbgTmp, sizeof dbgTmp, "PING:    \01303%d", (int)network.getServerPing());
+					overlayBuf = dbgTmp;
+					game.infoFont->draw(gfx.buffer, overlayBuf, 5, 20, 0, 255, 255, 255, 255, Font::Formatting);
+					std::snprintf(dbgTmp, sizeof dbgTmp, "LUA MEM: \01303%d", (int)lua_gc(lua, LUA_GCCOUNT, 0));
+					overlayBuf = dbgTmp;
+					game.infoFont->draw(gfx.buffer, overlayBuf, 5, 25, 0, 255, 255, 255, 255, Font::Formatting);
+				}
+
+				int miny = 150;
+				int maxw = 160;
+				int y = 235;
+				int w = 0;
+
+				std::list<ScreenMessage>::reverse_iterator rmsgiter = game.messages.rbegin();
+
+				for (; rmsgiter != game.messages.rend() && y > miny; ++rmsgiter) {
+					ScreenMessage const &msg = *rmsgiter;
+
+					string::const_iterator b = msg.str.begin(), e = msg.str.end(), n;
+
+					do {
+						pair<int, int> dim;
+						n = game.infoFont->fitString(b, e, maxw, dim, 0, Font::Formatting);
+						if (n == b)
+							break;
+						b = n;
+						y -= dim.second;
+
+						if (dim.first > w)
+							w = dim.first;
+					} while (b != e);
+				}
+
+				// rectfill_blend(gfx.buffer, 3, y-2, 3+w+5, 0, 130);
+
+				for (std::list<ScreenMessage>::iterator msgiter = rmsgiter.base(); msgiter != game.messages.end();
+					 ++msgiter) {
+					ScreenMessage const &msg = *msgiter;
+
+					string::const_iterator b = msg.str.begin(), e = msg.str.end(), n;
+
+					int fact = 255;
+					if (msg.timeOut < 100)
+						fact = msg.timeOut * 255 / 100;
+
+					Font::CharFormatting format;
+					switch (msg.type) {
+						case ScreenMessage::Chat:
+							format.cur.color = Font::Color(255, 255, 255);
+							break;
+
+						case ScreenMessage::Death:
+							format.cur.color = Font::Color(200, 255, 200);
+							break;
+					}
+
+					do {
+						pair<int, int> dim;
+						n = game.infoFont->fitString(b, e, maxw, dim, 0, Font::Formatting);
+						if (n == b)
+							break;
+						game.infoFont->draw(gfx.buffer, b, n, 5, y, format, 0, fact, Font::Formatting | Font::Shadow);
+						y += dim.second;
+
+						b = n;
+					} while (b != e);
+				}
+			} else {
+				clear_bitmap(gfx.buffer);
 			}
 
-			int miny = 150;
-			int maxw = 160;
-			int y = 235;
-			int w = 0;
+			OmfgGUI::menu.render();
+			console.render(gfx.buffer);
 
-			std::list<ScreenMessage>::reverse_iterator rmsgiter = game.messages.rbegin();
+			// Input debug overlay (bottom-right)
+			if (showGamepadInputs) {
+				int y = gfx.buffer->h - 20;
+				const int margin = 10;
 
-			for (; rmsgiter != game.messages.rend() && y > miny; ++rmsgiter) {
-				ScreenMessage const &msg = *rmsgiter;
+				for (int slot = MAX_GAMEPADS - 1; slot >= 0; --slot) {
+					if (!gamepadHandler.isConnected(slot))
+						continue;
 
-				string::const_iterator b = msg.str.begin(), e = msg.str.end(), n;
+					static std::string line;
+					line.clear();
+					char gpHdr[16];
+					std::snprintf(gpHdr, sizeof gpHdr, "GP%d: ", slot);
+					line += gpHdr;
 
-				do {
+					// Trigger values
+					float lt = gamepadHandler.getAxis(slot, 4);
+					float rt = gamepadHandler.getAxis(slot, 5);
+					char buf[64];
+					std::snprintf(buf, sizeof(buf), "LT:%.2f RT:%.2f", lt, rt);
+					line += buf;
+
+					// Face buttons
+					struct BtnDef {
+						GamepadInput gp;
+						const char *name;
+					};
+					static const BtnDef btns[] = {
+						{GP_A, "A"},   {GP_B, "B"},	  {GP_X, "X"},		   {GP_Y, "Y"},
+						{GP_LB, "LB"}, {GP_RB, "RB"}, {GP_START, "START"}, {GP_BACK, "BACK"},
+					};
+					for (const auto &b : btns) {
+						if (gamepadHandler.isPressed(slot, b.gp)) {
+							line += " [";
+							line += b.name;
+							line += "]";
+						}
+					}
+
+					// D-pad
+					struct DpadDef {
+						GamepadInput gp;
+						const char *sym;
+					};
+					static const DpadDef ddirs[] = {
+						{GP_DPAD_UP, "^"},
+						{GP_DPAD_DOWN, "v"},
+						{GP_DPAD_LEFT, "<"},
+						{GP_DPAD_RIGHT, ">"},
+					};
+					for (const auto &d : ddirs) {
+						if (gamepadHandler.isPressed(slot, d.gp)) {
+							line += " ";
+							line += d.sym;
+						}
+					}
+
+					// Stick virtual directions
+					static const BtnDef stickDirs[] = {
+						{GP_LSTICK_LEFT, "L<"}, {GP_LSTICK_RIGHT, "L>"}, {GP_LSTICK_UP, "L^"}, {GP_LSTICK_DOWN, "Lv"},
+						{GP_RSTICK_LEFT, "R<"}, {GP_RSTICK_RIGHT, "R>"}, {GP_RSTICK_UP, "R^"}, {GP_RSTICK_DOWN, "Rv"},
+					};
+					for (const auto &s : stickDirs) {
+						if (gamepadHandler.isPressed(slot, s.gp)) {
+							line += " ";
+							line += s.name;
+						}
+					}
+
+					// Right-align the line
 					pair<int, int> dim;
-					n = game.infoFont->fitString(b, e, maxw, dim, 0, Font::Formatting);
-					if (n == b)
-						break;
-					b = n;
+					game.infoFont->fitString(line.begin(), line.end(), gfx.buffer->w - margin, dim, 0,
+											 Font::Formatting);
+					int x = gfx.buffer->w - dim.first - margin;
+					game.infoFont->draw(gfx.buffer, line, x, y, 0, 255, 255, 255, 255, Font::Formatting);
 					y -= dim.second;
-
-					if (dim.first > w)
-						w = dim.first;
-				} while (b != e);
+				}
 			}
 
-			// rectfill_blend(gfx.buffer, 3, y-2, 3+w+5, 0, 130);
-
-			for (std::list<ScreenMessage>::iterator msgiter = rmsgiter.base(); msgiter != game.messages.end();
-				 ++msgiter) {
-				ScreenMessage const &msg = *msgiter;
-
-				string::const_iterator b = msg.str.begin(), e = msg.str.end(), n;
-
-				int fact = 255;
-				if (msg.timeOut < 100)
-					fact = msg.timeOut * 255 / 100;
-
-				Font::CharFormatting format;
-				switch (msg.type) {
-					case ScreenMessage::Chat:
-						format.cur.color = Font::Color(255, 255, 255);
-						break;
-
-					case ScreenMessage::Death:
-						format.cur.color = Font::Color(200, 255, 200);
-						break;
-				}
-
-				do {
-					pair<int, int> dim;
-					n = game.infoFont->fitString(b, e, maxw, dim, 0, Font::Formatting);
-					if (n == b)
-						break;
-					game.infoFont->draw(gfx.buffer, b, n, 5, y, format, 0, fact, Font::Formatting | Font::Shadow);
-					y += dim.second;
-
-					b = n;
-				} while (b != e);
+			// show fps (on top of menu)
+			if (showFps) {
+				char fpsTmp[32];
+				std::snprintf(fpsTmp, sizeof fpsTmp, "FPS: \01303%d", (int)fps);
+				overlayBuf = fpsTmp;
+				game.infoFont->draw(gfx.buffer, overlayBuf, 5, 5, 0, 255, 255, 255, 255, Font::Formatting);
 			}
-		} else {
-			clear_bitmap(gfx.buffer);
-		}
+			fpsCount++;
 
-		OmfgGUI::menu.render();
-		console.render(gfx.buffer);
+			if (quit)
+				game.infoFont->draw(gfx.buffer, "Quitting...", 15, 110, 0, 255, 255, 255, 255);
 
-		// Input debug overlay (bottom-right)
-		if (showGamepadInputs) {
-			int y = gfx.buffer->h - 20;
-			const int margin = 10;
+			dispatchCallbacks(LuaCallbacks::afterRender);
 
-			for (int slot = MAX_GAMEPADS - 1; slot >= 0; --slot) {
-				if (!gamepadHandler.isConnected(slot))
-					continue;
-
-				static std::string line;
-				line.clear();
-				char gpHdr[16];
-				std::snprintf(gpHdr, sizeof gpHdr, "GP%d: ", slot);
-				line += gpHdr;
-
-				// Trigger values
-				float lt = gamepadHandler.getAxis(slot, 4);
-				float rt = gamepadHandler.getAxis(slot, 5);
-				char buf[64];
-				std::snprintf(buf, sizeof(buf), "LT:%.2f RT:%.2f", lt, rt);
-				line += buf;
-
-				// Face buttons
-				struct BtnDef {
-					GamepadInput gp;
-					const char *name;
-				};
-				static const BtnDef btns[] = {
-					{GP_A, "A"},   {GP_B, "B"},	  {GP_X, "X"},		   {GP_Y, "Y"},
-					{GP_LB, "LB"}, {GP_RB, "RB"}, {GP_START, "START"}, {GP_BACK, "BACK"},
-				};
-				for (const auto &b : btns) {
-					if (gamepadHandler.isPressed(slot, b.gp)) {
-						line += " [";
-						line += b.name;
-						line += "]";
-					}
-				}
-
-				// D-pad
-				struct DpadDef {
-					GamepadInput gp;
-					const char *sym;
-				};
-				static const DpadDef ddirs[] = {
-					{GP_DPAD_UP, "^"},
-					{GP_DPAD_DOWN, "v"},
-					{GP_DPAD_LEFT, "<"},
-					{GP_DPAD_RIGHT, ">"},
-				};
-				for (const auto &d : ddirs) {
-					if (gamepadHandler.isPressed(slot, d.gp)) {
-						line += " ";
-						line += d.sym;
-					}
-				}
-
-				// Stick virtual directions
-				static const BtnDef stickDirs[] = {
-					{GP_LSTICK_LEFT, "L<"}, {GP_LSTICK_RIGHT, "L>"}, {GP_LSTICK_UP, "L^"}, {GP_LSTICK_DOWN, "Lv"},
-					{GP_RSTICK_LEFT, "R<"}, {GP_RSTICK_RIGHT, "R>"}, {GP_RSTICK_UP, "R^"}, {GP_RSTICK_DOWN, "Rv"},
-				};
-				for (const auto &s : stickDirs) {
-					if (gamepadHandler.isPressed(slot, s.gp)) {
-						line += " ";
-						line += s.name;
-					}
-				}
-
-				// Right-align the line
-				pair<int, int> dim;
-				game.infoFont->fitString(line.begin(), line.end(), gfx.buffer->w - margin, dim, 0, Font::Formatting);
-				int x = gfx.buffer->w - dim.first - margin;
-				game.infoFont->draw(gfx.buffer, line, x, y, 0, 255, 255, 255, 255, Font::Formatting);
-				y -= dim.second;
+			// Draw the in-game cursor on top of everything. The OS cursor is hidden
+			// while inside the window, so this is the cursor the user actually sees.
+			if (gfx.cursorSpriteSet) {
+				Sprite *sprite = gfx.cursorSpriteSet->getSprite(gfx.cursorFrame);
+				sprite->draw(gfx.buffer, mouseHandler.getX(), mouseHandler.getY());
 			}
+
+			gfx.updateScreen();
 		}
-
-		// show fps (on top of menu)
-		if (showFps) {
-			char fpsTmp[32];
-			std::snprintf(fpsTmp, sizeof fpsTmp, "FPS: \01303%d", (int)fps);
-			overlayBuf = fpsTmp;
-			game.infoFont->draw(gfx.buffer, overlayBuf, 5, 5, 0, 255, 255, 255, 255,
-								Font::Formatting);
-		}
-		fpsCount++;
-
-		if (quit)
-			game.infoFont->draw(gfx.buffer, "Quitting...", 15, 110, 0, 255, 255, 255, 255);
-
-		EACH_CALLBACK(i, afterRender) {
-			// lua.callReference(*i);
-			(lua.call(*i))();
-		}
-
-		// Draw the in-game cursor on top of everything. The OS cursor is hidden
-		// while inside the window, so this is the cursor the user actually sees.
-		if (gfx.cursorSpriteSet) {
-			Sprite *sprite = gfx.cursorSpriteSet->getSprite(gfx.cursorFrame);
-			sprite->draw(gfx.buffer, mouseHandler.getX(), mouseHandler.getY());
-		}
-
-		gfx.updateScreen();
-#endif
 	}
 
 	shutdown();

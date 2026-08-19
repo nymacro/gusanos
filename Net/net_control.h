@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <fstream>
 #include <unordered_map>
+#include <random>
 #include <enet/enet.h>
 
 // C1: map a Zoidcom send mode to ENet packet flags (ReliableUnordered ->
@@ -53,19 +54,22 @@ static const int MSG_CONNECTION_REPLY = 100;
 static const int MSG_ZOID_REQUEST = 101;
 static const int MSG_ZOID_RESULT = 102;
 static const int MSG_NODE_ANNOUNCE = 103;
-// Node event prefix (8 bits = 0, followed by 16-bit nodeID + payload)
+// Node event wire prefix (8-bit MSG_NODE_EVENT, then 16-bit nodeID + payload bitstream)
 static const int MSG_NODE_EVENT = 104;
 
 static const int MSG_REPLICATORS = 105;
 static const int MSG_DISCONNECT_DATA = 106;
 // File transfer protocol (Phase E)
-static const int MSG_FILE_OFFER = 107;		   // sender -> receiver: start a transfer
-static const int MSG_FILE_ACCEPT = 108;		   // receiver -> sender: accept/deny
-static const int MSG_FILE_DATA = 109;		   // sender -> receiver: file chunk
-static const int MSG_FILE_ABORT = 110;		   // either side: abort
-static const int MSG_FILE_COMPLETE = 111;	   // sender -> receiver: all chunks sent
-static const int MSG_DOWNSTREAM_REQUEST = 112; // peer asks us to cap our upstream to it (T1.1)
+static const int MSG_FILE_OFFER = 107;			 // sender -> receiver: start a transfer
+static const int MSG_FILE_ACCEPT = 108;			 // receiver -> sender: accept/deny
+static const int MSG_FILE_DATA = 109;			 // sender -> receiver: file chunk
+static const int MSG_FILE_ABORT = 110;			 // either side: abort
+static const int MSG_FILE_COMPLETE = 111;		 // sender -> receiver: all chunks sent
+static const int MSG_DOWNSTREAM_REQUEST = 112;	 // peer asks us to cap our upstream to it (T1.1)
 static const int MSG_NODE_ANNOUNCE_UNIQUE = 113; // server -> client: announce a unique node (class-based linking)
+static const int MSG_NODE_REMOVE = 114; // authority -> peers: a node was deleted; receiver fires eZCom_EventRemoved
+static const int MSG_CONNECTION_REQUEST =
+	115; // client -> server: app-level connect handshake carrying the ZCom_Connect payload
 
 // Wire-protocol version. Stamped by the server into MSG_CONNECTION_REPLY and
 // checked by the client; a mismatch refuses the connection with
@@ -74,9 +78,15 @@ static const int MSG_NODE_ANNOUNCE_UNIQUE = 113; // server -> client: announce a
 // Current version 2 adds the MSG_DOWNSTREAM_REQUEST control message (T1.1).
 // Version 3 adds MSG_NODE_ANNOUNCE_UNIQUE so unique nodes (Game/Updater)
 // replicate to clients; old builds can't connect to new ones.
+// Version 4 adds MSG_NODE_REMOVE so deleting an authority node delivers
+// eZCom_EventRemoved to remote proxies instead of letting them linger.
+// Version 5 adds MSG_CONNECTION_REQUEST so the client's ZCom_Connect payload
+// is delivered to the server's cbConnectionRequest::_request (the server now
+// defers the handshake from the ENet transport-connect until this message
+// arrives, instead of firing cbConnectionRequest with an empty request).
 // Future Tier-2/3 wire-format changes (T2.6/T2.7/T3.2) must bump this further
 // and gate new behavior on it.
-static const int PROTOCOL_VERSION = 3;
+static const int PROTOCOL_VERSION = 5;
 
 // Per-connection emulation state (T1.2 lag/loss). Bandwidth limiting is handled
 // entirely by ENet (enet_host_bandwidth_limit); the former app-level limiter was
@@ -129,10 +139,15 @@ class ZCom_Control {
 	void ZCom_sendData(ZCom_ConnID connID, ZCom_BitStream *stream, eZCom_SendMode mode = eZCom_ReliableOrdered);
 	void sendToAll(int mode, ZCom_BitStream *stream);
 
+	// Node IDs are written as 16 bits on the wire (announcements, events,
+	// replicators), so the valid range is [1, MAX_NODE_ID]; 0 is "no node".
+	static constexpr uint32_t MAX_NODE_ID = 0xFFFF;
+
 	// Node management
 	bool registerNode(ZCom_Node *node);
 	bool registerExistingNode(ZCom_Node *node); // register without reassigning node ID
 	void removeNode(ZCom_Node *node);
+	void sendNodeRemoval(uint32_t connID, uint32_t nid); // MSG_NODE_REMOVE: deannounce a node to one peer
 	void sendNodeAnnouncement(uint32_t connID, ZCom_Node *node, int role);
 	void announceNodeWithOwner(ZCom_Node *node); // announce with owner-aware roles
 	void clearAnnouncedNode(uint32_t nodeID);	 // clear per-peer tracking for re-announce
@@ -203,7 +218,10 @@ class ZCom_Control {
 	}
 
 	// --- Reference API members (B1b): game-unused; stubs/delegations ---
-	bool ZCom_initSockets(bool _useudp, zU16 _udpport, zU16 _localport, zU8 _control_id_size = 0);
+	// Host-only socket init (32 peers, server bind). Renamed from ZCom_initSockets to
+	// avoid collision with the free function of that name, which is the single public
+	// init path the game uses (variable peer count, server-or-client).
+	bool initHost(bool _useudp, zU16 _udpport, zU16 _localport, zU8 _control_id_size = 0);
 	void ZCom_setControlID(zU8 _id);
 	void ZCom_setDebugName(const char *_name);
 	void ZCom_setUpstreamLimit(zU32 _total_bps, zU32 _perconn_bps);
@@ -286,6 +304,7 @@ class ZCom_Control {
 	bool m_isServer;
 	uint32_t m_nextConnID;
 	uint32_t m_nextNodeID;
+	std::set<uint32_t> m_freeNodeIDs; ///< recycled node IDs (item 21): keep allocations in the 16-bit wire range
 	uint32_t m_nextClassID;
 	std::vector<ZCom_ClassInfo> m_classes;
 	NodeRegistry m_nodeRegistry;			  ///< owns registration order and lookups
@@ -302,13 +321,28 @@ class ZCom_Control {
 	std::map<uint32_t, ZCom_Address> m_addressMap;
 	mutable std::map<ZCom_ConnID, ZCom_ConnStats>
 		m_statsCache; ///< Cache for ZCom_getConnectionStats (reference returns const&)
+	/// Per-connection bookkeeping for computing per-second byte rates in
+	/// ZCom_getConnectionStats (ENet only exposes cumulative totals).
+	struct ConnStatsHistory {
+		zU32 windowStart = 0;
+		size_t outAtStart = 0;
+		size_t inAtStart = 0;
+		int lastOutRate = 0;
+		int lastInRate = 0;
+		int maxPing = 0;
+		bool init = false;
+	};
+	mutable std::map<ZCom_ConnID, ConnStatsHistory> m_statsHistory;
 	zU8 m_controlID = 0;
 	std::string m_debugName;
 	std::map<ZCom_ConnID, void *> m_userData; ///< Per-connection user data (ZCom_setUserData/getUserData)
-	ZCom_BitStream m_disconnectData;
 	std::map<uint32_t, ZCom_BitStream> m_pendingDisconnectData; ///< Pre-disconnect reason data per connID
 	std::set<uint32_t> m_waitingForReply;						///< Client connIDs waiting for connection reply
-	std::map<uint32_t, std::set<uint32_t>> m_announcedNodes;	///< Per-peer set of node IDs already announced
+	std::set<uint32_t> m_pendingConnectRequest; ///< Server connIDs whose app-level handshake is deferred until
+												///< MSG_CONNECTION_REQUEST arrives
+	std::map<uint32_t, std::vector<uint8_t>>
+		m_connectData; ///< Client: ZCom_Connect payload to send as MSG_CONNECTION_REQUEST once ENet transport connects
+	std::map<uint32_t, std::set<uint32_t>> m_announcedNodes; ///< Per-peer set of node IDs already announced
 
 	/// Node IDs registered by registerNode() whose announcement has been
 	/// deferred to the next ZCom_processOutput(), so a subsequent setOwner()
@@ -326,6 +360,7 @@ class ZCom_Control {
 
 	/// Per-connection emulation state (T1.2 lag/loss).
 	std::map<uint32_t, PeerNetState> m_peerState;
+	std::mt19937 m_netEmuRng; ///< Dedicated RNG for lag/loss emulation (avoids perturbing the global std::rand stream)
 	std::vector<PendingLagSend> m_lagQueue; ///< T1.2: packets deferred by lag emulation
 
 	/// Buffered replicator data for nodes that haven't been registered locally yet.
@@ -433,7 +468,22 @@ class ZCom_Control {
 	void dispatchNodeEvent(uint32_t nodeID, int type, int role, uint32_t connID, ZCom_BitStream *data,
 						   zU32 estimatedTimeSent = 0);
 	uint32_t allocateConnID();
+	/// Allocate a node ID in [1, MAX_NODE_ID], recycling a freed ID first; the
+	/// m_nodeRegistry guard skips any ID still in use (e.g. a server-adopted
+	/// ID on a client) so local and adopted ID spaces can't collide. Returns
+	/// 0 when the 16-bit space is exhausted (65535 nodes live at once).
+	uint32_t allocateNodeID();
+	/// Return a freed ID to the free-list for recycling. No-op for 0 or IDs
+	/// outside the wire range; skips IDs still registered.
+	void releaseNodeID(uint32_t id);
 	void sendConnectionReply(ENetPeer *peer, ZCom_BitStream &reply, bool accepted);
+	/// Client: send MSG_CONNECTION_REQUEST carrying the stored ZCom_Connect payload
+	/// once ENet transport has connected. Emits an empty payload when none was supplied.
+	void sendConnectRequest(uint32_t connID, ENetPeer *peer);
+	/// Server: complete the deferred handshake on MSG_CONNECTION_REQUEST — call
+	/// cbConnectionRequest with the decoded request, then accept (announce nodes +
+	/// cbConnectionSpawned) or reject (reply + disconnect) based on its verdict.
+	void handleConnectionRequest(uint32_t connID, ENetPeer *peer, ZCom_BitStream &request);
 };
 
 // Global ZoidCom functions
@@ -449,5 +499,9 @@ void ZCom_requestZoidMode(uint32_t connID, uint8_t level);
 
 // Current control for global functions
 extern ZCom_Control *g_currentControl;
+
+// Verbose per-packet logging toggle (synced from the NET_LOG/logZoidcom
+// console var in Goop/network.cpp). Off by default.
+extern bool g_netLogVerbose;
 
 #endif // NET_CONTROL_H

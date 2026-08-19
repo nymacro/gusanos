@@ -1417,4 +1417,78 @@ BOOST_AUTO_TEST_CASE(authority_node_after_client_sends_sync_on_init) {
 	cli.Shutdown();
 }
 
+// ---- Item 20: authority node deletion delivers eZCom_EventRemoved ----
+struct DereplicateInterceptor : public ZCom_NodeReplicationInterceptor {
+	int dereplicateCount = 0;
+	eZCom_NodeRole lastRemoteRole = eZCom_RoleUndefined;
+	void outPreDereplicateNode(ZCom_Node *, uint32_t, eZCom_NodeRole remote_role) override {
+		dereplicateCount++;
+		lastRemoteRole = remote_role;
+	}
+};
+
+// When the authority node is deleted, MSG_NODE_REMOVE is sent to every peer
+// that was announced the node; the client proxy receives eZCom_EventRemoved
+// and the server's outPreDereplicateNode interceptor fires.
+BOOST_AUTO_TEST_CASE(authority_node_deletion_delivers_event_removed) {
+	int port = s_port++;
+
+	{
+		RepSrv srv(port);
+		RepCli cli(port);
+		DereplicateInterceptor srvInterceptor;
+
+		// 1. Server creates the authority node BEFORE the client connects, so
+		//    the connection-spawn path announces it.
+		g_currentControl = &srv;
+		srv.node = new ZCom_Node();
+		srv.node->setRole(eZCom_RoleAuthority);
+		srv.node->setEventNotification(true, false);
+		srv.node->setReplicationInterceptor(&srvInterceptor);
+		srv.node->registerNodeDynamic(srv.cls, &srv);
+		g_currentControl = nullptr;
+
+		// 2. Client connects; the existing node is synced on connect.
+		cli.ConnectTo("127.0.0.1", port);
+		processBoth(&srv, &cli, 40);
+		BOOST_REQUIRE(cli.connected);
+		BOOST_REQUIRE(cli.node != nullptr);
+		BOOST_REQUIRE_EQUAL(cli.gotNodeID, srv.node->getNetworkID());
+
+		// 3. Server deletes the authority node. ~ZCom_Node -> unregisterNode
+		//    -> removeNode sends MSG_NODE_REMOVE to the announced peer.
+		g_currentControl = &srv;
+		delete srv.node;
+		srv.node = nullptr;
+		g_currentControl = nullptr;
+
+		// outPreDereplicateNode must have fired on the server side before the
+		// wire send, with the client's proxy role.
+		BOOST_CHECK_EQUAL(srvInterceptor.dereplicateCount, 1);
+		BOOST_CHECK_EQUAL(srvInterceptor.lastRemoteRole, eZCom_RoleProxy);
+
+		// 4. Let the removal packet traverse the wire.
+		processBoth(&srv, &cli, 40);
+
+		// 5. The client proxy should have eZCom_EventRemoved in its queue.
+		BOOST_REQUIRE(cli.node != nullptr);
+		eZCom_Event type = eZCom_EventInit;
+		eZCom_NodeRole role = eZCom_RoleUndefined;
+		uint32_t connID = 0;
+		bool sawRemoved = false;
+		while (cli.node->checkEventWaiting()) {
+			cli.node->getNextEvent(&type, &role, &connID);
+			if (type == eZCom_EventRemoved) {
+				sawRemoved = true;
+				// The authority deleted the node.
+				BOOST_CHECK_EQUAL(role, eZCom_RoleAuthority);
+			}
+		}
+		BOOST_CHECK(sawRemoved);
+
+		srv.Shutdown();
+		cli.Shutdown();
+	}
+}
+
 BOOST_AUTO_TEST_SUITE_END()

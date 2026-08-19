@@ -41,8 +41,6 @@ LuaReference FontMetaTable;
 LuaReference SpriteSetMetaTable;
 LuaReference SoundMetaTable;
 #endif
-// LuaReference PartTypeMetaTable;
-// LuaReference WeaponTypeMetaTable;
 LuaReference mapIterator;
 
 enum FontFlags {
@@ -83,9 +81,7 @@ int l_sprites_load(lua_State *L) {
 
 	Draws the frame //frame// of the sprite set on //bitmap// with the pivot at position (x, y).
 */
-METHODC(SpriteSet, sprites_render,
-		// BITMAP* b = *static_cast<BITMAP **>(lua_touserdata(context, 2));
-		BITMAP *b = ASSERT_OBJECT(BITMAP, 2);
+METHODC(SpriteSet, sprites_render, BITMAP *b = ASSERT_OBJECT(BITMAP, 2);
 
 		int frame = lua_tointeger(context, 3); int x = lua_tointeger(context, 4); int y = lua_tointeger(context, 5);
 		p->getSprite(frame)->draw(b, x, y, blitter);
@@ -101,9 +97,7 @@ METHODC(SpriteSet, sprites_render,
 	three parameters. This has been deprecated.**
 */
 METHODC(
-	SpriteSet, sprites_render_skinned_box,
-	// BITMAP* b = *static_cast<BITMAP **>(lua_touserdata(context, 2));
-	BITMAP *b = ASSERT_OBJECT(BITMAP, 2);
+	SpriteSet, sprites_render_skinned_box, BITMAP *b = ASSERT_OBJECT(BITMAP, 2);
 
 	int x1 = lua_tointeger(context, 3); int y1 = lua_tointeger(context, 4); int x2 = lua_tointeger(context, 5);
 	int y2 = lua_tointeger(context, 6); int c = lua_tointeger(context, 7);
@@ -190,7 +184,6 @@ int l_font_load2(lua_State *L) {
 METHODC(
 	Font, font_render, int params = lua_gettop(context); if (params < 5) return 0;
 
-	// BITMAP* b = *static_cast<BITMAP **>(lua_touserdata(L, 2));
 	BITMAP *b = ASSERT_OBJECT(BITMAP, 2);
 
 	char const *sc = lua_tostring(context, 3); if (!sc) return 0;
@@ -241,8 +234,6 @@ METHODC(
 	p->draw(b, s, x, y, 0, fact, cr, cg, cb, realFlags);
 
 	return 0;)
-
-//! version 0.9c
 
 /*! sounds
 
@@ -299,8 +290,6 @@ METHODC(
 				break;
 		}
 
-		// BaseObject* obj = *static_cast<BaseObject**>(lua_touserdata(context, 2));
-
 		p->play2D(obj, loudness, pitch, pitchVariation);
 	} else {
 		int params = lua_gettop(context);
@@ -331,8 +320,6 @@ METHODC(
 
 	return 0;)
 #endif
-
-//! version any
 
 /*! map_is_loaded()
 
@@ -375,7 +362,6 @@ int l_load_particle(lua_State *L) {
 
 	LuaContext context(L);
 
-	// context.pushFullReference(*type, PartTypeMetaTable);
 	type->pushLuaReference();
 	return 1;
 }
@@ -387,7 +373,6 @@ int l_load_particle(lua_State *L) {
 int l_weapon_random(lua_State *L) {
 	LuaContext context(L);
 	WeaponType *p = game.weaponList[grndInt(game.weaponList.size())];
-	// context.pushFullReference(*p, WeaponTypeMetaTable);
 	p->pushLuaReference();
 	return 1;
 }
@@ -434,12 +419,6 @@ METHODC(WeaponType, weapon_reload_time, context.push(p->reloadTime); return 1;)
 METHODC(WeaponType, weapon_ammo, context.push(p->ammo); return 1;)
 
 METHOD(WeaponType, weapon_destroy, if (!p) return 0; delete p; return 0;)
-
-/*
-BINOP(WeaponType, weapon_eq,
-	context.push(a == b);
-	return 1;
-)*/
 
 int l_modIterator(lua_State *L) {
 	LuaContext context(L);
@@ -502,7 +481,6 @@ int l_mapIterator(lua_State *L) {
 	if (i == levelLocator.getMap().end())
 		lua_pushnil(L);
 	else {
-		// lua.pushReference((*i)->luaReference);
 		context.push(i->first);
 		++i;
 	}
@@ -592,9 +570,6 @@ void initResources() {
 
 	lua_setmetatable(context, -2);
 	context.pop(1); // Pop global table
-
-	// std::cerr << "Old: " << as.stack << std::endl;
-	// std::cerr << "New: " << lua_gettop(context) << std::endl;
 }
 
 } // namespace LuaBindings

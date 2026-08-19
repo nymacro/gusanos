@@ -1,4 +1,5 @@
 #include "allegro_compat.h"
+#include <SDL3_image/SDL_image.h>
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>
@@ -11,6 +12,39 @@ int cpu_capabilities = 0;
 int current_color_depth = 32;
 int current_color_conversion = 0;
 
+// Clips an unscaled blit so it stays inside dest's sub-bitmap bounds.
+// SDL clips against the shared parent surface only, so without this a blit
+// near a sub-bitmap's edge bleeds into neighbouring regions of the parent
+// (e.g. the other player's split-screen viewport). Rects are in parent
+// coordinate space. Returns false if the blit is fully clipped away.
+static bool clipBlitToDest(BITMAP *dest, SDL_Rect &srcrect, SDL_Rect &dstrect) {
+	if (!dest->is_sub_bitmap)
+		return true;
+	int cutL = dest->sub_x - dstrect.x;
+	if (cutL > 0) {
+		srcrect.x += cutL;
+		srcrect.w -= cutL;
+		dstrect.x += cutL;
+	}
+	int cutT = dest->sub_y - dstrect.y;
+	if (cutT > 0) {
+		srcrect.y += cutT;
+		srcrect.h -= cutT;
+		dstrect.y += cutT;
+	}
+	int cutR = dstrect.x + srcrect.w - (dest->sub_x + dest->w);
+	if (cutR > 0)
+		srcrect.w -= cutR;
+	int cutB = dstrect.y + srcrect.h - (dest->sub_y + dest->h);
+	if (cutB > 0)
+		srcrect.h -= cutB;
+	if (srcrect.w <= 0 || srcrect.h <= 0)
+		return false;
+	dstrect.w = srcrect.w;
+	dstrect.h = srcrect.h;
+	return true;
+}
+
 void draw_sprite(BITMAP *dest, BITMAP *src, int x, int y) {
 	if (!dest || !src)
 		return;
@@ -20,12 +54,16 @@ void draw_sprite(BITMAP *dest, BITMAP *src, int x, int y) {
 		// skips those alpha-0 pixels while copying opaque (alpha-255) body pixels.
 		sdlBlitBlendMode(dest, src, x, y, 0, 0, src->w, src->h, 255, SDL_BLENDMODE_BLEND);
 	} else {
-		// For sub-bitmaps, the source rect must be offset into the parent surface
+		// A sub-bitmap shares its parent's surface, so both rects must be
+		// offset into the parent's coordinate space.
 		int src_sx = src->is_sub_bitmap ? src->sub_x : 0;
 		int src_sy = src->is_sub_bitmap ? src->sub_y : 0;
+		int dst_dx = dest->is_sub_bitmap ? dest->sub_x + x : x;
+		int dst_dy = dest->is_sub_bitmap ? dest->sub_y + y : y;
 		SDL_Rect src_rect = {src_sx, src_sy, src->w, src->h};
-		SDL_Rect dest_rect = {x, y, src->w, src->h};
-		SDL_BlitSurface(src->sdl_surface, &src_rect, dest->sdl_surface, &dest_rect);
+		SDL_Rect dest_rect = {dst_dx, dst_dy, src->w, src->h};
+		if (clipBlitToDest(dest, src_rect, dest_rect))
+			SDL_BlitSurface(src->sdl_surface, &src_rect, dest->sdl_surface, &dest_rect);
 	}
 }
 
@@ -41,12 +79,16 @@ void sdlBlitBlendMode(BITMAP *dest, BITMAP *src, int dx, int dy, int sx, int sy,
 		fact = 255;
 	SDL_SetSurfaceAlphaMod(src->sdl_surface, (Uint8)fact);
 	SDL_SetSurfaceBlendMode(src->sdl_surface, mode);
-	// For sub-bitmaps, the source rect must be offset into the parent surface
+	// A sub-bitmap shares its parent's surface, so both rects must be offset
+	// into the parent's coordinate space.
 	int src_sx = src->is_sub_bitmap ? src->sub_x + sx : sx;
 	int src_sy = src->is_sub_bitmap ? src->sub_y + sy : sy;
+	int dst_dx = dest->is_sub_bitmap ? dest->sub_x + dx : dx;
+	int dst_dy = dest->is_sub_bitmap ? dest->sub_y + dy : dy;
 	SDL_Rect srcrect = {src_sx, src_sy, sw, sh};
-	SDL_Rect dstrect = {dx, dy, sw, sh};
-	SDL_BlitSurface(src->sdl_surface, &srcrect, dest->sdl_surface, &dstrect);
+	SDL_Rect dstrect = {dst_dx, dst_dy, sw, sh};
+	if (clipBlitToDest(dest, srcrect, dstrect))
+		SDL_BlitSurface(src->sdl_surface, &srcrect, dest->sdl_surface, &dstrect);
 	SDL_SetSurfaceBlendMode(src->sdl_surface, SDL_BLENDMODE_NONE);
 	SDL_SetSurfaceAlphaMod(src->sdl_surface, 255);
 }
@@ -385,12 +427,16 @@ int set_display_switch_mode(int mode) {
 void blit(BITMAP *src, BITMAP *dest, int s_x, int s_y, int d_x, int d_y, int w, int h) {
 	if (!src || !dest)
 		return;
-	// For sub-bitmaps, the source rect must be offset into the parent surface
+	// Sub-bitmap rects must be offset into the parent's coordinate space,
+	// for both the source and the destination.
 	int src_sx = src->is_sub_bitmap ? src->sub_x + s_x : s_x;
 	int src_sy = src->is_sub_bitmap ? src->sub_y + s_y : s_y;
+	int dst_dx = dest->is_sub_bitmap ? dest->sub_x + d_x : d_x;
+	int dst_dy = dest->is_sub_bitmap ? dest->sub_y + d_y : d_y;
 	SDL_Rect src_rect = {src_sx, src_sy, w, h};
-	SDL_Rect dest_rect = {d_x, d_y, w, h};
-	SDL_BlitSurface(src->sdl_surface, &src_rect, dest->sdl_surface, &dest_rect);
+	SDL_Rect dest_rect = {dst_dx, dst_dy, w, h};
+	if (clipBlitToDest(dest, src_rect, dest_rect))
+		SDL_BlitSurface(src->sdl_surface, &src_rect, dest->sdl_surface, &dest_rect);
 }
 
 void masked_blit(BITMAP *src, BITMAP *dest, int s_x, int s_y, int d_x, int d_y, int w, int h) {
@@ -402,43 +448,88 @@ void masked_blit(BITMAP *src, BITMAP *dest, int s_x, int s_y, int d_x, int d_y, 
 		// mask as black, so BLEND is required for masking.
 		sdlBlitBlendMode(dest, src, d_x, d_y, s_x, s_y, w, h, 255, SDL_BLENDMODE_BLEND);
 	} else {
-		// For sub-bitmaps, the source rect must be offset into the parent surface
+		// Sub-bitmap rects must be offset into the parent's coordinate space,
+		// for both the source and the destination.
 		int src_sx = src->is_sub_bitmap ? src->sub_x + s_x : s_x;
 		int src_sy = src->is_sub_bitmap ? src->sub_y + s_y : s_y;
+		int dst_dx = dest->is_sub_bitmap ? dest->sub_x + d_x : d_x;
+		int dst_dy = dest->is_sub_bitmap ? dest->sub_y + d_y : d_y;
 		SDL_Rect src_rect = {src_sx, src_sy, w, h};
-		SDL_Rect dest_rect = {d_x, d_y, w, h};
-		SDL_BlitSurface(src->sdl_surface, &src_rect, dest->sdl_surface, &dest_rect);
+		SDL_Rect dest_rect = {dst_dx, dst_dy, w, h};
+		if (clipBlitToDest(dest, src_rect, dest_rect))
+			SDL_BlitSurface(src->sdl_surface, &src_rect, dest->sdl_surface, &dest_rect);
 	}
 }
 
 void stretch_blit(BITMAP *src, BITMAP *dest, int s_x, int s_y, int s_w, int s_h, int d_x, int d_y, int d_w, int d_h) {
 	if (!src || !dest)
 		return;
-	// For sub-bitmaps, the source rect must be offset into the parent surface
+	// Sub-bitmap rects must be offset into the parent's coordinate space,
+	// for both the source and the destination.
 	int src_sx = src->is_sub_bitmap ? src->sub_x + s_x : s_x;
 	int src_sy = src->is_sub_bitmap ? src->sub_y + s_y : s_y;
+	int dst_dx = dest->is_sub_bitmap ? dest->sub_x + d_x : d_x;
+	int dst_dy = dest->is_sub_bitmap ? dest->sub_y + d_y : d_y;
 	SDL_Rect src_rect = {src_sx, src_sy, s_w, s_h};
-	SDL_Rect dest_rect = {d_x, d_y, d_w, d_h};
+	SDL_Rect dest_rect = {dst_dx, dst_dy, d_w, d_h};
+	if (dest->is_sub_bitmap && d_w > 0 && d_h > 0) {
+		// Shrink dest into the sub-bitmap bounds, adjusting src
+		// proportionally (same bleed issue clipBlitToDest handles).
+		int subRight = dest->sub_x + dest->w;
+		int subBottom = dest->sub_y + dest->h;
+		int ndx0 = dest_rect.x > dest->sub_x ? dest_rect.x : dest->sub_x;
+		int ndy0 = dest_rect.y > dest->sub_y ? dest_rect.y : dest->sub_y;
+		int ndx1 = dest_rect.x + d_w < subRight ? dest_rect.x + d_w : subRight;
+		int ndy1 = dest_rect.y + d_h < subBottom ? dest_rect.y + d_h : subBottom;
+		if (ndx1 <= ndx0 || ndy1 <= ndy0)
+			return;
+		src_rect.x += (int)((ndx0 - dest_rect.x) * (double)s_w / d_w);
+		src_rect.y += (int)((ndy0 - dest_rect.y) * (double)s_h / d_h);
+		src_rect.w = (int)((ndx1 - ndx0) * (double)s_w / d_w);
+		src_rect.h = (int)((ndy1 - ndy0) * (double)s_h / d_h);
+		if (src_rect.w <= 0 || src_rect.h <= 0)
+			return;
+		dest_rect.x = ndx0;
+		dest_rect.y = ndy0;
+		dest_rect.w = ndx1 - ndx0;
+		dest_rect.h = ndy1 - ndy0;
+	}
 	SDL_BlitSurfaceScaled(src->sdl_surface, &src_rect, dest->sdl_surface, &dest_rect, SDL_SCALEMODE_NEAREST);
 }
 
 void clear_bitmap(BITMAP *bmp) {
 	if (!bmp)
 		return;
+	if (bmp->is_sub_bitmap) {
+		SDL_Rect rect = {bmp->sub_x, bmp->sub_y, bmp->w, bmp->h};
+		SDL_FillSurfaceRect(bmp->sdl_surface, &rect, 0);
+		return;
+	}
 	SDL_FillSurfaceRect(bmp->sdl_surface, NULL, 0);
 }
 
 void clear_to_color(BITMAP *bmp, int color) {
 	if (!bmp)
 		return;
+	if (bmp->is_sub_bitmap) {
+		SDL_Rect rect = {bmp->sub_x, bmp->sub_y, bmp->w, bmp->h};
+		SDL_FillSurfaceRect(bmp->sdl_surface, &rect, (Uint32)color);
+		return;
+	}
 	SDL_FillSurfaceRect(bmp->sdl_surface, NULL, color);
 }
 
 void rectfill(BITMAP *bmp, int x1, int y1, int x2, int y2, int color) {
 	if (!bmp)
 		return;
+	if (bmp->is_sub_bitmap) {
+		x1 += bmp->sub_x;
+		x2 += bmp->sub_x;
+		y1 += bmp->sub_y;
+		y2 += bmp->sub_y;
+	}
 	SDL_Rect rect = {x1, y1, x2 - x1 + 1, y2 - y1 + 1};
-	SDL_FillSurfaceRect(bmp->sdl_surface, &rect, color);
+	SDL_FillSurfaceRect(bmp->sdl_surface, &rect, (Uint32)color);
 }
 
 void hline(BITMAP *bmp, int x1, int y1, int x2, int color) {

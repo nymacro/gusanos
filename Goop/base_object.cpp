@@ -46,39 +46,6 @@ void BaseObject::removeRefsToPlayer(BasePlayer *player) {
 		m_owner = NULL;
 }
 
-/*
-LuaReference BaseObject::getLuaReference()
-{
-	if(luaReference)
-		return luaReference;
-	else
-	{
-		lua.pushFullReference(*this, metaTable);
-		luaReference = lua.createReference();
-		return luaReference;
-	}
-}*/
-
 void BaseObject::makeReference() {
 	lua.pushFullReference(*this, metaTable);
 }
-
-/*
-void BaseObject::pushLuaReference()
-{
-	lua.push(getLuaReference());
-}
-
-void BaseObject::deleteThis()
-{
-	finalize();
-
-	if(luaReference)
-	{
-		lua.destroyReference(luaReference);
-		luaReference.reset();
-	}
-	else
-		delete this;
-}
-*/

@@ -76,7 +76,6 @@ int l_randomint(lua_State *L) {
 	// grndInt honours the active GameplayRngScope, so draws made inside a worm
 	// burst (fire/dig/die, particle creation scripts, the wormDeath callback)
 	// are deterministic across peers; out-of-scope draws fall back to legacy.
-	// lua_pushnumber(L, l + (unsigned int)(rndgen()) % (u - l + 1));
 	lua_pushinteger(L, l + grndInt(u - l + 1));
 
 	return 1;
@@ -187,7 +186,6 @@ int l_angle_diff(lua_State *L) {
 	Returns //angle// normalized to [0, 360).
 */
 int l_angle_clamp(lua_State *L) {
-	// lua_Number ang = lua_tonumber(L, 1);
 	Angle ang((double)lua_tonumber(L, 1));
 
 	ang.clamp();

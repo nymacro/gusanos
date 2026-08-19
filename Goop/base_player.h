@@ -3,12 +3,11 @@
 
 #include <string>
 #include <map>
-// #include "vec.h"
+
 #include "luaapi/types.h"
 #include <stdexcept>
 #include <boost/shared_ptr.hpp>
 #include <vector>
-using boost::shared_ptr;
 
 #include "network_compat.h"
 
@@ -17,17 +16,6 @@ class BaseWorm;
 class BasePlayerInterceptor;
 class WeaponType;
 struct LuaEventDef;
-
-// Note: None of the BaseActions should assume a combination of keys.
-// For example: Activating JUMP and CHANGE does nothing here ( instead
-// of shooting the Ninja Rope ) So key combinations should be created
-// on the Player class instead. Because of that, all actions in the
-// BasePlayer class are direct ( they do nothing more and nothing less
-// than what the name tells )
-
-// Note2: All access to the worm class from a derivation of BasePlayer
-// should pass by the BasePlayer class ( This is because the BasePlayer
-// class will be responsible of the network part )
 
 #define COMPACT_EVENTS
 #define COMPACT_ACTIONS
@@ -84,7 +72,7 @@ class BasePlayer {
 	// do not confuse with the node ID which identifies instances of the class.
 	static ZCom_ClassID classID;
 
-	BasePlayer(shared_ptr<PlayerOptions> options, BaseWorm *worm);
+	BasePlayer(boost::shared_ptr<PlayerOptions> options, BaseWorm *worm);
 	virtual ~BasePlayer();
 
 	void think();
@@ -123,7 +111,7 @@ class BasePlayer {
 	}
 	ZCom_ConnID getConnectionID();
 	void sendLuaEvent(LuaEventDef *event, eZCom_SendMode mode, zU8 rules, ZCom_BitStream *userdata, ZCom_ConnID connID);
-	shared_ptr<PlayerOptions> getOptions();
+	boost::shared_ptr<PlayerOptions> getOptions();
 	BaseWorm *getWorm() {
 		return m_worm;
 	}
@@ -145,7 +133,7 @@ class BasePlayer {
 			return space;
 		}
 	*/
-	shared_ptr<Stats> stats;
+	boost::shared_ptr<Stats> stats;
 
 	bool deleteMe;
 
@@ -178,7 +166,7 @@ class BasePlayer {
 	void teamChangePetition_(int team_);
 
 	BaseWorm *m_worm;
-	shared_ptr<PlayerOptions> m_options;
+	boost::shared_ptr<PlayerOptions> m_options;
 
 	bool m_isAuthority;
 	bool m_processingNetworkEvent;

@@ -141,7 +141,7 @@ ulong GusanosSpriteSet::getFrameHeight(int frame, int angle) const {
 }
 
 GContext::GContext(Renderer *renderer) : Context(renderer) {
-	array<bool, 256>::iterator b = bindingLock.enable.begin();
+	boost::array<bool, 256>::iterator b = bindingLock.enable.begin();
 	std::fill(b + KEY_F1, b + KEY_F12 + 1, false);
 }
 

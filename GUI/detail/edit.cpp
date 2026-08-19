@@ -1,5 +1,5 @@
 #include "edit.h"
-#include "allegro_compat.h" //TEMP!!!!!!!!!!!
+#include "util/keys_constants.h"
 
 #include <algorithm>
 

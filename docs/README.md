@@ -9,7 +9,7 @@ C++17 with LuaJIT scripting via pkg-config.
 
 - **Entry point:** `Goop/gusanos.cpp` `main()`
 - **Build:** `scons build=debug` (debug) or `scons` (release)
-- **Dedicated server:** `scons build=dedserv`
+- **Dedicated server:** `bin/posix/gusanos --dedicated` (runtime headless mode of the single binary)
 - **Config:** `autoexec.cfg` / `autoexec-ded.cfg` (console script)
 - **Mods:** `default/` directory tree scanned for resources at startup
 

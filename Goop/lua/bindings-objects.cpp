@@ -27,9 +27,6 @@ using boost::lexical_cast;
 
 namespace LuaBindings {
 
-// LuaReference wormMetaTable;
-// LuaReference baseObjectMetaTable;
-// LuaReference particleMetaTable;
 LuaReference WeaponMetaTable;
 
 namespace ParticleRep {
@@ -37,12 +34,6 @@ enum type { Position };
 }
 
 int shootFromObject(lua_State *L, BaseObject *object) {
-	/*
-	void* typeP = lua_touserdata (L, 2);
-	if(!typeP)
-		return 0;
-	PartType* p = *static_cast<PartType **>(typeP);
-	*/
 	LuaContext context(L);
 	PartType *p = ASSERT_OBJECT(PartType, 2);
 
@@ -93,8 +84,6 @@ int shootFromObject(lua_State *L, BaseObject *object) {
 			spd += object->spd * motionInheritance;
 			angle = spd.getAngle(); // Need to recompute angle
 		}
-		// game.insertParticle( new Particle( p, object->getPos() + direction * distanceOffset, spd, object->getDir(),
-		// object->getOwner(), angle ));
 		last = p->newParticle(p, object->pos + direction * distanceOffset, spd, object->getDir(), object->getOwner(),
 							  angle);
 	}
@@ -108,17 +97,6 @@ int shootFromObject(lua_State *L, BaseObject *object) {
 }
 
 //! Worm inherits Object
-
-/*
-int l_worm_getPlayer(lua_State* L)
-{
-	BaseWorm* p = static_cast<BaseWorm *>(lua_touserdata (L, 1));
-	if(!p->getOwner())
-		return 0;
-	lua.pushReference(p->getOwner()->luaReference);
-	return 1;
-}
-*/
 
 /*! Worm:health()
 
@@ -141,78 +119,12 @@ METHODC(BaseWorm, worm_isChanging, context.push(p->isChanging()); return 1;)
 
 	Sets the weapon of a slot in [1, max] to the WeaponType //weapon//.
 */
-/* TODO
-LMETHOD(BaseWorm, worm_setWeapon,
-	p->m_weapons*/
-
-/*
-int l_worm_remove(lua_State* L)
-{
-	BaseWorm* p = static_cast<BaseWorm *>(lua_touserdata (L, 1));
-	p->deleteMe = true;
-	return 0;
-}
-
-int l_worm_pos(lua_State* L)
-{
-	BaseWorm* p = static_cast<BaseWorm *>(lua_touserdata (L, 1));
-	lua_pushnumber(L, p->pos.x);
-	lua_pushnumber(L, p->pos.y);
-	return 2;
-}
-
-int l_worm_spd(lua_State* L) //
-{
-	BaseWorm* p = static_cast<BaseWorm *>(lua_touserdata (L, 1));
-	lua_pushnumber(L, p->spd.x);
-	lua_pushnumber(L, p->spd.y);
-	return 2;
-}
-
-int l_worm_push(lua_State* L) //
-{
-	BaseWorm* p = static_cast<BaseWorm *>(lua_touserdata (L, 1));
-	p->spd.x += lua_tonumber(L, 2);
-	p->spd.y += lua_tonumber(L, 3);
-	return 0;
-}
-
-int l_worm_data(lua_State* L)
-{
-	BaseWorm* p = static_cast<BaseWorm *>(lua_touserdata (L, 1));
-	if(p->luaData)
-	{
-		lua.pushReference(p->luaData);
-	}
-	else
-	{
-		lua_newtable(L);
-		lua_pushvalue(L, -1);
-		p->luaData = lua.createReference();
-	}
-
-	return 1;
-}
-
-int l_worm_shoot(lua_State* L)
-{
-	BaseWorm* object = static_cast<BaseWorm *>(lua_touserdata (L, 1));
-
-	return shootFromObject(L, object);
-}*/
 
 METHODC(
 	BaseWorm, worm_current_weapon, if (Weapon *w = p->getCurrentWeapon()) {
-		// context.pushFullReference(*w, WeaponMetaTable);
 		w->pushLuaReference();
 		return 1;
 	} return 0;)
-
-/*
-LBINOP(BaseWorm, worm_eq,
-	context.push(a == b);
-	return 1;
-)*/
 
 METHOD(BaseWorm, worm_destroy, if (!p) return 0; delete p; return 0;)
 
@@ -269,8 +181,6 @@ METHODC(BaseObject, baseObject_setPos, p->setPos(Vec(lua_tonumber(context, 2), l
 */
 METHODC(BaseObject, baseObject_spd, context.push(p->spd.x); context.push(p->spd.y); return 2;)
 
-//! version 0.9c
-
 /*! Object:set_spd(x, y)
 
 	Changes the speed of this object to (x, y)
@@ -281,8 +191,6 @@ METHODC(BaseObject, baseObject_spd, context.push(p->spd.x); context.push(p->spd.
 */
 METHODC(BaseObject, baseObject_setSpd, p->spd.x = lua_tonumber(context, 2); p->spd.y = lua_tonumber(context, 3);
 		return 0;)
-
-//! version any
 
 /*! Object:push(x, y)
 
@@ -328,8 +236,6 @@ int l_baseObject_getPlayer_depr(lua_State *L) {
 }
 #endif
 
-//! version 0.9c
-
 /*! Object:damage(amount[, player])
 
 	Causes damage to the object. //player// is the player inflicting the damage.
@@ -338,8 +244,6 @@ int l_baseObject_getPlayer_depr(lua_State *L) {
 METHODC(BaseObject, baseObject_damage, lua_Number amount = lua_tonumber(context, 2);
 		BasePlayer *player = getObject<BasePlayer>(context, 3); DamageCause cause;
 		if (player) cause.shooterID = player->getOptions()->uniqueID; p->damage(amount, player, cause); return 1;)
-
-//! version any
 
 /*! Object:closest_worm()
 
@@ -365,9 +269,7 @@ METHODC(
 		if (p->getOwner() != *playerIter) {
 			BaseWorm *worm = (*playerIter)->getWorm();
 
-			if (worm->isActive())
-			// if(worm->isActive())
-			{
+			if (worm->isActive()) {
 				float distSqr = (worm->pos - from).lengthSqr();
 				if (distSqr < minDistSqr && !game.level.trace(fromx, fromy, int(worm->pos.x), int(worm->pos.y),
 															  Level::ParticleBlockPredicate())) {
@@ -400,14 +302,6 @@ int l_baseObject_getClosestWorm_depr(lua_State *L) {
 
 METHODC(BaseObject, baseObject_shoot, return shootFromObject(context, p);)
 
-/*
-
-METHOD(BaseObject, baseObject_getAngle,
-	lua_pushnumber(context, p->getAngle().toDeg());
-	return 1;
-)
-*/
-
 //! Particle inherits Object
 
 /*! Particle:set_angle(angle)
@@ -416,8 +310,6 @@ METHOD(BaseObject, baseObject_getAngle,
 */
 
 METHODC(Particle, particle_setAngle, p->setAngle(Angle((double)lua_tonumber(context, 2))); return 0;)
-
-//! version 0.9c
 
 /*! Particle:set_replication(type, state)
 
@@ -453,8 +345,6 @@ METHODC(
 
 	return 0;)
 
-//! version any
-
 METHOD(Particle, particle_destroy, if (!p) return 0; delete p; return 0;)
 
 /*! Weapon:is_reloading()
@@ -481,10 +371,7 @@ METHODC(Weapon, weaponinst_ammo, context.push(p->getAmmo()); return 1;)
 
 	Returns the weapon type in the form of a WeaponType object.
 */
-METHODC(Weapon, weaponinst_type,
-		// context.pushFullReference(*p->getType(), WeaponTypeMetaTable);
-		p->getType()->pushLuaReference();
-		return 1;)
+METHODC(Weapon, weaponinst_type, p->getType()->pushLuaReference(); return 1;)
 
 METHOD(Weapon, weaponinst_destroy, if (!p) return 0; assert(!p->luaReference); delete p; return 1;)
 

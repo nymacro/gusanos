@@ -1,3 +1,20 @@
 Import('env')
 
-env.StaticLibrary(env.getLibName('omfgblitters'), env.getObjects())
+# The scalar reference + SIMD blitter sources are compiled into the gusanos
+# binary directly by Goop/SConscript (env.getObjects('blitters')).  This
+# SConscript only adds a standalone, self-contained correctness test that
+# links the same blitter sources (compiled into a *separate* variant dir so
+# the object targets never clash with Goop's) together with the test driver.
+# Built only for debug builds with build-tests=1; otherwise this SConscript
+# is a no-op, so normal builds are unaffected.
+if env['BUILD_TESTS'] and env['MY_BUILD'] == 'debug':
+    testEnv = env.Clone()
+    testEnv.Append(CPPPATH=['#Goop/blitters'])
+    # Dedicated build dir (.build_tests) keeps these objects distinct from
+    # Goop/blitters/.build/... that Goop/SConscript owns.
+    bdir = '#Goop/blitters/.build_tests/posix/debug'
+    testEnv.VariantDir(bdir, '#Goop/blitters', duplicate=0)
+    blitter_srcs = [bdir + '/' + f for f in (
+        'add.cpp', 'add_simd.cpp', 'blend.cpp', 'mult.cpp', 'mult_simd.cpp')]
+    test_src = bdir + '/tests/test_blitter_simd.cpp'
+    testEnv.Program(testEnv.getBinName('blitter_tests'), blitter_srcs + [test_src])

@@ -47,7 +47,7 @@ void ZCom_Replicate_Boolp::unpackData(ZCom_BitStream *stream, bool store, uint32
 bool ZCom_Replicate_Stringp::checkState() {
 	if (!m_ptr || !*m_ptr)
 		return false;
-	return std::string(*m_ptr) != m_oldValue;
+	return *m_ptr != m_oldValue;
 }
 
 void ZCom_Replicate_Stringp::packData(ZCom_BitStream *stream) {
@@ -61,8 +61,12 @@ void ZCom_Replicate_Stringp::packData(ZCom_BitStream *stream) {
 
 void ZCom_Replicate_Stringp::unpackData(ZCom_BitStream *stream, bool store, uint32_t estimatedTimeSent) {
 	(void)estimatedTimeSent;
+	// Always consume the encoded string so the read head stays in sync even when
+	// the interceptor rejected the update (store == false); commit to m_oldValue
+	// only when actually storing.
+	const char *val = stream->getStringStatic();
 	if (store && m_ptr) {
-		m_lastRead = stream->getStringStatic();
+		m_lastRead = val;
 		m_oldValue = m_lastRead;
 	}
 }
@@ -71,7 +75,7 @@ void ZCom_Replicate_Stringp::unpackData(ZCom_BitStream *stream, bool store, uint
 bool ZCom_Replicate_StringWp::checkState() {
 	if (!m_ptr || !*m_ptr)
 		return false;
-	return std::wstring(*m_ptr) != m_oldValue;
+	return *m_ptr != m_oldValue;
 }
 
 void ZCom_Replicate_StringWp::packData(ZCom_BitStream *stream) {
@@ -85,8 +89,9 @@ void ZCom_Replicate_StringWp::packData(ZCom_BitStream *stream) {
 
 void ZCom_Replicate_StringWp::unpackData(ZCom_BitStream *stream, bool store, uint32_t estimatedTimeSent) {
 	(void)estimatedTimeSent;
+	const wchar_t *val = stream->getStringWStatic();
 	if (store && m_ptr) {
-		m_lastWRead = stream->getStringWStatic();
+		m_lastWRead = val;
 		m_oldValue = m_lastWRead;
 	}
 }
@@ -113,9 +118,9 @@ void ZCom_Replicate_Memblock::unpackData(ZCom_BitStream *stream, bool store, uin
 			readLen = static_cast<uint16_t>(m_blockSize);
 		memcpy(m_oldData.data(), m_ptr, readLen);
 	} else {
-		// Skip the buffer data
-		uint16_t skipLen = stream->getBufferMax();
-		if (skipLen > 0)
-			stream->skipBuffer(skipLen);
+		// Skip the length-prefixed buffer (prefix + payload). Done
+		// unconditionally: a 0-length buffer still has a 16-bit prefix that
+		// must be consumed to keep the stream aligned.
+		stream->skipBuffer();
 	}
 }

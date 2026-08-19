@@ -1,5 +1,6 @@
 #include "gfx.h"
 #include "gconsole.h"
+#include "dedicated.h"
 
 #ifndef DEDSERV
 #include "2xsai.h"
@@ -31,8 +32,8 @@ bool m_initialized = false;
 
 #ifndef DEDSERV
 enum Filters {
-	NEAREST = 0, // Nearest
-	LINEAR = 1,	 // Smooth
+	NEAREST = 0,  // Nearest
+	LINEAR = 1,	  // Smooth
 	PIXELART = 2, // Nearest with better scaling
 	XBRZ2X = 3,
 	XBRZ3X = 4,
@@ -132,102 +133,121 @@ Gfx::Gfx()
 Gfx::~Gfx() {}
 
 void Gfx::init() {
-#ifndef DEDSERV
-	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
-		throw std::runtime_error("Couldn't initialize SDL3");
+	if (!g_dedicated) {
+		if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
+			throw std::runtime_error("Couldn't initialize SDL3");
+		}
+
+		doubleResChange(); // This sets up window and renderer
+
+		buffer = create_bitmap(320, 240);
+		screen = buffer;
+
+		// Detect CPU capabilities for SIMD blitter dispatch (AVX2/SSE2/NEON paths;
+		// MMX/SSE are kept for the inert HAS_MMX/HAS_SSE markers).
+		cpu_capabilities = 0;
+		std::cout << "CPU Capabilities:";
+		if (SDL_HasMMX()) {
+			std::cout << " MMX";
+			cpu_capabilities |= CPU_MMX;
+		}
+		if (SDL_HasSSE()) {
+			std::cout << " SSE";
+			cpu_capabilities |= CPU_SSE;
+		}
+		if (SDL_HasSSE2()) {
+			std::cout << " SSE2";
+			cpu_capabilities |= CPU_SSE2;
+		}
+		if (SDL_HasAVX2()) {
+			std::cout << " AVX2";
+			cpu_capabilities |= CPU_AVX2;
+		}
+		if (SDL_HasNEON()) {
+			std::cout << " NEON";
+			cpu_capabilities |= CPU_NEON;
+		}
 	}
-
-	doubleResChange(); // This sets up window and renderer
-
-	buffer = create_bitmap(320, 240);
-	screen = buffer;
-
-	// Detect CPU capabilities for SIMD blitter dispatch (MMX/SSE paths)
-	cpu_capabilities = 0;
-	if (SDL_HasMMX())
-		cpu_capabilities |= CPU_MMX;
-	if (SDL_HasSSE())
-		cpu_capabilities |= CPU_SSE;
-#endif
 
 	m_initialized = true;
 }
 
 void Gfx::shutDown() {
-#ifndef DEDSERV
-	if (buffer) {
-		destroy_bitmap(buffer);
-		buffer = 0;
+	if (!g_dedicated) {
+		if (buffer) {
+			destroy_bitmap(buffer);
+			buffer = 0;
+		}
+		if (screenTexture) {
+			SDL_DestroyTexture(screenTexture);
+			screenTexture = 0;
+		}
+		if (renderer) {
+			SDL_DestroyRenderer(renderer);
+			renderer = 0;
+		}
+		if (cursorSpriteSet) {
+			delete cursorSpriteSet;
+			cursorSpriteSet = 0;
+		}
+		if (window) {
+			SDL_DestroyWindow(window);
+			window = 0;
+		}
+		SDL_Quit();
 	}
-	if (screenTexture) {
-		SDL_DestroyTexture(screenTexture);
-		screenTexture = 0;
-	}
-	if (renderer) {
-		SDL_DestroyRenderer(renderer);
-		renderer = 0;
-	}
-	if (cursorSpriteSet) {
-		delete cursorSpriteSet;
-		cursorSpriteSet = 0;
-	}
-	if (window) {
-		SDL_DestroyWindow(window);
-		window = 0;
-	}
-	SDL_Quit();
-#endif
 }
 
 void Gfx::registerInConsole() {
-#ifndef DEDSERV
-	console.registerCommands()("SCREENSHOT", screenShot);
+	if (!g_dedicated) {
+		console.registerCommands()("SCREENSHOT", screenShot);
 
-	console.registerVariables()("VID_FULLSCREEN", &m_fullscreen, 0, fullscreen_callback)("VID_DOUBLERES", &m_doubleRes,
-																						 0, doubleRes_callback)(
-		"VID_VSYNC", &m_vsync, 1)("VID_CLEAR_BUFFER", &m_clearBuffer, 0)("VID_BITDEPTH", &m_bitdepth, 32)(
-		"VID_DISTORTION_AA", &m_distortionAA, 1)("VID_HAX_WORMLIGHT", &m_haxWormLight, 1);
+		console.registerVariables()("VID_FULLSCREEN", &m_fullscreen, 0,
+									fullscreen_callback)("VID_DOUBLERES", &m_doubleRes, 0, doubleRes_callback)(
+			"VID_VSYNC", &m_vsync, 1)("VID_CLEAR_BUFFER", &m_clearBuffer, 0)("VID_BITDEPTH", &m_bitdepth, 32)(
+			"VID_DISTORTION_AA", &m_distortionAA, 1)("VID_HAX_WORMLIGHT", &m_haxWormLight, 1);
 
-	{
-		EnumVariable::MapType videoFilters;
+		{
+			EnumVariable::MapType videoFilters;
 
-		insert(videoFilters)("NEAREST", NEAREST)("LINEAR", LINEAR)("PIXELART", PIXELART)("XBRZ2X", XBRZ2X)(
-			"XBRZ3X", XBRZ3X)("XBRZ4X", XBRZ4X);
+			insert(videoFilters)("NEAREST", NEAREST)("LINEAR", LINEAR)("PIXELART", PIXELART)("XBRZ2X", XBRZ2X)(
+				"XBRZ3X", XBRZ3X)("XBRZ4X", XBRZ4X);
 
-		console.registerVariable(new EnumVariable("VID_FILTER", &m_filter, PIXELART, videoFilters, filter_callback));
+			console.registerVariable(
+				new EnumVariable("VID_FILTER", &m_filter, PIXELART, videoFilters, filter_callback));
+		}
 	}
-#endif
 }
 
 void Gfx::loadResources() {
-#ifndef DEDSERV
-	// Clean up a previously loaded cursor (e.g. when reloading a mod)
-	if (cursorSpriteSet) {
-		delete cursorSpriteSet;
-		cursorSpriteSet = 0;
-	}
-	cursorFrame = 0;
-
-	// Build a list of candidate paths for the cursor sprite set. The active mod
-	// directory is searched first, then the default mod directory, and finally
-	// the current working directory as a last resort.
-	std::vector<fs::path> cursorCandidates;
-	cursorCandidates.push_back(game.getModPath() / "sprites" / "cursor.png");
-	cursorCandidates.push_back(game.getModPath() / "sprites" / "cursor.bmp");
-	cursorCandidates.push_back(game.getDefaultPath() / "sprites" / "cursor.png");
-	cursorCandidates.push_back(game.getDefaultPath() / "sprites" / "cursor.bmp");
-	cursorCandidates.push_back(fs::path("cursor.png"));
-	cursorCandidates.push_back(fs::path("cursor.bmp"));
-
-	for (std::vector<fs::path>::const_iterator it = cursorCandidates.begin();
-		 it != cursorCandidates.end() && !cursorSpriteSet; ++it) {
-		cursorSpriteSet = new SpriteSet();
-		if (!cursorSpriteSet->load(*it)) {
+	if (!g_dedicated) {
+		// Clean up a previously loaded cursor (e.g. when reloading a mod)
+		if (cursorSpriteSet) {
 			delete cursorSpriteSet;
-			cursorSpriteSet = nullptr;
+			cursorSpriteSet = 0;
+		}
+		cursorFrame = 0;
+
+		// Build a list of candidate paths for the cursor sprite set. The active mod
+		// directory is searched first, then the default mod directory, and finally
+		// the current working directory as a last resort.
+		std::vector<fs::path> cursorCandidates;
+		cursorCandidates.push_back(game.getModPath() / "sprites" / "cursor.png");
+		cursorCandidates.push_back(game.getModPath() / "sprites" / "cursor.bmp");
+		cursorCandidates.push_back(game.getDefaultPath() / "sprites" / "cursor.png");
+		cursorCandidates.push_back(game.getDefaultPath() / "sprites" / "cursor.bmp");
+		cursorCandidates.push_back(fs::path("cursor.png"));
+		cursorCandidates.push_back(fs::path("cursor.bmp"));
+
+		for (std::vector<fs::path>::const_iterator it = cursorCandidates.begin();
+			 it != cursorCandidates.end() && !cursorSpriteSet; ++it) {
+			cursorSpriteSet = new SpriteSet();
+			if (!cursorSpriteSet->load(*it)) {
+				delete cursorSpriteSet;
+				cursorSpriteSet = nullptr;
+			}
 		}
 	}
-#endif
 }
 
 #ifndef DEDSERV

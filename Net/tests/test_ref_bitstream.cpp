@@ -295,7 +295,7 @@ BOOST_AUTO_TEST_CASE(skip_buffer) {
 	bs.addBuffer(buf, 10);
 	bs.addInt(77, 8);
 
-	bs.skipBuffer(10);
+	bs.skipBuffer();
 	BOOST_CHECK_EQUAL(bs.getInt(8), 77);
 }
 

@@ -1,7 +1,7 @@
 #ifndef GUSANOS_UPDATE_H
 #define GUSANOS_UPDATE_H
 
-#include "network_compat.h"
+#include "net_types.h"
 #include <string>
 
 // Manages file transfers to clients

@@ -1,5 +1,6 @@
 #include "liero.h"
 #include "../gfx.h"
+#include "../dedicated.h"
 #include <string>
 #include <vector>
 #include <cstring>
@@ -19,7 +20,7 @@ LieroFontLoader LieroFontLoader::instance;
 
 #ifndef DEDSERV
 
-static array<unsigned char, 256 * 3> const lieroPalette = {
+static boost::array<unsigned char, 256 * 3> const lieroPalette = {
 	0x0,  0x0,	0x0,  0x6c, 0x38, 0x0,	0x6c, 0x50, 0x0,  0xa4, 0x94, 0x80, 0x0,  0x90, 0x0,  0x3c, 0xac, 0x3c, 0xfc,
 	0x54, 0x54, 0xa8, 0xa8, 0xa8, 0x54, 0x54, 0x54, 0x54, 0x54, 0xfc, 0x54, 0xd8, 0x54, 0x54, 0xfc, 0xfc, 0x78, 0x40,
 	0x8,  0x80, 0x44, 0x8,	0x88, 0x48, 0xc,  0x90, 0x50, 0x10, 0x98, 0x54, 0x14, 0xa0, 0x58, 0x18, 0xac, 0x60, 0x1c,
@@ -147,30 +148,30 @@ bool LieroLevelLoader::load(Level *level, fs::path const &path) {
 	if (fileSize < regularFileSize)
 		return false;
 
-	array<unsigned char, 256 * 3> palette;
+	boost::array<unsigned char, 256 * 3> palette;
 
-#ifndef DEDSERV
-	palette = lieroPalette;
+	if (!g_dedicated) {
+		palette = lieroPalette;
 
-	if (fileSize >= width * height + 10 + 256 * 3) {
-		char magic[10];
-		f.seekg(width * height, std::ios::beg);
-		f.read(magic, 10);
-		if (!memcmp(magic, "POWERLEVEL", 10)) {
-			f.read((char *)&palette[0], 256 * 3);
-			for (array<unsigned char, 256 * 3>::iterator i = palette.begin(); i != palette.end(); ++i) {
-				*i *= 4;
+		if (fileSize >= width * height + 10 + 256 * 3) {
+			char magic[10];
+			f.seekg(width * height, std::ios::beg);
+			f.read(magic, 10);
+			if (!memcmp(magic, "POWERLEVEL", 10)) {
+				f.read((char *)&palette[0], 256 * 3);
+				for (boost::array<unsigned char, 256 * 3>::iterator i = palette.begin(); i != palette.end(); ++i) {
+					*i *= 4;
+				}
 			}
+			f.seekg(0, std::ios::beg);
 		}
-		f.seekg(0, std::ios::beg);
 	}
-#endif
 
 	level->material = create_bitmap_ex(8, width, height);
-#ifndef DEDSERV
-	level->image = create_bitmap(width, height);
-	level->background = create_bitmap(width, height);
-#endif
+	if (!g_dedicated) {
+		level->image = create_bitmap(width, height);
+		level->background = create_bitmap(width, height);
+	}
 
 	initMaterialMappings();
 
@@ -178,15 +179,15 @@ bool LieroLevelLoader::load(Level *level, fs::path const &path) {
 		for (int x = 0; x < width; x++) {
 			int c = f.get();
 
-#ifndef DEDSERV
-			unsigned char const *entry = &palette[c * 3];
-			int imagec = makecol(entry[0], entry[1], entry[2]);
-			putpixel(level->image, x, y, imagec);
+			if (!g_dedicated) {
+				unsigned char const *entry = &palette[c * 3];
+				int imagec = makecol(entry[0], entry[1], entry[2]);
+				putpixel(level->image, x, y, imagec);
 
-			entry = &palette[(160 + (rndgen() & 3)) * 3];
-			int backgroundc = makecol(entry[0], entry[1], entry[2]);
-			putpixel(level->background, x, y, backgroundc);
-#endif
+				entry = &palette[(160 + (rndgen() & 3)) * 3];
+				int backgroundc = makecol(entry[0], entry[1], entry[2]);
+				putpixel(level->background, x, y, backgroundc);
+			}
 
 			putpixel(level->material, x, y, materialMappings[c]); // TODO
 		}

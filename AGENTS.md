@@ -20,7 +20,7 @@ multiplayer.
 | File | Contents | Read first if... |
 |---|---|---|
 | [README.md](docs/README.md) | Project overview, quick reference, architecture diagram | You need one-paragraph context |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layer diagram, dependency graph, singleton ownership, main loop, build targets, DEDSERV guards, network architecture | You need to understand how subsystems connect |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layer diagram, dependency graph, singleton ownership, main loop, build targets, dedicated (headless) mode, network architecture | You need to understand how subsystems connect |
 | [COMPONENTS.md](docs/COMPONENTS.md) | Per-file/per-class breakdown by subsystem: Core, Entities, Graphics, UI, Network, Audio, Scripting, Input, Utility, Tools | You need to find where something lives |
 | [BUILD.md](docs/BUILD.md) | Build commands, output layout, SConscript targets, compiler flags, parser generation pipeline | You need to build, configure, or add dependencies |
 | [zoidcom-spec.md](docs/zoidcom/spec/zoidcom-spec.md) | Generated specification for Zoidcom-compatible networking. Read-only, never edit | You need to know more about networking in the project |
@@ -36,12 +36,16 @@ multiplayer.
 
 ### Preprocessor Guards
 
-- **`DEDSERV`** — gates all rendering/audio/input code. Defined for dedicated
-  server builds (`build=dedserv` / `build=dedserv-debug`). Every graphics call,
-  sound call, input poll, font draw, and GUI operation must be wrapped in
-  `#ifndef DEDSERV` / `#endif`.
+- **`DEDSERV`** — no longer defined at compile time. Dedicated/headless mode is
+  a runtime flag, `g_dedicated` (default `false` = client; set `true` by passing
+  `--dedicated` on the command line; see `Goop/dedicated.h`). Load-bearing
+  rendering/audio/input code is gated with `if (!g_dedicated)` / `if (g_dedicated)`.
+  Inert structural `#ifndef DEDSERV` guards (member declarations, `#include`
+  lines, `#ifdef DEDSERV #error` stubs, whole-file wrappers) are left in place
+  but are dead — `DEDSERV` is never defined, so `#ifndef DEDSERV` blocks always
+  compile and the client build is unchanged.
 - **`DEBUG`** — debug build only. Enables extra logging and assertions.
-- **`NDEBUG`** — release/dedicated server builds. Disables assertions.
+- **`NDEBUG`** — release builds. Disables assertions.
 
 ### Global Singletons
 
@@ -93,8 +97,15 @@ Gameplay-critical random draws (weapon fire particle counts/angles/speeds, dig
 and death bursts, explosion timeouts) must be deterministic across peers so
 spawned particles match byte-for-byte. The authority seeds a per-burst
 `GameRng` from `mix32(wormNodeID, actionSequence)` and runs the action under a
-`GameplayRngScope` (RAII swap of the `g_gameplayRng` pointer); every peer re-runs
-the same action from the sequence shipped in the SHOOT/Dig/Die event. See
+`GameplayRngScope` (RAII swap of the `g_gameplayRng` pointer). The SHOOT/Dig/Die
+events ship the burst seed **itself** (peers never recompute it from local
+state, which can disagree — e.g. a not-yet-assigned node id), the burst-tick
+worm state (pos/angle for SHOOT, pos/spd for Die — proxies replay under a
+`BurstStateScope` snapshot/restore instead of their lagged state), and a
+per-burst FNV-1a draw checksum (`GameRng::checksum()`). Set the
+`NET_RNG_CHECK` cvar to verify shipped checksums on replay; `NET_RNG_DESYNCS`
+counts checksum mismatches, counter regressions, and rejected/orphaned owner
+predictions (see `BaseWorm::recordPredictedBurst`/`confirmPredictedBurst`). See
 `Utility/util/game_rng.{h,cpp}`. C++ gameplay code uses `grnd`/`gmidrnd`/
 `grndInt` (not the legacy `rnd`/`midrnd`/`rndInt`): they draw from the active
 scope when one is set and fall back to the legacy global stream otherwise.
@@ -144,6 +155,28 @@ Key files in `Net/`:
 The `Goop/network.cpp/h` facade sits on top of this layer, managing game-level
 state (session lifecycle, Lua events, server list, player management).
 
+### Comment Style
+
+Comments should be succinct and earn their place.
+
+- **Comment *why*, not *what*.** Don't restate what the next line does (e.g.
+  `i++; // increment i`) unless the code is genuinely complicated and
+  breakage-prone. Explain non-obvious decisions, workarounds, gotchas,
+  platform/compat quirks, magic numbers, and lines that look wrong but aren't.
+- **No commented-out dead code.** Delete it — the history lives in git. This
+  includes `/* ... */` blocks of obsolete implementations and `//` stubs of
+  removed declarations.
+- **No restating box/ASCII-art headers** that only repeat a function or class
+  name.
+- **Deduplicate.** If the same explanation appears twice, keep the more
+  specific copy and trim the rest. Rationale for determinism, networking, and
+  the runtime `g_dedicated` flag already lives in this file — don't restate it
+  verbatim in source.
+- **Trim verbose prose to its essence** rather than deleting a real "why"
+  outright. Keep substantive API docs (Lua `/*! ... */` binding docs, public
+  method contracts) only where they add info beyond the signature. When in
+  doubt whether a comment carries value, keep it.
+
 ## Common Tasks
 
 ### Adding a new file
@@ -153,7 +186,7 @@ state (session lifecycle, Lua events, server list, player management).
    function auto-discovers `.cpp` files in `Goop/` and its `lua/`, `blitters/`,
    `loaders/` subdirectories. For other directories, add the `.cpp` to the
    respective `SConscript`.
-3. Wrap rendering/input/audio code in `#ifndef DEDSERV`
+3. Wrap rendering/input/audio code in `if (!g_dedicated)` at runtime (include `Goop/dedicated.h`)
 
 ### Adding a new console variable
 
@@ -171,7 +204,7 @@ console.registerVariables()
 ### Adding a new Lua callback
 
 1. Add an entry to the `LuaCallbacks` enum in `Goop/glua.h`
-2. Fire it with `EACH_CALLBACK(i, MyNewCallback) { ... }`
+2. Fire it with `dispatchCallbacks(LuaCallbacks::MyNewCallback, args...)` (fire-and-forget), `dispatchCallbacksVeto(...)` (if a callback can veto by returning true), or loop `luaCallbacks.callbacksFor(LuaCallbacks::MyNewCallback)` for custom per-iteration logic
 3. Expose it in Lua bindings via `luaCallbacks.bind("myNewCallback", ref)` in the bindings init code.
 
 ### Running fuzz tests
@@ -219,8 +252,13 @@ scons -c
   the very first include in a translation unit.
 - **Don't use standard mutexes** — the engine is single-threaded. Adding
   threading requires careful audit of global state.
-- **Don't remove `#ifndef DEDSERV` guards** — dedicated server builds depend on
-  them to omit all rendering code.
+- **Don't use `#ifndef DEDSERV` for new code** — dedicated mode is now runtime
+  (`g_dedicated`, set via `--dedicated`); gate new rendering/audio/input code
+  with `if (!g_dedicated)` instead. Existing inert `#ifndef DEDSERV` guards are
+  left in place as dead structural markers and should not be mass-removed.
+- **Don't add excessive comments** — see *Comment Style* above. Comment *why*,
+  not *what*; don't keep commented-out dead code (git has the history); don't
+  restate rationale already documented in this file.
 
 ## Quick Search Cheatsheet
 
@@ -229,5 +267,30 @@ scons -c
 | Find a class definition | `grep(pattern="class MyClass", path="Goop")` |
 | Find all callers of a function | `grep(pattern="->myMethod\(", path="Goop")` |
 | Find a global singleton declaration | `grep(pattern="extern .* mySingleton", path="Goop")` |
-| Find DEDSERV-guarded sections | `grep(pattern="#ifndef DEDSERV", path="Goop")` |
+| Find dedicated (headless)-gated sections | `grep(pattern="g_dedicated", path="Goop")` |
 | Find Lua binding registrations | `grep(pattern="registerLuaBindings", path="Goop")` |
+
+## Build Dependencies
+
+```
+# set up apt repos
+cat <<EOF > /etc/apt/sources.list.d/unstable.sources
+Types: deb deb-src
+URIs: http://deb.debian.org/debian
+Suites: unstable testing
+Components: main
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+EOF
+
+cat <<EOF > /etc/apt/preferences.d/unstable
+Package: *
+Pin: release a=unstable
+Pin-Priority: 100
+EOF
+
+apt-get update
+
+# install deps
+apt-get install -y build-essential scons libsdl3-dev libsdl3-mixer-dev libsdl3-ttf-dev libenet-dev libsdl3-image-dev libboost-all-dev libluajit-5.1-dev re2c curl vim tini tmux git
+```
+

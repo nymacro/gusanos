@@ -78,9 +78,6 @@ void ListNode::render(Renderer *renderer, long &y) {
 		}
 	}
 
-	// renderer->drawText(*list.m_font, text, BaseFont::CenterV, list.m_rect.x1 + 3 + level * 5, y + halfRowHeight,
-	// RGB(0, 0, 0));
-
 	double x = list->getRect().x1 + list->m_listFormatting.indent + level * 5.0;
 	double w = list->getRect().getWidth() / list->m_totalWidthFactor;
 
@@ -94,27 +91,10 @@ void ListNode::render(Renderer *renderer, long &y) {
 						   list->m_formatting.fontColor);
 		x += h->widthFactor * w;
 	}
-
-	// renderChildren(aRenderer, y, list);
 }
-/*
-void ListNode::renderChildren(Renderer* aRenderer, long& y, List& list)
-{
-	if(expanded)
-	{
-		for(node_iter_t i = children.begin(); y < list.m_Rect.y2 && i != children.end(); ++i)
-		{
-			y += rowHeight;
-			i->render(i, aRenderer, y, r, list);
-		}
-	}
-}*/
 
 void ListNode::renderFrom(Renderer *renderer, long &y) {
 	node_iter_t i(this);
-	// bool        hasParent = i->hasParent;
-	// list_t*     parentList = i->parentList;
-	// assert(parentList);
 
 	// Only the root element has parentList == 0, and we can't even obtain an iterator
 	// to the root element, thus it's safe to assume that parentList is a valid pointer.
@@ -132,20 +112,6 @@ void ListNode::renderFrom(Renderer *renderer, long &y) {
 		}
 
 		++i;
-
-		/*
-		while(i == 0)
-		{
-			if(!hasParent)
-				return;
-
-			i = parent;
-			//parentList = i->parentList;
-			//assert(parentList);
-			hasParent = i->hasParent;
-			parent = i->parent;
-			++i;
-		}*/
 	}
 }
 
@@ -259,26 +225,13 @@ bool List::render() {
 		y += rowHeight;
 	}
 
-	// node_iter_t cur = m_Base;
-
 	if (m_Base) {
-		// m_Base->renderFrom(renderer, y, *this);
 		for (node_iter_t i = m_Base; i && y < getRect().y2; i = ListNode::getNextVisible(i)) {
 			i->render(renderer, y);
 			y += rowHeight;
 		}
 	}
 
-	/*
-	while(isValid(cur) && y < m_Rect.y2)
-	{
-		cur->render(cur, aRenderer, y, m_Rect, *this);
-
-		++cur;
-
-		y += rowHeight;
-	}
-*/
 	return true;
 }
 
@@ -339,12 +292,6 @@ List::node_iter_t List::verify(node_iter_t i) {
 bool List::keyDown(int key) {
 	if (m_active) {
 		switch (key) {
-				/*
-							case KEY_LCONTROL: case KEY_RCONTROL:
-								m_multiSelect = true;
-							break;
-				*/
-
 			case KEY_ENTER:
 				if (!doAction())
 					doSetActivation(false);
@@ -450,25 +397,6 @@ bool List::mouseScroll(ulong newX, ulong newY, int offs) {
 	setBasePos(m_basePos + offs * 2);
 	return false;
 }
-
-/*
-bool Edit::mouseMove(ulong x, ulong y)
-{
-	if(m_drag)
-	{
-		focus();
-
-		if(!m_active)
-			doSetActivation(true);
-
-		int xoff = m_hscroll - 5 - m_rect.x1;
-		Renderer* renderer = context()->renderer();
-		m_selTo = renderer->getTextCoordToIndex(*m_font, m_text.begin(), m_text.end(), x + xoff);
-
-		return false;
-	}
-	return true;
-}*/
 
 void List::applyFormatting(Context::GSSpropertyMap const &f) {
 	Wnd::applyFormatting(f);

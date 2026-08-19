@@ -3,13 +3,9 @@
 
 #include <utility>
 #include <cassert>
-#include "omfggui.h" // For Rect
-#include "network_compat.h"
-#include <iostream>
+#include "util/rect.h" // For Rect
+#include "net_bitstream.h"
 #include <stdexcept>
-
-using std::cerr;
-using std::endl;
 
 namespace Encoding {
 

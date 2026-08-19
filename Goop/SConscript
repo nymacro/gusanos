@@ -10,8 +10,6 @@ env.Append(LIBS = Split("""
 # but SDL3 and others are already added in SConstruct
 
 exename = 'gusanos'
-if env['MY_BUILD'] in ['dedserv', 'dedserv-debug']:
-	exename += '-ded'
 env.Program(env.getBinName(exename),
     env.getObjects() +
     env.getObjects('lua') +

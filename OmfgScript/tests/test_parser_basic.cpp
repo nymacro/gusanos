@@ -17,8 +17,7 @@ struct Fixture {
 	std::istringstream stream;
 	Parser parser;
 
-	Fixture(std::string const &script)
-		: stream(script), parser(stream, af, "test.obj") {}
+	Fixture(std::string const &script) : stream(script), parser(stream, af, "test.obj") {}
 };
 
 } // namespace
@@ -128,11 +127,9 @@ BOOST_AUTO_TEST_CASE(double_on_string_throws) {
 // --- Multiple properties ---
 
 BOOST_AUTO_TEST_CASE(multiple_properties) {
-	Fixture f(
-		"gravity = 0.05\n"
-		"speed = 12\n"
-		"name = fastball\n"
-	);
+	Fixture f("gravity = 0.05\n"
+			  "speed = 12\n"
+			  "name = fastball\n");
 	BOOST_REQUIRE(f.parser.run());
 	BOOST_CHECK_CLOSE(f.parser.getDouble("gravity"), 0.05, 0.0001);
 	BOOST_CHECK_EQUAL(f.parser.getInt("speed"), 12);

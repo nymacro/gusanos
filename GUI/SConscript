@@ -4,19 +4,5 @@ if not env['NO_PARSERS']:
 	env.Parser('detail/gss-grammar.h', 'detail/gss-grammar.pg')
 env.StaticLibrary(env.getLibName('omfggui'), env.getObjects(['detail', 'lua']))
 
-if env['BUILD_TESTS'] and env['MY_BUILD'] == 'debug':
-    testEnv = env.Clone()
-
-    brew_prefix = '/home/linuxbrew/.linuxbrew'
-    testEnv.Append(
-        CPPPATH=[brew_prefix + '/include', '#GUI'],
-        LIBPATH=[brew_prefix + '/lib', '#/lib/' + testEnv['MY_SUBFOLDER']],
-        LIBS=['omfggui', 'glua', 'omfgnet', 'omfgconsole', 'boost_unit_test_framework', 'luajit-5.1'],
-        LINKFLAGS=['-pthread'],
-        CPPDEFINES=['BOOST_TEST_DYN_LINK']
-    )
-
-    testEnv.Program(
-        testEnv.getBinName('gui_tests'),
-        testEnv.getObjects('tests')
-    )
+# Build GUI tests alongside the library for debug builds
+env.TestProgram('gui_tests', ['omfggui', 'glua', 'omfgconsole', 'luajit-5.1'])

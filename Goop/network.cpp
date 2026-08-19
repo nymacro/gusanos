@@ -13,6 +13,7 @@
 #include "http.h"
 #include "util/log.h"
 #include "util/text.h"
+#include "util/game_rng.h"
 #include "lua/bindings-network.h"
 
 #include <string>
@@ -58,9 +59,7 @@ mq_end_define_message()
 int stateTimeOut = 0;
 
 void setLuaState(Network::State s) {
-	EACH_CALLBACK(i, networkStateChange) {
-		(lua.call(*i), s)();
-	}
+	dispatchCallbacks(LuaCallbacks::networkStateChange, s);
 }
 
 void setState(Network::State s) {
@@ -331,37 +330,45 @@ void Network::shutDown() {
 	m_control = 0;
 }
 
+// See game_rng.h / BaseWorm::reconcileFireActionSeq / confirmPredictedBurst.
+void rngDesyncReport(const char *kind, uint32_t wormNodeId, uint32_t seq,
+							uint32_t expected, uint32_t actual) {
+	g_netRngDesyncs++;
+	std::string msg = std::string("RNG desync [") + kind + "] worm=" + std::to_string(wormNodeId) +
+					  " seq=" + std::to_string(seq) + " expected=" + std::to_string(expected) +
+					  " actual=" + std::to_string(actual);
+	DLOG(msg);
+	console.addLogMsg(msg);
+}
+
 void Network::registerInConsole() {
-	console.registerVariables()
-		("NET_SERVER_PORT", &m_serverPort, 9898)
-		("NET_SERVER_NAME", &serverName, "Unnamed server")
-		("NET_SERVER_DESC", &serverDesc, "")
-		("NET_REGISTER", &registerGlobally, 1)
-		("NET_MASTER_SERVER", &masterServer.host, "comser.liero.org.pl", onMasterServerChange)
-		("NET_SIM_LAG", &network.simLag, 0)("NET_SIM_LOSS", &network.simLoss, -1.f)
+	console.registerVariables()("NET_SERVER_PORT", &m_serverPort, 9898)(
+		"NET_SERVER_NAME", &serverName, "Unnamed server")("NET_SERVER_DESC", &serverDesc, "")(
+		"NET_REGISTER", &registerGlobally, 1)("NET_MASTER_SERVER", &masterServer.host, "comser.liero.org.pl",
+											  onMasterServerChange)("NET_SIM_LAG", &network.simLag,
+																	0)("NET_SIM_LOSS", &network.simLoss, -1.f)
 		// Upstream bandwidth cap (bytes/sec). 0 = unlimited. The transport
 		// layer (ENet, via enet_host_bandwidth_limit) still throttles when set,
 		// but it queues reliable packets instead of dropping them. A low,
 		// non-zero default previously starved MSG_REPLICATORS position updates
 		// (the app-level limiter destroyed them) causing networked rubber-banding.
-		("NET_UP_LIMIT", &network.upLimit, 0)
-		("NET_DOWN_BPP", &network.downBPP, 200)
-		("NET_DOWN_PPS", &network.downPPS, 20)
-		("NET_CHECK_CRC", &network.checkCRC, 1)
-		("NET_LOG", &logZoidcom, 0)
-		("NET_AUTODOWNLOADS", &network.autoDownloads, 1)
+		("NET_UP_LIMIT", &network.upLimit, 0)("NET_DOWN_BPP", &network.downBPP, 200)(
+			"NET_DOWN_PPS", &network.downPPS, 20)("NET_CHECK_CRC", &network.checkCRC, 1)("NET_LOG", &logZoidcom, 0)(
+			"NET_AUTODOWNLOADS", &network.autoDownloads, 1)
 		// Proxy-side render-position snapshot interpolation (NetWorm).
 		// NET_INTERP=0 reverts proxies to legacy exponential renderPos easing.
 		// NET_INTERP_DELAY is the render lag in ms (smoothness vs latency).
-		("NET_INTERP", &network.netInterpEnabled, 1)
-		("NET_INTERP_DELAY", &network.netInterpDelayMs, 100)
+		("NET_INTERP", &network.netInterpEnabled, 1)("NET_INTERP_DELAY", &network.netInterpDelayMs, 100)
 		// Proxy worms skip local physics (pos/spd/renderPos are
 		// replication/buffer-driven). =0 reverts to legacy dead-reckoning.
-		("NET_PROXY_NOPHYS", &network.netProxyNoPhys, 1);
+		("NET_PROXY_NOPHYS", &network.netProxyNoPhys, 1)
+		// Deterministic burst RNG diagnostics: =1 verifies the authority-shipped
+		// per-burst draw checksum on every replayed SHOOT/Dig/Die (and the
+		// owner's stored prediction checksums); NET_RNG_DESYNCS counts all
+		// detected drift (checksum, counter regress, rejected/ghost predictions).
+		("NET_RNG_CHECK", &g_netRngCheck, 0)("NET_RNG_DESYNCS", &g_netRngDesyncs, 0);
 
-	console.registerCommands()
-		("NET_SET_PROXY", setProxy)
-		("DISCONNECT", disconnectCmd);
+	console.registerCommands()("NET_SET_PROXY", setProxy)("DISCONNECT", disconnectCmd);
 }
 
 ZCom_ConnID Network::getServerID() {
@@ -369,6 +376,9 @@ ZCom_ConnID Network::getServerID() {
 }
 
 void Network::update() {
+	// Sync the Net layer's verbose-log toggle from the NET_LOG cvar (off by
+	// default; was previously dead — net_control logged unconditionally).
+	g_netLogVerbose = (logZoidcom != 0);
 	if (m_control) {
 		m_control->ZCom_processReplicators(16);
 		m_control->ZCom_processOutput();
@@ -558,14 +568,15 @@ void Network::kick(ZCom_ConnID connID) {
 void Network::ban(ZCom_ConnID connID) {
 	if (m_control) {
 		ZCom_Address const *addr = m_control->ZCom_getPeer(connID);
-		bannedIPs.insert(addr->getIP());
+		if (addr)
+			bannedIPs.insert(addr->getIP());
 	}
 }
 
 bool Network::isBanned(ZCom_ConnID connID) {
 	if (m_control) {
 		ZCom_Address const *addr = m_control->ZCom_getPeer(connID);
-		if (bannedIPs.find(addr->getIP()) != bannedIPs.end())
+		if (addr && bannedIPs.find(addr->getIP()) != bannedIPs.end())
 			return true;
 	}
 	return false;

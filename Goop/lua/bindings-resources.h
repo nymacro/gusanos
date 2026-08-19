@@ -7,8 +7,6 @@ namespace LuaBindings {
 void initResources();
 
 extern LuaReference FontMetaTable;
-// extern LuaReference PartTypeMetaTable;
-// extern LuaReference WeaponTypeMetaTable;
 extern LuaReference SpriteSetMetaTable;
 } // namespace LuaBindings
 

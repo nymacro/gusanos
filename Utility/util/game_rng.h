@@ -3,55 +3,25 @@
 
 // Deterministic gameplay RNG layer.
 //
-// Problem this solves: gameplay-critical random draws (weapon fire particle
-// counts/angles/speeds, dig/death bursts, explosion timeouts, particle
-// think-time sub-spawns) are consumed from a per-peer global RNG stream
-// (`rndgen`/`rnd`/`midrnd` in math_func). Each peer advances that stream
-// independently (and at different logical times for predicted vs. proxied
-// fire), so spawned particles diverge between host and clients.
+// Gameplay-critical draws (weapon fire, dig/death bursts, explosion timeouts)
+// must match byte-for-byte across peers. The authority seeds a per-burst GameRng
+// via mix32(wormNodeID, actionSequence) and ships the seed in the reliable
+// event; server and clients run the same action from it => identical particles.
 //
-// Fix: the authority generates a per-burst seed and ships it in the existing
-// reliable event channel; both server and clients run the *same* action code
-// drawing from a `GameRng` seeded with that value. Same seed + same code +
-// same call order => identical particles on every peer.
-//
-// This file provides:
-//   - `GameRng`: a seedable RNG holding its own mt19937 plus the same
-//     distribution adapters as the legacy globals (uniform_01 and
-//     uniform_real(-0.5,0.5)) so gameplay *feel* is unchanged. The adapters
-//     reference the owned engine by reference, so `seed()` actually takes
-//     effect (the legacy globals hold *copies* of the engine taken once at
-//     construction and would ignore re-seeding).
-//   - `g_gameplayRng`: a single-threaded global pointer. When null (default)
-//     the free functions fall back to the legacy global streams, so paths
-//     that are not yet retargeted (or are deliberately left on legacy, e.g.
-//     sound/level/AI) are byte-identical to the pre-change behaviour.
-//   - `grnd/gmidrnd/grndInt`: free functions honouring the scoped context.
-//   - `mix32`: combine two 32-bit values into a well-mixed seed, used to
-//     derive a per-burst gameplay seed from (wormNodeID, actionSequence).
-//   - `GameplayRngScope`: RAII swap of `g_gameplayRng` for the duration of a
-//     deterministic burst; always restores the previous pointer, so a seeded
-//     context can never leak past its burst.
-//
-// Particle lifetime (think()-time sub-spawns, detect/timer/ground-collision
-// events) is deliberately left on the legacy non-deterministic stream. Worm
-// bursts (fire/dig/die) run their action under a `GameplayRngScope` on every
-// peer, so particles spawned *during* a burst — including their creation
-// scripts — already draw from the deterministic burst stream with no extra
-// sync point. think()-time events instead fire from peer-dependent local
-// state, so a per-particle seed would add a sync point without containing real
-// divergence. Particles are cosmetic on non-authority peers (clients remove
-// them on eZCom_EventRemoved).
+// g_gameplayRng is null by default, so grnd/gmidrnd/grndInt fall back to the
+// legacy global streams (un-retargeted paths, and deliberately-legacy ones like
+// sound/level/AI, stay byte-identical). GameplayRngScope RAII-swaps it for a
+// burst and always restores the prior pointer. Particle think()-time sub-spawns
+// are deliberately left on the legacy stream: they fire from peer-dependent
+// local state, so seeding them would add a sync point without containing
+// divergence (particles are cosmetic on non-authority peers).
 
 #include <cstdint>
 #include <climits>
 #include <boost/random.hpp>
 
-// Burst-level RNG: a seedable mt19937 plus the same distribution adapters as
-// the legacy globals (uniform_01 and uniform_real(-0.5,0.5)) so gameplay *feel*
-// is unchanged. The adapters reference the owned engine by reference, so
-// `seed()` actually takes effect (the legacy globals hold *copies* of the
-// engine taken once at construction and would ignore re-seeding).
+// Seedable mt19937 with the same distribution adapters as the legacy globals
+// (uniform_01 and uniform_real(-0.5,0.5)) so gameplay *feel* is unchanged.
 struct GameRng {
 	GameRng();
 
@@ -61,13 +31,27 @@ struct GameRng {
 	double midrnd();
 	unsigned long rndInt(unsigned long max);
 
+	// Per-burst FNV-1a checksum over the bit pattern of every produced value.
+	// Same seed + same draw sequence => same checksum; any extra/missing/
+	// reordered draw diverges. The authority ships it in the burst event so
+	// receivers can detect desync instead of silently diverging (NET_RNG_CHECK).
+	uint32_t checksum() const {
+		return m_check;
+	}
+
   private:
+	void fold(uint64_t bits);
+
 	boost::mt19937 m_gen;
 	// Reference-typed adapters so they advance (and reflect) m_gen directly,
 	// not a copy taken at construction.
 	boost::uniform_01<boost::mt19937 &> m_rnd01;
 	boost::variate_generator<boost::mt19937 &, boost::uniform_real<>> m_mid;
+	uint32_t m_check;
 };
+
+// FNV-1a offset basis: initial (and post-seed reset) checksum state.
+extern const uint32_t kBurstChecksumOffset;
 
 // Global gameplay RNG context pointer. null => fall back to legacy globals.
 extern GameRng *g_gameplayRng;
@@ -75,6 +59,27 @@ extern GameRng *g_gameplayRng;
 double grnd();
 double gmidrnd();
 unsigned long grndInt(unsigned long max);
+
+// RNG desync diagnostics (console vars NET_RNG_CHECK / NET_RNG_DESYNCS are
+// bound to these in Network::registerInConsole).
+extern int g_netRngCheck;   // verify shipped burst checksums on replay
+extern int g_netRngDesyncs; // running desync counter
+
+// Reports a detected RNG desync: bumps NET_RNG_DESYNCS, DLOGs and posts a
+// console warning. Implemented in Goop/network.cpp (needs the console).
+void rngDesyncReport(const char *kind, uint32_t wormNodeId, uint32_t seq,
+					 uint32_t expected, uint32_t actual);
+
+// Verify a replayed burst's checksum against the authority-shipped one.
+// No-op unless NET_RNG_CHECK is enabled. Returns true on mismatch.
+inline bool burstChecksumMismatch(const char *kind, uint32_t wormNodeId, uint32_t seq, uint32_t shipped,
+								  uint32_t local) {
+	if (g_netRngCheck && shipped != local) {
+		rngDesyncReport(kind, wormNodeId, seq, shipped, local);
+		return true;
+	}
+	return false;
+}
 
 // Combine two 32-bit values into a well-mixed seed. Used to derive a per-burst
 // gameplay seed from (wormNodeID, actionSequence). murmur3-finalizer-style
@@ -89,11 +94,17 @@ inline uint32_t mix32(uint32_t a, uint32_t b) {
 	return x;
 }
 
-// RAII scoped swap of g_gameplayRng. Restores the prior pointer on destruction.
+// RAII swap of g_gameplayRng for a fire/dig/die burst (and its spawned
+// particles); restores the prior pointer on destruction. See
+// BaseWorm::fireSeedNodeID() / fireActionSeq().
 class GameplayRngScope {
   public:
-	explicit GameplayRngScope(GameRng &rng) : m_prev(g_gameplayRng) { g_gameplayRng = &rng; }
-	~GameplayRngScope() { g_gameplayRng = m_prev; }
+	explicit GameplayRngScope(GameRng &rng) : m_prev(g_gameplayRng) {
+		g_gameplayRng = &rng;
+	}
+	~GameplayRngScope() {
+		g_gameplayRng = m_prev;
+	}
 
   private:
 	GameplayRngScope(GameplayRngScope const &);

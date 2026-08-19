@@ -5,7 +5,6 @@
 #error "Can't use this in dedicated server"
 #endif // DEDSERV
 
-// #include "resource_list.h"
 #include "resource_locator.h"
 #include <omfggui.h> // For Rect
 
@@ -14,7 +13,6 @@
 #include <vector>
 #include <utility>
 #include <boost/array.hpp>
-using boost::array;
 
 class Font {
   public:
@@ -37,7 +35,7 @@ class Font {
 		int b;
 	};
 
-	static array<Color, 16> palette;
+	static boost::array<Color, 16> palette;
 
 	struct CharInfo {
 		CharInfo() : subBitmap(0) {}
@@ -52,8 +50,8 @@ class Font {
 		}
 
 		Rect rect;
-		int width;	 // The width of the character (= rect.getWidth())
-		int height;	 // The height of the character (= rect.getHeight())
+		int width;	 // = rect.getWidth()
+		int height;	 // = rect.getHeight()
 		int spacing; // Extra spacing to the next character
 		BITMAP *subBitmap;
 	};
@@ -85,7 +83,7 @@ class Font {
 
 		Item cur;
 		int loc;
-		array<Item, 5> stack;
+		boost::array<Item, 5> stack;
 	};
 
 	Font();
@@ -113,16 +111,6 @@ class Font {
 	void draw(BITMAP *where, std::string::const_iterator b, std::string::const_iterator e, int x, int y,
 			  CharFormatting &format, int spacing = 0, int fact = 256, int flags = 0);
 
-	/*
-		void drawFormatted(BITMAP* where, std::string const& text, int x, int y, int spacing = 0, int fact = 256, int
-	   flags = 0, CharFormatting& format = CharFormatting())
-		{
-			drawFormatted(where, text.begin(), text.end(), x, y, spacing, fact, flags, format);
-		}
-
-		void drawFormatted(BITMAP* where, std::string::const_iterator b, std::string::const_iterator e, int x, int y,
-	   int spacing = 0, int fact = 256, int flags = 0, CharFormatting& format = CharFormatting());
-	*/
 	CharInfo *lookupChar(char c);
 
 	template <class IteratorT>
@@ -187,7 +175,6 @@ class Font {
 		return false;
 	}
 
-	// Returns the dimensions of 'text' when printed with the spacing 'spacing'
 	std::pair<int, int> getDimensions(std::string const &text, int spacing = 0, int flags = 0);
 
 	std::pair<int, int> getDimensions(std::string::const_iterator b, std::string::const_iterator e, int spacing = 0,
@@ -195,12 +182,6 @@ class Font {
 
 	int getTextCoordToIndex(std::string::const_iterator b, std::string::const_iterator e, int x, int spacing = 0,
 							int flags = 0);
-	/*
-		std::pair<int, int> getFormattedDimensions(std::string const& text, int spacing = 0);
-
-		std::pair<int, int> getFormattedDimensions(std::string::const_iterator b, std::string::const_iterator e, int
-	   spacing = 0);
-	*/
 	// Returns an iterator to the first character between b and e that doesn't
 	// fit in 'space'
 	template <class IteratorT>
@@ -254,61 +235,6 @@ class Font {
 		return e;
 	}
 
-	/*
-		template<class IteratorT>
-		IteratorT fitFormattedString(IteratorT b, IteratorT e, int space, int spacing = 0)
-		{
-			for(; b != e; ++b)
-			{
-				while(skipFormatting(b, e))
-				{
-					if(b == e)
-						return b;
-				}
-				CharInfo* c = lookupChar(*b);
-				if(c->width > space)
-					return b;
-				space -= c->width - c->spacing - spacing;
-			}
-
-			return e;
-		}
-
-		// Dimension calculating version
-		template<class IteratorT>
-		IteratorT fitFormattedString(IteratorT b, IteratorT e, int space, std::pair<int, int>& dim, int spacing = 0)
-		{
-			dim.second = 0;
-
-			int oldSpace = space;
-
-			for(; b != e; ++b)
-			{
-				while(skipFormatting(b, e))
-				{
-					if(b == e)
-						return b;
-				}
-
-				CharInfo* c = lookupChar(*b);
-
-				if(c->width > space)
-				{
-					dim.first = oldSpace - space; // TODO: Remove spacing for last character
-					return b;
-				}
-
-				space -= c->width - c->spacing - spacing;
-
-				if(c->height > dim.second)
-					dim.second = c->height;
-			}
-
-			dim.first = oldSpace - space; // TODO: Remove spacing for last character
-			return e;
-		}
-		*/
-	// Returns a (0, 0) pair
 	std::pair<int, int> zeroDimensions();
 
 	// Adds a character 'ch' to the dimensions 'dim' printed with spacing 'spacing'
@@ -326,7 +252,6 @@ class Font {
 	bool m_supportColoring;
 };
 
-// extern ResourceList<Font> fontList; //deprecated
 extern ResourceLocator<Font> fontLocator;
 
 #endif // _FONT_H_

@@ -2,6 +2,14 @@
 #include "player.h"
 #include "luaapi/context.h"
 
+// Guard the localplayerEvent slot count against Player::Actions growing or
+// shrinking: every Player::Actions value needs its own dedicated callback
+// slot, otherwise `localplayerEvent + action` dispatch in player_input.cpp
+// would alias unrelated callback buckets.
+static_assert(LuaCallbacks::localplayerEventCount == Player::ACTION_COUNT,
+			  "LuaCallbacks::localplayerEventCount must match Player::ACTION_COUNT; "
+			  "update the slot count in Goop/glua.h");
+
 LuaCallbacks luaCallbacks;
 
 void LuaCallbacks::bind(std::string callback, LuaReference ref) {
@@ -60,7 +68,7 @@ void LuaObject::pushLuaReference() {
 }
 
 void LuaObject::makeReference() {
-	lua_pushnil(lua);
+	lua.pushNil();
 }
 
 LuaReference LuaObject::getLuaReference() {

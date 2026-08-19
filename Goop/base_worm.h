@@ -23,19 +23,7 @@ class Viewport;
 
 class BaseWorm : public BaseObject {
   public:
-	enum Actions {
-		MOVELEFT,
-		MOVERIGHT,
-		// AIMUP,
-		// AIMDOWN,
-		FIRE,
-		FIRE2,
-		JUMP,
-		DIG,
-		NINJAROPE,
-		CHANGEWEAPON,
-		RESPAWN
-	};
+	enum Actions { MOVELEFT, MOVERIGHT, FIRE, FIRE2, JUMP, DIG, NINJAROPE, CHANGEWEAPON, RESPAWN };
 
 	enum Direction {
 		Down = 0,
@@ -47,14 +35,12 @@ class BaseWorm : public BaseObject {
 	};
 
 	static LuaReference metaTable;
-	// static int const luaID = 2;
 
 	BaseWorm();
 	virtual ~BaseWorm();
 
 	virtual void assignOwner(BasePlayer *owner);
 
-	// void draw(BITMAP* where,int xOff, int yOff);
 	void draw(Viewport *viewport);
 
 	void calculateReactionForce(BaseVec<long> origin, Direction dir);
@@ -100,17 +86,38 @@ class BaseWorm : public BaseObject {
 		return isAuthority();
 	}
 
-	// Deterministic fire/dig/die burst seeding support.
-	// The authority and the owning client predict a spawn burst under a seeded
-	// gameplay RNG derived from (wormNodeID, actionSequence); the server
-	// confirms the per-worm monotonic action counter via the SHOOT / Dig / Die
-	// events so every peer reproduces identical particles. Base (non-networked)
-	// worms have no node/counter and return 0 / no-op, which leaves the legacy
-	// global RNG path in effect (see game_rng.h).
-	virtual uint32_t fireSeedNodeID() const { return 0; }
-	virtual uint32_t fireActionSeq() const { return 0; }
-	virtual void advanceFireActionSeq() {}
-	virtual void reconcileFireActionSeq(uint32_t /*seq*/) {}
+	// Deterministic fire/dig/die burst seeding support. The authority and the
+	// owning client predict a spawn burst under a seeded gameplay RNG derived
+	// from (wormNodeID, actionSequence); the server confirms the per-worm
+	// monotonic action counter via the SHOOT / Dig / Die events so every peer
+	// reproduces identical particles.
+	//
+	// BaseWorm owns the per-worm action counter and a stable per-worm seed id
+	// (assigned at construction from a process-local counter), so local /
+	// single-player worms get the SAME deterministic, burst-varying RNG
+	// behaviour as networked worms. NetWorm overrides fireSeedNodeID() to use
+	// the network-assigned node id instead, so all peers seed from matching ids.
+	virtual uint32_t fireSeedNodeID() const {
+		return m_fireSeedNodeID;
+	}
+	virtual uint32_t fireActionSeq() const {
+		return m_actionSeq;
+	}
+	virtual void advanceFireActionSeq() {
+		++m_actionSeq;
+	}
+	// Applies the authority-confirmed counter value. Backward/reused
+	// confirmations indicate counter drift (rejected/duplicated predictions)
+	// and are reported; the assignment itself is still convergent.
+	virtual void reconcileFireActionSeq(uint32_t seq);
+
+	// Owner-side prediction bookkeeping. Every predicted burst is recorded
+	// (seq -> draw checksum) so the server's SHOOT confirmation can detect
+	// rejected/unsent predictions (counter drift => ghost particles) and,
+	// when NET_RNG_CHECK is on, verify the burst's draw checksum.
+	void recordPredictedBurst(uint32_t seq, uint32_t checksum);
+	void confirmPredictedBurst(uint32_t seq, uint32_t shippedChecksum);
+	void clearPredictedBursts();
 
 	virtual void damage(float amount, BasePlayer *damager, DamageCause const &cause);
 
@@ -128,11 +135,10 @@ class BaseWorm : public BaseObject {
 	virtual void setWeapons(std::vector<WeaponType *> const &weaps);
 	virtual void clearWeapons();
 
-	Weapon *getCurrentWeapon(); // Where and what for is this used? Lua maybe? >:O
+	Weapon *getCurrentWeapon();
 
-	// getWeaponIndexOffset can be used to get the currentWeapon index or
-	// to get the one to the right or the left or the one 1000 units to the
-	// right ( it will wrap the value so that its always inside the worm's weapons size )
+	// Returns the current weapon index, or one offset by any amount
+	// (wraps around within the worm's weapons).
 	int getWeaponIndexOffset(int offset);
 	Angle getAngle();
 	void setDir(int d); // Only use this if you are going to sync it over netplay with an event
@@ -158,10 +164,6 @@ class BaseWorm : public BaseObject {
 	virtual eZCom_NodeRole getRole() {
 		return eZCom_RoleUndefined;
 	}
-	/*
-	virtual LuaReference getLuaReference();
-	virtual void finalize();
-	*/
 
 	virtual void makeReference();
 	virtual void finalize();
@@ -170,8 +172,6 @@ class BaseWorm : public BaseObject {
 							  ZCom_ConnID connID) {}
 
   protected:
-	// LuaReference luaReference;
-
 	// Tick every weapon's Weapon::think() (timers, fire trigger ->
 	// primaryShoot->run() spawns the authoritative projectile, ammo/reload
 	// bookkeeping, SHOOT/OutOfAmmo net messages). Extracted from think() so
@@ -191,7 +191,6 @@ class BaseWorm : public BaseObject {
 
 	float aimRecoilSpeed;
 	float health;
-	// float currentRopeLength; //moved to Ninjarope
 
 #ifndef DEDSERV
 	int m_fireconeTime;
@@ -227,10 +226,49 @@ class BaseWorm : public BaseObject {
 	float m_movingRightIntensity;
 	bool jumping;
 	bool animate;
-	bool movable;  // What do we need this for? // Dunno, did I put this here? :o
-	bool changing; // This shouldnt be in the worm class ( its player stuff >:O )
+	bool movable;
+	bool changing; // This shouldn't be in the worm class (it's player stuff)
 	bool showingWeaponText;
 	int m_dir;
+
+  protected:
+	// Per-worm deterministic burst seeding state (see fireSeedNodeID() etc.).
+	uint32_t m_actionSeq = 0;	   // monotonic fire/dig/die burst counter
+	uint32_t m_fireSeedNodeID = 0; // stable per-worm seed id; NetWorm overrides the getter
+
+	// Owner-prediction ring of unconfirmed bursts (see recordPredictedBurst).
+	// Sized well above fire-rate*RTT so normal play never evicts.
+	static constexpr size_t PRED_WINDOW = 64;
+	uint32_t m_predSeq[PRED_WINDOW] = {};
+	uint32_t m_predChecksum[PRED_WINDOW] = {};
+	bool m_predActive[PRED_WINDOW] = {};
+	size_t m_predNext = 0;
+	uint32_t m_lastConfirmedSeq = 0;
+	bool m_hasConfirmedSeq = false;
+};
+
+// RAII snapshot/restore of a worm's burst-relevant state (pos/spd/aimAngle)
+// around a replayed authority burst (SHOOT/Die) so the action script runs
+// with the shipped burst-tick values instead of the local lagged/interpolated
+// proxy state. The dtor also undoes script-side recoil mutations on proxies
+// (authority owns proxy state anyway).
+class BurstStateScope {
+  public:
+	explicit BurstStateScope(BaseWorm &worm);
+	~BurstStateScope();
+	void applyPos(Vec const &p);
+	void applySpd(Vec const &s);
+	// a is the *effective* angle (BaseWorm::getAngle()); converted back to the
+	// raw aimAngle using the worm's current facing direction.
+	void applyAim(Angle a);
+
+  private:
+	BurstStateScope(BurstStateScope const &);
+	BurstStateScope &operator=(BurstStateScope const &);
+	BaseWorm &m_worm;
+	Vec m_savedPos;
+	Vec m_savedSpd;
+	Angle m_savedAim;
 };
 
 #endif // _WORM_H_

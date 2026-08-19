@@ -13,6 +13,7 @@
 
 #include <boost/test/unit_test.hpp>
 #include "util/game_rng.h"
+#include "net_bitstream.h"
 
 BOOST_AUTO_TEST_SUITE(game_rng)
 
@@ -95,6 +96,113 @@ BOOST_AUTO_TEST_CASE(grnd_routes_to_scoped_rng) {
 		BOOST_CHECK_EQUAL(gmidrnd(), ref.midrnd());
 		BOOST_CHECK_EQUAL(grndInt(999), ref.rndInt(999));
 	}
+}
+
+// The burst checksum folds every produced value, so identical seeds + draw
+// sequences must give identical checksums.
+BOOST_AUTO_TEST_CASE(checksum_same_seed_same_draws_match) {
+	GameRng a, b;
+	a.seed(7);
+	b.seed(7);
+	for (int i = 1; i <= 30; ++i) {
+		a.rnd();
+		a.rndInt(i);
+		a.midrnd();
+		b.rnd();
+		b.rndInt(i);
+		b.midrnd();
+	}
+	BOOST_CHECK_EQUAL(a.checksum(), b.checksum());
+}
+
+// Any extra/missing/reordered draw must diverge the checksum.
+BOOST_AUTO_TEST_CASE(checksum_differs_on_divergent_draws) {
+	{
+		GameRng a, b;
+		a.seed(7);
+		b.seed(7);
+		a.rnd();
+		b.rnd();
+		a.midrnd(); // extra draw on a only
+		BOOST_CHECK(a.checksum() != b.checksum());
+	}
+	{
+		GameRng a, b;
+		a.seed(7);
+		b.seed(7);
+		a.rnd();
+		a.rndInt(9);
+		b.rndInt(9); // reordered draws
+		b.rnd();
+		BOOST_CHECK(a.checksum() != b.checksum());
+	}
+	{
+		// Different seeds diverge from the first draw.
+		GameRng a, b;
+		a.seed(1);
+		b.seed(2);
+		a.rnd();
+		b.rnd();
+		BOOST_CHECK(a.checksum() != b.checksum());
+	}
+}
+
+// Re-seeding resets the checksum along with the stream.
+BOOST_AUTO_TEST_CASE(checksum_resets_on_reseed) {
+	GameRng r;
+	r.seed(123);
+	r.rnd();
+	r.rndInt(5);
+	uint32_t c1 = r.checksum();
+	r.rnd();
+	r.rnd();
+	BOOST_CHECK(r.checksum() != c1);
+	r.seed(123);
+	BOOST_CHECK_EQUAL(r.checksum(), kBurstChecksumOffset);
+	r.rnd();
+	r.rndInt(5);
+	BOOST_CHECK_EQUAL(r.checksum(), c1);
+}
+
+// Hole-1 regression guard: receivers seed from the *shipped* seed, so they
+// agree with the authority even when their local seed-derivation inputs would
+// differ (e.g. a worm node id not yet assigned, previously aliased to 0).
+// Recomputing the seed locally from mismatching inputs diverges.
+BOOST_AUTO_TEST_CASE(shipped_seed_isolates_local_seed_inputs) {
+	uint32_t nodeId = 42, seq = 9;
+	uint32_t shipped = mix32(nodeId, seq);
+	GameRng authority, receiver;
+	authority.seed(shipped);
+	receiver.seed(shipped);
+	for (int i = 1; i <= 20; ++i) {
+		receiver.rnd();
+		receiver.rndInt(i);
+		authority.rnd();
+		authority.rndInt(i);
+	}
+	BOOST_CHECK_EQUAL(authority.checksum(), receiver.checksum());
+	GameRng stale;
+	stale.seed(mix32(0u, seq)); // what a locally-recomputing receiver would do
+	for (int i = 1; i <= 20; ++i) {
+		stale.rnd();
+		stale.rndInt(i);
+	}
+	BOOST_CHECK(stale.checksum() != authority.checksum());
+}
+
+// The SHOOT/Dig/Die payload tail (seq, seed, [pos/angle], checksum) is written
+// and read with fixed field widths; pin the integer field-order round-trip.
+BOOST_AUTO_TEST_CASE(burst_payload_field_order_roundtrip) {
+	ZCom_BitStream bs;
+	uint32_t seq = 7, seed = mix32(3, 7), angleBits = 1234567, check = 0xDEADBEEF;
+	bs.addInt(seq, 32);
+	bs.addInt(seed, 32);
+	bs.addInt(angleBits, 24);
+	bs.addInt(check, 32);
+	BOOST_CHECK_EQUAL(bs.getInt(32), seq);
+	BOOST_CHECK_EQUAL(bs.getInt(32), static_cast<int>(seed));
+	BOOST_CHECK_EQUAL(bs.getInt(24), angleBits);
+	BOOST_CHECK_EQUAL(bs.getInt(32), static_cast<int>(check));
 }
 
 BOOST_AUTO_TEST_SUITE_END()

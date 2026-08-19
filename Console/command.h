@@ -4,7 +4,7 @@
 #include "consoleitem.h"
 
 #include <string>
-#include <boost/function.hpp>
+#include <functional>
 
 #define VAR_TYPE_INVALID 0
 #define VAR_TYPE_INT 1
@@ -13,8 +13,8 @@ class Console;
 
 class Command : public ConsoleItem {
   public:
-	typedef boost::function<std::string(std::list<std::string> const &)> CallbackT;
-	typedef boost::function<std::string(Console *, int, std::string const &)> CompleteCallbackT;
+	typedef std::function<std::string(std::list<std::string> const &)> CallbackT;
+	typedef std::function<std::string(Console *, int, std::string const &)> CompleteCallbackT;
 
 	Command(CallbackT const &func, CompleteCallbackT const &completeFunc = CompleteCallbackT());
 	Command();

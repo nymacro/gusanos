@@ -9,7 +9,6 @@
 #include <vector>
 #include <cmath>
 #include <boost/array.hpp>
-using boost::array;
 
 class Level {
   public:
@@ -69,7 +68,7 @@ class Level {
 	BITMAP *material;
 	std::string name;
 	std::string path;
-	array<Material, 256> m_materialList;
+	boost::array<Material, 256> m_materialList;
 
 	struct ParticleBlockPredicate {
 		bool operator()(Material const &m) {

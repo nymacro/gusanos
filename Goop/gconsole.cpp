@@ -15,8 +15,7 @@
 #include "network.h" //TEMP
 
 #include "allegro_compat.h"
-#include <boost/bind/bind.hpp>
-using namespace boost::placeholders;
+#include "dedicated.h"
 #include <boost/lexical_cast.hpp>
 using boost::lexical_cast;
 
@@ -30,10 +29,6 @@ using namespace std;
 
 // Bind console command
 string bindCmd(const list<string> &args) {
-	// <GLIP> Simplified a little, removed unused vars
-	// and made it print out the help text when too
-	// few arguments are passed.
-
 	if (args.size() >= 2) {
 		std::list<string>::const_iterator arguments = args.begin();
 
@@ -85,82 +80,6 @@ string echoCmd(list<string> const &args) {
 }
 
 #ifndef DEDSERV
-/*
-// Key map swapping command
-string swapKeysCmd(const list<string> &args)
-{
-	if (args.size() >= 2)
-	{
-		std::list<string>::const_iterator arguments = args.begin();
-		std::string const& keyNameA = *arguments++;
-		int keyA = kName2Int(keyNameA);
-		TEST_KEY(keyA, keyNameA);
-
-		std::string const& keyNameB = *arguments++;
-		int keyB = kName2Int(keyNameB);
-		TEST_KEY(keyB, keyNameB);
-
-		KeyHandler::swapKeyMapping(keyA, keyB);
-		return "";
-	}
-	return "SWAPKEYS <KEY A> <KEY B> : SWAPS KEY A AND KEY B WITH EACHOTHER";
-}
-
-
-string setShiftChar(const list<string> &args)
-{
-	if (args.size() >= 2)
-	{
-		std::list<string>::const_iterator arguments = args.begin();
-
-		std::string const& keyName = *arguments++;
-		int key = kName2Int(keyName);
-		TEST_KEY(key, keyName);
-
-		int shiftCharacter = (*arguments)[0];
-
-		KeyHandler::setShiftCharacter(key, shiftCharacter);
-		return "";
-	}
-	return "SETSHIFTCHAR <KEY> <CHARACTER> : SETS THE CHARACTER TO BE USED WITH SHIFT+KEY";
-}
-
-string setChar(const list<string> &args)
-{
-	if (args.size() >= 2)
-	{
-		std::list<string>::const_iterator arguments = args.begin();
-
-		std::string const& keyName = *arguments++;
-		int key = kName2Int(keyName);
-		TEST_KEY(key, keyName);
-
-		int shiftCharacter = (*arguments)[0];
-
-		KeyHandler::setCharacter(key, shiftCharacter);
-		return "";
-	}
-	return "SETCHAR <KEY> <CHARACTER> : SETS THE CHARACTER TO BE USED WITH KEY";
-}
-
-string setAltGrChar(const list<string> &args)
-{
-	if (args.size() >= 2)
-	{
-		std::list<string>::const_iterator arguments = args.begin();
-
-		std::string const& keyName = *arguments++;
-		int key = kName2Int(keyName);
-		TEST_KEY(key, keyName);
-
-		int altgrCharacter = (*arguments)[0];
-
-		KeyHandler::setAltGrCharacter(key, altgrCharacter);
-		return "";
-	}
-	return "SETALTGRCHAR <KEY> <CHARACTER> : SETS THE CHARACTER TO BE USED WITH ALTGR+KEY";
-}
-*/
 string GConsole::setConsoleKey(list<string> const &args) {
 	if (args.size() >= 1) {
 		std::list<string>::const_iterator arguments = args.begin();
@@ -208,39 +127,6 @@ string aliasCmd(const list<string> &args) {
 	return "BIND <KEY> [COMMAND] : ATTACH A COMMAND TO A KEY";
 }
 
-/*
-string execScript(list<string> const& args)
-{
-	if (args.size() >= 2)
-	{
-		list<string>::const_iterator i = args.begin();
-		string const& file = *i++;
-		string const& function = *i++;
-		Script* s = scriptLocator.load(file);
-		if(!s)
-			return "SCRIPT FILE \"" + file + "\" COULDN'T BE LOADED";
-
-		s->pushFunction(function);
-		int params = 0;
-		for(; i != args.end(); ++i)
-		{
-			lua_pushstring(*s->lua, i->c_str());
-			++params;
-		}
-
-		int result = s->lua->call(params);
-
-		if(result < 0)
-		{
-			return ( "COULDN'T EXECUTE " + file + " " + function );
-		}
-		else
-			return "";
-	}
-	return "EXECSCRIPT <FILE> <FUNCTION> : EXECUTE A SCRIPT FILE";
-}
-*/
-
 string rndSeedCmd(list<string> const &args) {
 	if (args.size() > 0) {
 		std::list<string>::const_iterator i = args.begin();
@@ -263,9 +149,6 @@ string restCmd(list<string> const &args) {
 
 	return "REST <MS> : RESTS FOR A NUMBER OF MILLISECONDS";
 }
-/////////////////////////////// Console //////////////////////////////////////
-
-//============================= LIFECYCLE ====================================
 
 GConsole::GConsole()
 	: Console(256)
@@ -280,8 +163,6 @@ GConsole::GConsole()
 	scrolling = false;
 }
 
-//============================= INTERFACE ====================================
-
 #ifndef DEDSERV
 void GConsole::varCbFont(std::string oldValue) {
 	Font *newFont = fontLocator.load(m_fontName);
@@ -294,49 +175,40 @@ void GConsole::varCbFont(std::string oldValue) {
 }
 #endif
 void GConsole::init() {
-#ifndef DEDSERV
-	keyHandler.init();
+	if (!g_dedicated) {
+		keyHandler.init();
 
-	// Connect the handlers as group 0 so they are called first
+		// Connect the handlers as group 0 so they are called first
+		keyHandler.printableChar.connect(0, [this](char c, int k) { return eventPrintableChar(c, k); });
+		keyHandler.keyDown.connect(0, [this](int k) { return eventKeyDown(k); });
+		keyHandler.keyUp.connect(0, [this](int k) { return eventKeyUp(k); });
 
-	keyHandler.printableChar.connect(0, boost::bind(&GConsole::eventPrintableChar, this, _1, _2));
-	keyHandler.keyDown.connect(0, boost::bind(&GConsole::eventKeyDown, this, _1));
-	keyHandler.keyUp.connect(0, boost::bind(&GConsole::eventKeyUp, this, _1));
-
-	// Wire gamepad button signals into the key handler signal chain
-	gamepadHandler.buttonDown.connect(0, [](int key) {
-		keyHandler.keyDown(key);
-		return false;
-	});
-	gamepadHandler.buttonUp.connect(0, [](int key) {
-		keyHandler.keyUp(key);
-		return false;
-	});
-#endif
+		// Wire gamepad button signals into the key handler signal chain
+		gamepadHandler.buttonDown.connect(0, [](int key) {
+			keyHandler.keyDown(key);
+			return false;
+		});
+		gamepadHandler.buttonUp.connect(0, [](int key) {
+			keyHandler.keyUp(key);
+			return false;
+		});
+	}
 
 	m_mode = CONSOLE_MODE_BINDINGS;
-	// m_mode = CONSOLE_MODE_INPUT;
 
 	console.registerVariables()("CON_SPEED", &speed, 4)("CON_HEIGHT", &height, 120)
 #ifndef DEDSERV
-		("CON_FONT", &m_fontName, "minifont", boost::bind(&GConsole::varCbFont, this, _1))
+		("CON_FONT", &m_fontName, "minifont", [this](std::string const &v) { varCbFont(v); })
 #endif
 		;
 
 	console.registerCommands()
 #ifndef DEDSERV
-		(string("BIND"), bindCmd, bindCompleter)
-		/*
-				(string("SWAPKEYS"), swapKeysCmd)
-				(string("SETSHIFTCHAR"), setShiftChar)
-				(string("SETALTGRCHAR"), setAltGrChar)
-				(string("SETCHAR"), setChar)
-		*/
-		(string("SETCONSOLEKEY"), boost::bind(&GConsole::setConsoleKey, this, _1))
+		(string("BIND"), bindCmd, bindCompleter)(
+			string("SETCONSOLEKEY"), [this](std::list<std::string> const &args) { return setConsoleKey(args); })
 #endif
-			(string("EXEC"), execCmd)
-		//(string("EXECSCRIPT"), execScript)
-		(string("ALIAS"), aliasCmd)(string("ECHO"), echoCmd)(string("RND_SEED"), rndSeedCmd)(string("REST"), restCmd);
+			(string("EXEC"), execCmd)(string("ALIAS"), aliasCmd)(string("ECHO"), echoCmd)(
+				string("RND_SEED"), rndSeedCmd)(string("REST"), restCmd);
 
 	currentCommand = commandsLog.end(); // To workaround a crashbug with uninitialized iterator
 	logRenderPos = log.rbegin();
@@ -344,28 +216,24 @@ void GConsole::init() {
 }
 
 void GConsole::shutDown() {
-#ifndef DEDSERV
-	keyHandler.shutDown();
-
-	// m_font must be deleted here!!!! hmm not sure now
-#endif
+	if (!g_dedicated) {
+		keyHandler.shutDown();
+	}
 }
 
 void GConsole::loadResources() {
-#ifndef DEDSERV
-	m_font = fontLocator.load(m_fontName);
+	if (!g_dedicated) {
+		m_font = fontLocator.load(m_fontName);
 
-	if (!m_font)
-		cout << "Console font couldn't be loaded" << endl;
+		if (!m_font)
+			cout << "Console font couldn't be loaded" << endl;
 
-	background = spriteList.load("con_background");
-#endif
+		background = spriteList.load("con_background");
+	}
 }
 
 #ifndef DEDSERV
 void GConsole::render(BITMAP *where, bool fullScreen) {
-	// int textIndex = 0;
-
 	float pos = m_pos;
 	if (fullScreen)
 		pos = where->h - 1;
@@ -380,8 +248,8 @@ void GConsole::render(BITMAP *where, bool fullScreen) {
 
 		std::pair<int, int> dim;
 		string::const_reverse_iterator b = tempString.rbegin(), e = tempString.rend();
-		// When using reverse iterators, fitString tries to fit the spacing of
-		// the last character as well which isn't exactly what is wanted
+		// fitString on reverse iterators also fits the last char's spacing,
+		// which isn't wanted
 		e = m_font->fitString(b, e, 320 - 5, dim);
 		y -= dim.second;
 		m_font->draw(where, e.base(), b.base(), 5, y);
@@ -548,21 +416,9 @@ bool GConsole::eventPrintableChar(char c, int k) {
 			m_inputBuff.clear();				// and then clear the buffer
 		} else if (c == '\t')					// Tab
 		{
-			/*
-			string autoCompText = autoComplete( m_inputBuff );
-			if (m_inputBuff == autoCompText)
-			{
-				listItems(m_inputBuff);
-			}else
-			{
-				m_inputBuff = autoCompText;
-			}
-			*/
-
 			m_inputBuff = autoComplete(m_inputBuff);
 		} else // No special keys where detected so the char gets added to the string
 		{
-			// m_inputBuff += toupper(c);
 			m_inputBuff += c;
 		}
 		return false;
@@ -572,19 +428,19 @@ bool GConsole::eventPrintableChar(char c, int k) {
 #endif
 
 void GConsole::think() {
-#ifndef DEDSERV
-	if (height > 240)
-		height = 240;
-	if (m_mode == CONSOLE_MODE_INPUT && m_pos < height) {
-		m_pos += speed;
-	} else if (m_mode == CONSOLE_MODE_BINDINGS && m_pos > 0) {
-		m_pos -= speed;
+	if (!g_dedicated) {
+		if (height > 240)
+			height = 240;
+		if (m_mode == CONSOLE_MODE_INPUT && m_pos < height) {
+			m_pos += speed;
+		} else if (m_mode == CONSOLE_MODE_BINDINGS && m_pos > 0) {
+			m_pos -= speed;
+		}
+		if (m_pos > height)
+			m_pos = height;
+		if (m_pos < 0)
+			m_pos = 0;
 	}
-	if (m_pos > height)
-		m_pos = height;
-	if (m_pos < 0)
-		m_pos = 0;
-#endif
 	while (!commandsQueue.empty()) {
 		console.parseLine(*commandsQueue.begin());
 		commandsQueue.erase(commandsQueue.begin());
@@ -603,11 +459,12 @@ void GConsole::addQueueCommand(std::string const &command) {
 	commandsQueue.push_back(command);
 }
 
-#ifdef DEDSERV
 void GConsole::addLogMsg(const std::string &msg) {
-	cout << "CONSOLE: " << msg << endl;
+	if (g_dedicated) {
+		cout << "CONSOLE: " << msg << endl;
+		return;
+	}
+	Console::addLogMsg(msg);
 }
-#endif
-//============================= PRIVATE ======================================
 
 GConsole console;

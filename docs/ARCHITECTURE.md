@@ -89,14 +89,14 @@ while (!quit || !network.isDisconnected())
        newly spawned objects), then think every player
     3. Game::think()
     4. Updater::think() — file transfer progress
-    5. Sfx::think() — channel management  [client only, #ifndef DEDSERV]
+    5. Sfx::think() — channel management  [client only, if !g_dedicated]
     6. Delete flagged players + local-player cleanup
     7. Network::update() — poll ENet
-    8. console.checkInput() + mouseHandler.poll() + gamepadHandler.poll()
-       + console.think()  [input polls client only; console.think() always]
+   8. console.checkInput() + mouseHandler.poll() + gamepadHandler.poll()
+      + console.think()  [input polls client only (if !g_dedicated); console.think() always]
     9. spriteList.think() — sprite animation
    10. Lua afterUpdate callbacks
-  ── Render (uncapped; entire block is #ifndef DEDSERV) ──
+  ── Render (uncapped; entire block is if (!g_dedicated)) ──
     if level loaded:
       For each player: player->render() → viewport->render(player)
         - Level::draw() (terrain)
@@ -131,26 +131,47 @@ Single-threaded. Everything runs on the main thread:
 
 | `build=` | Binary | Use Case |
 |----------|--------|----------|
-| `release` | `bin/posix/gusanos` | Full game, optimized |
-| `debug` | `bin/posix/gusanos` | Full game, debug symbols + asserts |
-| `dedserv` | `bin/posix/gusanos-ded` | Headless server, optimised |
-| `dedserv-debug` | `bin/posix/gusanos-ded` | Headless server, debug |
+| `release` | `bin/posix/gusanos` | Full game, optimized (or `--dedicated` headless) |
+| `debug` | `bin/posix/gusanos` | Full game, debug symbols + asserts (or `--dedicated` headless) |
 
-Dedicated server builds exclude all rendering/audio/input code via `#ifndef DEDSERV`
-guards.
+Dedicated (headless) mode is a runtime flag (`gusanos --dedicated`) on the single
+`gusanos` binary, not a separate build target. `build=dedserv` / `dedserv-debug`
+are accepted as deprecated aliases for `release` / `debug`.
 
-## DEDSERV Guards
+## Dedicated (Headless) Mode
 
-The `DEDSERV` preprocessor define gates all GUI code. Key pattern:
+Dedicated/headless mode is a runtime flag, not a compile-time build. The single
+`gusanos` binary serves both client and server modes; pass `--dedicated` on the
+command line to set `g_dedicated = true` (`Goop/dedicated.h`), parsed early in
+`main()` before `registerVariables()` and `game.init()`.
+
+Load-bearing code that would crash, waste work, or drift the RNG stream on a
+headless authority is gated at runtime:
 
 ```cpp
-#ifndef DEDSERV
-    // rendering, input, audio, UI
-#endif
+if (!g_dedicated) {
+    // rendering, input, audio, sprite loading, UI
+}
 ```
 
 This is used in nearly every component — graphics (`gfx.cpp`), sound (`sfx.cpp`),
 input (`keyboard.cpp`, `mouse.cpp`), fonts, menus, and viewports.
+
+`DEDSERV` is no longer defined at compile time. Inert structural `#ifndef DEDSERV`
+guards (member declarations, `#include` lines, `#ifdef DEDSERV #error` stubs, and
+whole-file wrappers in `sfx.cpp`, `mouse.cpp`, `keyboard.cpp`, `gamepad.cpp`,
+`distortion.cpp`, `animators.cpp`, etc.) are left in place as dead markers — with
+`DEDSERV` never defined, `#ifndef DEDSERV` blocks always compile and the client
+build is unchanged.
+
+Config files are selected at runtime: `config-ded.cfg` / `autoexec-ded.cfg`
+when `g_dedicated`, otherwise `config.cfg` / `autoexec.cfg`.
+
+Determinism: server-side gameplay RNG draws are gated so the server stream
+matches the old compile-time `dedserv` behavior — e.g. `Explosion` ctor
+`m_timeout` (zero-init on dedicated), `newParticle` selection (uses
+`newParticle_Dummy` on dedicated), and `ExpType` distortion `randomMap` (gated)
+no longer draw `grnd` / `grndInt` / `rnd` on the server.
 
 ## Network Architecture
 

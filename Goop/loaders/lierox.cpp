@@ -1,5 +1,6 @@
 #include "lierox.h"
 #include "../gfx.h"
+#include "../dedicated.h"
 #include "zlib.h"
 #include <string>
 #include <cstring>
@@ -92,10 +93,10 @@ bool LieroXLevelLoader::load(Level *level, fs::path const &path) {
 
 	level->material = create_bitmap_ex(8, width, height);
 
-#ifndef DEDSERV
-	level->image = create_bitmap(width, height);
-	level->background = create_bitmap(width, height);
-#endif
+	if (!g_dedicated) {
+		level->image = create_bitmap(width, height);
+		level->background = create_bitmap(width, height);
+	}
 	unsigned char *pbackground = &data[0];
 	unsigned char *pimage = pbackground + width * height * 3;
 	unsigned char *pmaterial = pimage + width * height * 3;
@@ -103,21 +104,19 @@ bool LieroXLevelLoader::load(Level *level, fs::path const &path) {
 	for (int y = 0; y < height; y++) {
 		for (int x = 0; x < width; x++) {
 
-#ifndef DEDSERV
-			int backgroundc = makecol(pbackground[0], pbackground[1], pbackground[2]);
-#endif
 			int m = pmaterial[0];
 
-#ifndef DEDSERV
-			if (m == 1)
-				putpixel(level->image, x, y, backgroundc);
-			else {
-				int imagec = makecol(pimage[0], pimage[1], pimage[2]);
-				putpixel(level->image, x, y, imagec);
-			}
+			if (!g_dedicated) {
+				int backgroundc = makecol(pbackground[0], pbackground[1], pbackground[2]);
+				if (m == 1)
+					putpixel(level->image, x, y, backgroundc);
+				else {
+					int imagec = makecol(pimage[0], pimage[1], pimage[2]);
+					putpixel(level->image, x, y, imagec);
+				}
 
-			putpixel(level->background, x, y, backgroundc);
-#endif
+				putpixel(level->background, x, y, backgroundc);
+			}
 
 			switch (m) {
 				default:
@@ -133,10 +132,10 @@ bool LieroXLevelLoader::load(Level *level, fs::path const &path) {
 
 			putpixel(level->material, x, y, m);
 
-#ifndef DEDSERV
-			pimage += 3;
-			pbackground += 3;
-#endif
+			if (!g_dedicated) {
+				pimage += 3;
+				pbackground += 3;
+			}
 			++pmaterial;
 		}
 	}

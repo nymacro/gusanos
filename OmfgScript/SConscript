@@ -4,27 +4,10 @@ if not env['NO_PARSERS']:
 	env.Parser('omfg_script_parser.h', 'omfg_script_parser.pg')
 env.StaticLibrary(env.getLibName('omfgscript'), env.getObjects())
 
-# Build OmfgScript tests alongside the library for debug builds
-if env['BUILD_TESTS'] and env['MY_BUILD'] == 'debug':
-	testEnv = env.Clone()
-
-	brew_prefix = '/home/linuxbrew/.linuxbrew'
-	testEnv.Append(
-		CPPPATH=[brew_prefix + '/include', '#OmfgScript'],
-		LIBPATH=[brew_prefix + '/lib', '#/lib/' + testEnv['MY_SUBFOLDER']],
-		LIBS=['omfgscript', 'omfgutil', 'boost_unit_test_framework'],
-		LINKFLAGS=['-pthread'],
-		CPPDEFINES=['BOOST_TEST_DYN_LINK']
-	)
-
-	# Build Goop/base_action.cpp into the test build directory so the source
-	# tree is not polluted with object files.
-	base_action_obj = testEnv.Object(
-		'tests/.build/' + testEnv['MY_SUBFOLDER'] + '/base_action.o',
-		'#Goop/base_action.cpp'
-	)
-
-	testEnv.Program(
-		testEnv.getBinName('omfgscript_tests'),
-		testEnv.getObjects('tests') + base_action_obj
-	)
+# Build OmfgScript tests alongside the library for debug builds.
+# Goop/base_action.cpp is compiled into the test build dir via the test env
+# (lambda) so the source tree stays clean of object files.
+env.TestProgram('omfgscript_tests', ['omfgscript', 'omfgutil'],
+		extra_sources=lambda te: [te.Object(
+			'tests/.build/' + te['MY_SUBFOLDER'] + '/base_action.o',
+			'#Goop/base_action.cpp')])

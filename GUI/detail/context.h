@@ -5,7 +5,6 @@
 #include "util/common.h"
 #include "renderer.h"
 #include "luaapi/types.h"
-// #include "formatting.h"
 #include <iostream>
 #include <map>
 #include <list>
@@ -32,203 +31,8 @@ class Context {
 		enum type { Left = 0, Right, Middle };
 	};
 
-	// typedef std::vector<Formatting::Change> GSSselector;
-	// typedef std::vector<Formatting::BaseChange*> GSSselector;
-	/*struct GSSselector
-	{
-		typedef std::map<std::string, std::vector<std::string> > PropertyMap;
-		PropertyMap main;
-		std::map<std::string, PropertyMap> states;
-	};*/
-
-	// typedef std::map<std::string, std::vector<std::string> > GSSpropertyMap;
 	typedef std::list<std::pair<std::string, std::list<std::string>>> GSSpropertyMap;
 
-	/*
-		static GSSpropertyMap GSSpropertyMapStandard;
-
-		struct GSSstate
-		{
-			GSSpropertyMap& operator() ()
-			{
-				return m_anyState;
-			}
-
-			GSSpropertyMap& operator() (std::string const& state_)
-			{
-				if(state_.size() == 0)
-					return m_anyState;
-				std::map<std::string, GSSpropertyMap>::iterator i = m_state.find(state_);
-				if(i != m_state.end())
-					return i->second;
-				return GSSpropertyMapStandard;
-			}
-
-			GSSpropertyMap& insert(std::string const& state_)
-			{
-				if(state_.size() == 0)
-					return m_anyState;
-				return m_state[state_];
-			}
-
-			GSSpropertyMap const& operator() () const
-			{
-				return m_anyState;
-			}
-
-			GSSpropertyMap const& operator() (std::string const& state_) const
-			{
-				if(state_.size() == 0)
-					return m_anyState;
-				std::map<std::string, GSSpropertyMap>::const_iterator i = m_state.find(state_);
-				if(i != m_state.end())
-					return i->second;
-				return GSSpropertyMapStandard;
-			}
-
-			static GSSstate standard;
-
-		private:
-			GSSpropertyMap m_anyState;
-			std::map<std::string, GSSpropertyMap> m_state;
-		};
-
-		struct GSSid
-		{
-			GSSstate& operator() ()
-			{
-				return m_anyID;
-			}
-
-			GSSstate& operator() (std::string const& id_)
-			{
-				if(id_.size() == 0)
-					return m_anyID;
-				std::map<std::string, GSSstate>::iterator i = m_id.find(id_);
-				if(i != m_id.end())
-					return i->second;
-				return GSSstate::standard;
-			}
-
-			GSSstate& insert(std::string const& id_)
-			{
-				if(id_.size() == 0)
-					return m_anyID;
-				return m_id[id_];
-			}
-
-			GSSstate const& operator() () const
-			{
-				return m_anyID;
-			}
-
-			GSSstate const& operator() (std::string const& id_) const
-			{
-				if(id_.size() == 0)
-					return m_anyID;
-				std::map<std::string, GSSstate>::const_iterator i = m_id.find(id_);
-				if(i != m_id.end())
-					return i->second;
-				return GSSstate::standard;
-			}
-
-			static GSSid standard;
-
-		private:
-			GSSstate m_anyID;
-			std::map<std::string, GSSstate> m_id;
-		};
-
-		struct GSSclass
-		{
-			GSSid& operator() ()
-			{
-				return m_anyClass;
-			}
-
-			GSSid& operator() (std::string const& class_)
-			{
-				if(class_.size() == 0)
-					return m_anyClass;
-				std::map<std::string, GSSid>::iterator i = m_class.find(class_);
-				if(i != m_class.end())
-					return i->second;
-				return GSSid::standard;
-			}
-
-			GSSid& insert(std::string const& class_)
-			{
-				if(class_.size() == 0)
-					return m_anyClass;
-				return m_class[class_];
-			}
-
-			GSSid const& operator() () const
-			{
-				return m_anyClass;
-			}
-
-			GSSid const& operator() (std::string const& class_) const
-			{
-				if(class_.size() == 0)
-					return m_anyClass;
-				std::map<std::string, GSSid>::const_iterator i = m_class.find(class_);
-				if(i != m_class.end())
-					return i->second;
-				return GSSid::standard;
-			}
-
-			static GSSclass standard;
-
-		private:
-			GSSid m_anyClass;
-			std::map<std::string, GSSid> m_class;
-		};
-
-		struct GSSselectorMap
-		{
-			GSSclass& operator() ()
-			{
-				return m_anyLabel;
-			}
-
-			GSSclass& operator() (std::string const& label_)
-			{
-				if(label_.size() == 0)
-					return m_anyLabel;
-				std::map<std::string, GSSclass>::iterator i = m_label.find(label_);
-				if(i != m_label.end())
-					return i->second;
-				return GSSclass::standard;
-			}
-
-			GSSclass& insert(std::string const& label_)
-			{
-				if(label_.size() == 0)
-					return m_anyLabel;
-				return m_label[label_];
-			}
-
-			GSSclass const& operator() () const
-			{
-				return m_anyLabel;
-			}
-
-			GSSclass const& operator() (std::string const& label_) const
-			{
-				if(label_.size() == 0)
-					return m_anyLabel;
-				std::map<std::string, GSSclass>::const_iterator i = m_label.find(label_);
-				if(i != m_label.end())
-					return i->second;
-				return GSSclass::standard;
-			}
-
-		private:
-			GSSclass m_anyLabel;
-			std::map<std::string, GSSclass> m_label;
-		};
-	*/
 	struct GSSselector {
 		struct Condition {
 			enum Type { Tag = 0, Class, ID, State, Group };
@@ -277,8 +81,6 @@ class Context {
 
 	typedef std::list<GSSselector> GSSselectors;
 
-	// typedef std::map<std::string, GSSpropertyMap> GSSselectorMap;
-
 	Context(Renderer *renderer)
 		: m_mouseCaptureWnd(0), m_rootWnd(0), m_keyboardFocusWnd(0), m_mouseFocusWnd(0), m_renderer(renderer) {}
 
@@ -322,9 +124,6 @@ class Context {
 	// is turned visible again.
 	virtual void shownFocus() {}
 
-	/*
-		virtual LuaContext& luaContext() = 0;
-		*/
 	virtual bool keyState(int key) = 0;
 
 	Wnd *getFocus() {
@@ -351,8 +150,6 @@ class Context {
 	// This is defined in xml.cpp
 	Wnd *buildFromXML(std::istream &s, Wnd *dest);
 
-	// void testParseXML();
-
 	template <class WndT>
 	WndT *setRoot(WndT *wnd) {
 		setRoot_(wnd);
@@ -365,14 +162,6 @@ class Context {
 	}
 
 	void registerNamedWindow(std::string const &id, Wnd *wnd);
-
-	/*
-	void deregisterNamedWindow(std::string const& id)
-	{
-		if(id.size() == 0)
-			return;
-		m_namedWindows.erase(id);
-	}*/
 
 	void registerWindow(Wnd *wnd);
 
@@ -394,8 +183,6 @@ class Context {
 	virtual BaseFont *loadFont(std::string const &name) = 0;
 	virtual BaseSpriteSet *loadSpriteSet(std::string const &name) = 0;
 
-	//	BaseFont const& m_defaultFont; //TEMP
-
   protected:
 	void setRoot_(Wnd *wnd);
 
@@ -412,7 +199,6 @@ class Context {
 	// collected. Released in destroy().
 	LuaReference m_rootRef;
 
-	// GSSselectorMap m_gss_;
 	std::map<std::string, Wnd *> m_namedWindows;
 
 	GSSselectors m_gss;

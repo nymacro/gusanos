@@ -3,7 +3,6 @@
 #include "ninjarope.h"
 #include "net_worm.h"
 #include "player_options.h"
-#include "objects_list.h"
 #include "gconsole.h"
 #include "encoding.h"
 #include "weapon_type.h"
@@ -66,9 +65,7 @@ void BasePlayer::deleteThis() {
 	if (deleted)
 		return;
 
-	EACH_CALLBACK(i, playerRemoved) {
-		(lua.call(*i), getLuaReference())();
-	}
+	dispatchCallbacks(LuaCallbacks::playerRemoved, getLuaReference());
 
 	deleted = true; // We set this after the callback loop otherwise getLuaReference() will think the player is already
 					// deleted
@@ -243,9 +240,7 @@ void BasePlayer::think() {
 				case eZCom_EventInit: {
 					sendSyncMessage(conn_id);
 
-					EACH_CALLBACK(i, playerNetworkInit) {
-						(lua.call(*i), getLuaReference(), conn_id)();
-					}
+					dispatchCallbacks(LuaCallbacks::playerNetworkInit, getLuaReference(), conn_id);
 				} break;
 				case eZCom_EventRemoved: {
 					deleteMe = true;
@@ -289,9 +284,7 @@ void BasePlayer::think() {
 			changeTeam_(m_options->team);
 	}
 
-	EACH_CALLBACK(i, playerUpdate) {
-		(lua.call(*i), getLuaReference())();
-	}
+	dispatchCallbacks(LuaCallbacks::playerUpdate, getLuaReference());
 }
 
 void BasePlayer::sendLuaEvent(LuaEventDef *event, eZCom_SendMode mode, zU8 rules, ZCom_BitStream *userdata,
@@ -555,7 +548,6 @@ bool BasePlayerInterceptor::inPreUpdateItem(ZCom_Node *_node, ZCom_ConnID _from,
 	switch ((BasePlayer::ReplicationItems)_replicator->getSetup()->getInterceptID()) {
 		case BasePlayer::WormID: {
 			ZCom_NodeID recievedID = *static_cast<zU32 *>(_replicator->peekData());
-#ifdef USE_GRID
 			for (Grid::iterator iter = game.objects.beginAll(); iter; ++iter) {
 				if (NetWorm *worm = dynamic_cast<NetWorm *>(&*iter)) {
 					if (worm->getNodeID() == recievedID) {
@@ -563,16 +555,6 @@ bool BasePlayerInterceptor::inPreUpdateItem(ZCom_Node *_node, ZCom_ConnID _from,
 					}
 				}
 			}
-#else
-			ObjectsList::Iterator objIter;
-			for (objIter = game.objects.begin(); objIter; ++objIter) {
-				if (NetWorm *worm = dynamic_cast<NetWorm *>(*objIter)) {
-					if (worm->getNodeID() == recievedID) {
-						m_parent->assignWorm(worm);
-					}
-				}
-			}
-#endif
 			return true;
 		} break;
 

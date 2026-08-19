@@ -41,8 +41,6 @@ lua.push(state);
 params += 2;
 END_LUA_CALLBACK()
 
-//! version 0.9c
-
 /*! console_register_control(name, function)
 
 	Registers a number of console commands that work like player controls.
@@ -77,8 +75,6 @@ int l_console_register_control(lua_State *L) {
 
 	return 0;
 }
-
-//! version any
 
 /*! game_players()
 
@@ -218,15 +214,11 @@ METHODC(
 		return 1;
 	} return 0;)
 
-//! version 0.9c
-
 /*! Player:is_local()
 
 	Returns true if this player is a local player, otherwise false.
 */
 METHODC(BasePlayer, player_isLocal, context.push(p->local); return 1;)
-
-//! version any
 
 /*! Player:data()
 
@@ -272,7 +264,6 @@ METHODC(
 		if (lua_isnil(context, -1)) {
 			break;
 		} else {
-			// WeaponType* weapon = *static_cast<WeaponType **>(lua_touserdata(context, -1));
 			WeaponType *weapon = ASSERT_OBJECT_P(WeaponType, -1, "in weapon array");
 			weapons.push_back(weapon);
 			context.pop(); // Pop value
@@ -372,29 +363,14 @@ void initGame() {
 			   "data", l_player_data)("stats", l_player_stats)("worm", l_player_worm)(
 			   "select_weapons", l_player_selectWeapons)("is_local", l_player_isLocal))
 
-	ENUM(EndReason, ("ServerQuit", Game::ServerQuit)("ServerChangeMap", Game::ServerChangeMap)("Kicked", Game::Kicked)
-		 //("LoadingLevel", Game::LoadingLevel)
-		 ("IncompatibleProtocol", Game::IncompatibleProtocol)("IncompatibleData", Game::IncompatibleData))
+	ENUM(EndReason, ("ServerQuit", Game::ServerQuit)("ServerChangeMap", Game::ServerChangeMap)("Kicked", Game::Kicked)(
+						"IncompatibleProtocol", Game::IncompatibleProtocol)("IncompatibleData", Game::IncompatibleData))
 
 	ENUM(Error, ("None", Game::ErrorNone)("MapNotFound", Game::ErrorMapNotFound)("MapLoading", Game::ErrorMapLoading)(
 					"ModNotFound", Game::ErrorModNotFound)("ModLoading", Game::ErrorModLoading))
 
 	ENUM(Player, ("Left", Player::LEFT)("Right", Player::RIGHT)("Up", Player::UP)("Down", Player::DOWN)(
 					 "Fire", Player::FIRE)("Jump", Player::JUMP)("Change", Player::CHANGE))
-
-	/*
-		lua_newtable(context);
-		lua_pushstring(context, "__index");
-
-		lua_newtable(context);
-
-		context.tableFunction("kills", l_player_kills);
-		context.tableFunction("deaths", l_player_deaths);
-		context.tableFunction("name", l_player_name);
-		context.tableFunction("say", l_player_say);
-
-		lua_rawset(context, -3);
-		playerMetaTable = context.createReference();*/
 }
 
 } // namespace LuaBindings

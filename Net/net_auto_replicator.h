@@ -32,7 +32,14 @@ class AutoReplicator {
 	uint32_t rule = 0;	// ZCOM_REPRULE_* routing bitmask
 	zS16 minDelay = -1;
 	zS16 maxDelay = -1;
-	bool initial = true; // forces the first pack
+	bool initial = true;	   // forces the first pack
+	uint32_t lastSendTime = 0; // last send (ZoidCom::getTime()) for min/max-delay throttling
+
+	// Peek whether the bound value has changed (or `initial` is set) WITHOUT
+	// consuming the change — used by the min/max-delay throttle to decide
+	// whether to send while leaving the value dirty when skipping. Mirrors
+	// ZCom_Replicator::checkState() (peek) vs packData() (consume).
+	virtual bool isChanged() const = 0;
 
 	// Detect whether the bound value changed since the last pack (or force/
 	// initial). On change: update the internal snapshot, clear `initial`, and
@@ -66,6 +73,7 @@ class AutoReplicatorInt : public AutoReplicator {
   public:
 	AutoReplicatorInt(zS32 *ptr, zU8 bits, bool sign) : m_ptr(ptr), m_bits(bits), m_sign(sign), m_old(ptr ? *ptr : 0) {}
 
+	bool isChanged() const override;
 	bool detect(bool force) override;
 	void emit(ZCom_BitStream &out) override;
 	void unpackStore(ZCom_BitStream &in) override;
@@ -94,6 +102,7 @@ class AutoReplicatorFloat : public AutoReplicator {
   public:
 	AutoReplicatorFloat(zFloat *ptr, zU8 mantissaBits) : m_ptr(ptr), m_bits(mantissaBits), m_old(ptr ? *ptr : 0.0f) {}
 
+	bool isChanged() const override;
 	bool detect(bool force) override;
 	void emit(ZCom_BitStream &out) override;
 	void unpackStore(ZCom_BitStream &in) override;
@@ -122,6 +131,7 @@ class AutoReplicatorBool : public AutoReplicator {
   public:
 	AutoReplicatorBool(bool *ptr) : m_ptr(ptr), m_old(ptr ? *ptr : false) {}
 
+	bool isChanged() const override;
 	bool detect(bool force) override;
 	void emit(ZCom_BitStream &out) override;
 	void unpackStore(ZCom_BitStream &in) override;

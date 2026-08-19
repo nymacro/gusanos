@@ -3,9 +3,7 @@
 
 #include "consoleitem.h"
 #include "util/text.h"
-#include <boost/function.hpp>
-// #include <boost/lexical_cast.hpp>
-// using boost::lexical_cast;
+#include <functional>
 
 #include <string>
 #include <map>
@@ -32,7 +30,7 @@ class Variable : public ConsoleItem {
 template <class T>
 class TVariable : public Variable {
   public:
-	typedef boost::function<void(T const &)> CallbackT;
+	typedef std::function<void(T const &)> CallbackT;
 
 	TVariable(std::string name, T *src, T defaultValue, CallbackT const &callback = CallbackT())
 		: Variable(name), m_src(src), m_callback(callback) {
@@ -52,7 +50,6 @@ class TVariable : public Variable {
 
 			return std::string();
 		} else {
-			// return m_name + " IS \"" + cast<std::string>(*m_src) + '"';
 			return convert<std::string>::value(*m_src);
 		}
 	}
@@ -63,48 +60,6 @@ class TVariable : public Variable {
 	CallbackT m_callback;
 };
 
-/*
-template<class T, class IT>
-inline TVariable<T>* tVariable(std::string name, T* src, IT defaultValue, void (*callback)( T ) = NULL )
-{
-	return new TVariable<T>(name, src, defaultValue, callback);
-}*/
-
-/*
-class IntVariable : public Variable
-{
-	public:
-
-	IntVariable(int* src, std::string name, int defaultValue, void (*func)( int ) );
-	IntVariable();
-	~IntVariable();
-
-	std::string invoke(const std::list<std::string> &args);
-
-	private:
-
-	void (*callback)( int );
-	int* m_src;
-	int m_defaultValue;
-};
-
-class FloatVariable : public Variable
-{
-	public:
-
-	FloatVariable( float* src, std::string name, float defaultValue, void (*func)( float ) );
-	FloatVariable();
-	~FloatVariable();
-
-	std::string invoke(const std::list<std::string> &args);
-
-	private:
-
-	void (*callback)( float );
-	float* m_src;
-	float m_defaultValue;
-};*/
-
 typedef TVariable<int> IntVariable;
 typedef TVariable<float> FloatVariable;
 typedef TVariable<std::string> StringVariable;
@@ -114,7 +69,7 @@ class EnumVariable : public Variable {
 	typedef std::map<std::string, int, IStrCompare> MapType;
 	typedef std::map<int, std::string> ReverseMapType;
 
-	typedef boost::function<void(int)> CallbackT;
+	typedef std::function<void(int)> CallbackT;
 
 	EnumVariable(std::string name, int *src, int defaultValue, MapType const &mapping,
 				 CallbackT const &func = CallbackT());

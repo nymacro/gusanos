@@ -17,8 +17,7 @@ struct Fixture {
 	std::istringstream stream;
 	Parser parser;
 
-	Fixture(std::string const &script)
-		: stream(script), parser(stream, af, "test.obj") {}
+	Fixture(std::string const &script) : stream(script), parser(stream, af, "test.obj") {}
 };
 
 } // namespace
@@ -81,12 +80,10 @@ BOOST_AUTO_TEST_CASE(function_missing_returns_null) {
 // --- Nested property blocks ---
 
 BOOST_AUTO_TEST_CASE(nested_block_properties) {
-	Fixture f(
-		"collision {\n"
-		"    damage = 10\n"
-		"    push = 2.5\n"
-		"}\n"
-	);
+	Fixture f("collision {\n"
+			  "    damage = 10\n"
+			  "    push = 2.5\n"
+			  "}\n");
 	BOOST_REQUIRE(f.parser.run());
 	BOOST_CHECK_EQUAL(f.parser.getInt("collision_damage"), 10);
 	BOOST_CHECK_CLOSE(f.parser.getDouble("collision_push"), 2.5, 0.0001);

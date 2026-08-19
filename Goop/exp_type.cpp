@@ -1,5 +1,7 @@
 #include "exp_type.h"
 
+#include "dedicated.h"
+
 #include "resource_list.h"
 
 #include "events.h"
@@ -91,46 +93,46 @@ bool ExpType::load(fs::path const &filename) {
 
 	crc = parser.getCRC();
 
-#ifndef DEDSERV
-	{
-		OmfgScript::TokenBase *v = parser.getProperty("sprite");
-		if (!v->isDefault())
-			sprite = spriteList.load(v->toString());
+	if (!g_dedicated) {
+		{
+			OmfgScript::TokenBase *v = parser.getProperty("sprite");
+			if (!v->isDefault())
+				sprite = spriteList.load(v->toString());
+		}
 	}
-#endif
 	invisible = parser.getBool("invisible", false);
 	timeout = parser.getInt("timeout", 0);
 	timeoutVariation = parser.getInt("timeout_variation", 0);
 	renderLayer = parser.getInt("render_layer", Grid::WormRenderLayer);
 
-#ifndef DEDSERV
-	rockHidden = parser.getBool("rock_hidden", true);
-	if (OmfgScript::Function const *f = parser.getFunction("distortion")) {
-		if (f->name == "lens")
-			distortion = new Distortion(lensMap((*f)[0]->toInt()));
-		else if (f->name == "swirl")
-			distortion = new Distortion(swirlMap((*f)[0]->toInt()));
-		else if (f->name == "ripple")
-			distortion = new Distortion(rippleMap((*f)[0]->toInt()));
-		else if (f->name == "random")
-			distortion = new Distortion(randomMap((*f)[0]->toInt()));
-		else if (f->name == "spin")
-			distortion = new Distortion(spinMap((*f)[0]->toInt()));
-		else if (f->name == "bitmap")
-			distortion = new Distortion(bitmapMap((*f)[0]->toString()));
-	}
-	distortMagnitude = parser.getDouble("distort_magnitude", 0.8);
+	if (!g_dedicated) {
+		rockHidden = parser.getBool("rock_hidden", true);
+		if (OmfgScript::Function const *f = parser.getFunction("distortion")) {
+			if (f->name == "lens")
+				distortion = new Distortion(lensMap((*f)[0]->toInt()));
+			else if (f->name == "swirl")
+				distortion = new Distortion(swirlMap((*f)[0]->toInt()));
+			else if (f->name == "ripple")
+				distortion = new Distortion(rippleMap((*f)[0]->toInt()));
+			else if (f->name == "random")
+				distortion = new Distortion(randomMap((*f)[0]->toInt()));
+			else if (f->name == "spin")
+				distortion = new Distortion(spinMap((*f)[0]->toInt()));
+			else if (f->name == "bitmap")
+				distortion = new Distortion(bitmapMap((*f)[0]->toString()));
+		}
+		distortMagnitude = parser.getDouble("distort_magnitude", 0.8);
 
-	std::string blenderstr = parser.getString("blender", "none");
-	if (blenderstr == "add")
-		blender = BlitterContext::Add;
-	else if (blenderstr == "alpha")
-		blender = BlitterContext::Alpha;
-	else if (blenderstr == "alphach")
-		blender = BlitterContext::AlphaChannel;
-	else
-		blender = BlitterContext::None;
-#endif
+		std::string blenderstr = parser.getString("blender", "none");
+		if (blenderstr == "add")
+			blender = BlitterContext::Add;
+		else if (blenderstr == "alpha")
+			blender = BlitterContext::Alpha;
+		else if (blenderstr == "alphach")
+			blender = BlitterContext::AlphaChannel;
+		else
+			blender = BlitterContext::None;
+	}
 
 	alpha = parser.getInt("alpha", 255);
 	destAlpha = parser.getInt("dest_alpha", -1);

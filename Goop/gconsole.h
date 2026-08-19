@@ -2,7 +2,6 @@
 #define GUSANOS_GCONSOLE_H
 
 #include <console.h>
-// #include "font.h"
 
 #ifndef DEDSERV
 #include "allegro_compat.h"
@@ -10,11 +9,9 @@
 
 #include <list>
 #include <string>
-#include <list>
 #include <map>
 #include <set>
 #include <boost/array.hpp>
-using boost::array;
 
 #ifndef DEDSERV
 class SpriteSet;
@@ -29,7 +26,7 @@ class GConsole : public Console {
 			enable.fill(true);
 		}
 
-		array<bool, 256> enable;
+		boost::array<bool, 256> enable;
 	};
 #endif
 
@@ -44,9 +41,7 @@ class GConsole : public Console {
 #endif
 	void think();
 	int executeConfig(const std::string &filename);
-#ifdef DEDSERV
-	virtual void addLogMsg(const std::string &msg);
-#endif
+	void addLogMsg(const std::string &msg) override;
 
 #ifndef DEDSERV
 	bool eventPrintableChar(char c, int k);
@@ -110,7 +105,7 @@ class GConsole : public Console {
 	std::string m_inputBuff;
 	SpriteSet *background;
 	std::set<BindingLock const *> m_locks;
-	array<int, 256> m_lockRefCount;
+	boost::array<int, 256> m_lockRefCount;
 
 	// Tracks whether this GContext currently holds the binding lock.
 	// Used to make lock/release idempotent (see GContext::setFocus /

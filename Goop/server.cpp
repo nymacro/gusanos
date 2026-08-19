@@ -32,7 +32,7 @@ Server::Server(int _udpport) : m_preShutdown(false), port(_udpport), socketsInit
 		console.addLogMsg("* ERROR: FAILED TO INITIALIZE SOCKETS");
 
 	ZCom_setControlID(0);
-	ZCom_setDebugName("ZCOM_CLI");
+	ZCom_setDebugName("ZCOM_SRV");
 	ZCom_setUpstreamLimit(network.upLimit, network.upLimit);
 	console.addLogMsg("SERVER UP");
 }

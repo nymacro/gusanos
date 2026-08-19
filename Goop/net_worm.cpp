@@ -1,5 +1,7 @@
 #include "net_worm.h"
 
+#include "dedicated.h"
+
 #include "util/vec.h"
 #include "util/angle.h"
 #include "util/log.h"
@@ -46,8 +48,6 @@ NetWorm::NetWorm(bool isAuthority) : BaseWorm() {
 	static ZCom_ReplicatorSetup posSetup(ZCOM_REPFLAG_MOSTRECENT | ZCOM_REPFLAG_INTERCEPT,
 										 ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH, Position, -1, 1000);
 
-	// m_node->setInterceptID( static_cast<ZCom_InterceptID>(Position) );
-
 	m_node->addReplicator(std::make_unique<PosSpdReplicator>(&posSetup, &pos, &spd, game.level.vectorEncoding,
 															 game.level.diffVectorEncoding),
 						  true);
@@ -75,7 +75,6 @@ NetWorm::NetWorm(bool isAuthority) : BaseWorm() {
 	m_node->addReplicationBool(&m_ninjaRope->attached, ZCOM_REPFLAG_MOSTRECENT,
 							   ZCOM_REPRULE_AUTH_2_PROXY | ZCOM_REPRULE_OWNER_2_AUTH);
 
-	// Intercepted stuff
 	m_node->setInterceptID(PlayerID);
 
 	m_node->addReplicationInt((zS32 *)&m_playerID, 32, false, ZCOM_REPFLAG_MOSTRECENT | ZCOM_REPFLAG_INTERCEPT,
@@ -162,7 +161,6 @@ Vec NetWorm::interpolateRenderPos(uint64_t renderTime) const {
 
 void NetWorm::addEvent(ZCom_BitStream *data, NetWorm::NetEvents event) {
 #ifdef COMPACT_EVENTS
-	// data->addInt(event, Encoding::bitsOf(NetWorm::EVENT_COUNT - 1));
 	Encoding::encode(*data, event, NetWorm::EVENT_COUNT);
 #else
 	data->addInt(static_cast<int>(event), 8);
@@ -170,50 +168,34 @@ void NetWorm::addEvent(ZCom_BitStream *data, NetWorm::NetEvents event) {
 }
 
 void NetWorm::think() {
-	// Authority gate for remote-client-owned worms on the server.
+	// Authority gate: for a worm we don't own (server-side remote-client
+	// worm, or a proxy's view of another player's worm) we must NOT run
+	// BaseWorm::think() physics. The owner runs physics and pushes pos/spd
+	// via the OWNER_2_AUTH replicators; the server just relays to proxies
+	// (AUTH_2_PROXY). Running physics here integrates from throttled,
+	// ~RTT/2-stale input, producing a pos that diverges from the owner's
+	// truth; the next replication snap back (PosSpdReplicator::unpackData)
+	// makes the server's pos oscillate every tick, and that oscillation is
+	// relayed to proxies as rubber-banding (very visible redirecting a
+	// ninja-rope swing). Proxies have the same problem in reverse: local
+	// physics fights the replicated snap (the proxy half of the rubber-band).
 	//
-	// On the server, a worm whose ZCom_Node is owned by a remote client
-	// (m_isAuthority && !isLocalAuthority(), i.e. getOwner() != 0) is
-	// driven by that client: the owner runs the physics locally and pushes
-	// pos/spd/rope/aim/m_dir via the ZCOM_REPRULE_OWNER_2_AUTH replicators.
-	// The server's job for such a worm is to RELAY those updates to proxies
-	// (ZCOM_REPRULE_AUTH_2_PROXY), not to simulate physics. Running
-	// BaseWorm::think() here would integrate physics from the throttled,
-	// ~RTT/2-stale input events the server received from the owner,
-	// producing a pos/spd that diverges from the owner's truth; the next
-	// replication update then snaps pos/spd back to the owner's value
-	// (PosSpdReplicator::unpackData). The server's pos thus oscillates
-	// between its physics result and the owner's snap every tick, and that
-	// oscillation is relayed to proxies, which render it as rubber-banding
-	// (very visible with the ninja rope when the owner holds opposite-
-	// direction input to redirect a swing).
+	// Server still runs the authoritative bookkeeping in BaseWorm::think()
+	// that doesn't move the worm: death detection (-> die() broadcasts Die)
+	// and the auto-respawn timer (-> respawn() broadcasts Respawn), via the
+	// virtual overrides. Pure-physics branches are skipped; weapon ticks
+	// still run (runWeaponThink below) so firing replicates — the owner
+	// can't spawn the authority-only projectile itself.
 	//
-	// We still must run the server-authoritative bookkeeping that lives in
-	// BaseWorm::think(): death detection (-> NetWorm::die() broadcasts the
-	// Die event and updates stats) and the auto-respawn timer (->
-	// NetWorm::respawn() broadcasts the Respawn event). die()/respawn()
-	// are virtual, so these calls dispatch to the NetWorm overrides. The
-	// pure-physics branches (reaction forces, processPhysics, move/dig,
-	// aim integration, animation) are intentionally skipped; weapon ticks are
-	// still run via runWeaponThink() below so firing replicates.
-	//
-	// Proxies (m_isAuthority == false, isLocalAuthority() == false for
-	// another player's worm) likewise skip BaseWorm::think() physics: their
-	// pos/spd are replication-driven (snapped from the owner each network
-	// update) and, with proxy-side renderPos snapshot interpolation active,
-	// rendering is driven from the timestamped buffer rather than the
-	// per-tick pos. Running local physics on a proxy only made its pos fight
-	// the replicated snap (the proxy half of the rubber-band). Like the
-	// server-relay gate above, the proxy keeps weapon-think (so predicted
-	// fire / SHOOT-reproduction spawns the deterministic cosmetic burst at
-	// the worm) and the render-side ticks (walk animation + firecone) that
-	// BaseWorm::think() would otherwise have advanced. `animate` is re-derived
-	// from the networked move flags since processMoveAndDig (which sets it)
-	// is skipped. Death/respawn are event-driven on proxies (Die/Respawn
-	// events); the rope is gated in NinjaRope::think() (no-op on proxy) and
-	// its state is replicated, with the owner's rope pull baked into the
-	// replicated spd. Gated by NET_PROXY_NOPHYS (default on); =0 reverts a
-	// proxy to running full BaseWorm::think() (legacy dead-reckoning).
+	// Proxy keeps weapon-think (predicted fire / SHOOT-repro spawns the
+	// deterministic cosmetic burst) and the render ticks (walk animation +
+	// firecone) BaseWorm::think() would have advanced; `animate` is
+	// re-derived from networked move flags (processMoveAndDig is skipped).
+	// Death/respawn are event-driven (Die/Respawn events); the rope is gated
+	// in NinjaRope::think() (no-op on proxy) with its state replicated and
+	// the owner's rope pull baked into the replicated spd. Gated by
+	// NET_PROXY_NOPHYS (default on); =0 reverts a proxy to full
+	// BaseWorm::think() (legacy dead-reckoning).
 	if (m_isAuthority && !isLocalAuthority()) {
 		if (m_isActive) {
 			if (health <= 0)
@@ -236,24 +218,24 @@ void NetWorm::think() {
 		// replication/buffer-driven); keep only weapon-think + render ticks.
 		if (m_isActive) {
 			runWeaponThink();
-#ifndef DEDSERV
-			// Re-derive walk-animate from the networked move flags, mirroring
-			// processMoveAndDig: animate only when moving in one direction
-			// (both or neither => idle/dig frame).
-			float leftInt = movingLeft ? m_movingLeftIntensity : 0.0f;
-			float rightInt = movingRight ? m_movingRightIntensity : 0.0f;
-			animate = (leftInt > 0.0f) != (rightInt > 0.0f);
-			if (animate)
-				m_animator->tick();
-			else
-				m_animator->reset();
-			if (m_currentFirecone) {
-				if (m_fireconeTime == 0)
-					m_currentFirecone = NULL;
-				--m_fireconeTime;
-				m_fireconeAnimator->tick();
+			if (!g_dedicated) {
+				// Re-derive walk-animate from the networked move flags, mirroring
+				// processMoveAndDig: animate only when moving in one direction
+				// (both or neither => idle/dig frame).
+				float leftInt = movingLeft ? m_movingLeftIntensity : 0.0f;
+				float rightInt = movingRight ? m_movingRightIntensity : 0.0f;
+				animate = (leftInt > 0.0f) != (rightInt > 0.0f);
+				if (animate)
+					m_animator->tick();
+				else
+					m_animator->reset();
+				if (m_currentFirecone) {
+					if (m_fireconeTime == 0)
+						m_currentFirecone = NULL;
+					--m_fireconeTime;
+					m_fireconeAnimator->tick();
+				}
 			}
-#endif
 		} else {
 			if (m_timeSinceDeath > game.options.maxRespawnTime && game.options.maxRespawnTime >= 0)
 				respawn();
@@ -262,31 +244,31 @@ void NetWorm::think() {
 	} else {
 		BaseWorm::think();
 	}
-#ifndef DEDSERV
-	if (!m_isAuthority && !isLocalAuthority() && network.netInterpEnabled && m_posSnapshotCount > 0) {
-		// Proxy rendering a remote worm: interpolate renderPos between
-		// buffered timestamped snapshots at a delayed render time
-		// (receive-timeline interpolation). This decouples rendering from
-		// the per-tick pos snap / local-physics integration fight that
-		// caused the proxy rubber-band.
-		uint64_t now = SDL_GetTicks();
-		uint64_t delay = static_cast<uint64_t>(network.netInterpDelayMs);
-		uint64_t renderTime = (now > delay) ? (now - delay) : 0;
-		renderPos = interpolateRenderPos(renderTime);
-	} else {
-		// Owner / server-local / interpolation disabled: legacy exponential
-		// easing toward the (authoritative) pos, snapping on large jumps
-		// (spawn, server correction, teleport).
-		Vec delta(renderPos, pos); // == pos - renderPos (see BaseVec two-arg ctor)
-		double dist = delta.length();
-		if (dist > RENDER_SNAP_THRESHOLD) {
-			renderPos = pos;
+	if (!g_dedicated) {
+		if (!m_isAuthority && !isLocalAuthority() && network.netInterpEnabled && m_posSnapshotCount > 0) {
+			// Proxy rendering a remote worm: interpolate renderPos between
+			// buffered timestamped snapshots at a delayed render time
+			// (receive-timeline interpolation). This decouples rendering from
+			// the per-tick pos snap / local-physics integration fight that
+			// caused the proxy rubber-band.
+			uint64_t now = SDL_GetTicks();
+			uint64_t delay = static_cast<uint64_t>(network.netInterpDelayMs);
+			uint64_t renderTime = (now > delay) ? (now - delay) : 0;
+			renderPos = interpolateRenderPos(renderTime);
 		} else {
-			double fact = 1.0 / (1.0 + dist / 4.0);
-			renderPos = renderPos * (1.0 - fact) + pos * fact;
+			// Owner / server-local / interpolation disabled: legacy exponential
+			// easing toward the (authoritative) pos, snapping on large jumps
+			// (spawn, server correction, teleport).
+			Vec delta(renderPos, pos); // == pos - renderPos (see BaseVec two-arg ctor)
+			double dist = delta.length();
+			if (dist > RENDER_SNAP_THRESHOLD) {
+				renderPos = pos;
+			} else {
+				double fact = 1.0 / (1.0 + dist / 4.0);
+				renderPos = renderPos * (1.0 - fact) + pos * fact;
+			}
 		}
 	}
-#endif
 
 	++timeSinceLastUpdate;
 
@@ -294,7 +276,7 @@ void NetWorm::think() {
 		return;
 
 	while (m_node->checkEventWaiting()) {
-							DLOG("NetWorm::think processing event, isAuthority=" << m_isAuthority);
+		DLOG("NetWorm::think processing event, isAuthority=" << m_isAuthority);
 		eZCom_Event type;
 		eZCom_NodeRole remote_role;
 		ZCom_ConnID conn_id;
@@ -304,23 +286,17 @@ void NetWorm::think() {
 			case eZCom_EventUser:
 				if (data) {
 #ifdef COMPACT_EVENTS
-					// NetEvents event = (NetEvents)data->getInt(Encoding::bitsOf(EVENT_COUNT - 1));
 					NetEvents event = (NetEvents)Encoding::decode(*data, EVENT_COUNT);
 #else
 					NetEvents event = (NetEvents)data->getInt(8);
 #endif
 					switch (event) {
 						case PosCorrection: {
-							/*
-							pos.x = data->getFloat(32);
-							pos.y = data->getFloat(32);
-							spd.x = data->getFloat(32);
-							spd.y = data->getFloat(32);*/
 							pos = game.level.vectorEncoding.decode<Vec>(*data);
 							spd = game.level.vectorEncoding.decode<Vec>(*data);
 						} break;
 						case Respawn: {
-								DLOG("NetWorm::think Respawn received, calling BaseWorm::respawn");
+							DLOG("NetWorm::think Respawn received, calling BaseWorm::respawn");
 							Vec newpos = game.level.vectorEncoding.decode<Vec>(*data);
 							BaseWorm::respawn(newpos);
 							health = 100;
@@ -329,11 +305,15 @@ void NetWorm::think() {
 							Vec digPos = game.level.vectorEncoding.decode<Vec>(*data);
 							Angle digAngle = Angle((int)data->getInt(Angle::prec));
 							uint32_t seq = data->getInt(32);
-							// Reproduce the authority's seeded dig burst.
+							uint32_t seed = data->getInt(32);
+							uint32_t shippedChecksum = data->getInt(32);
+							// Reproduce the authority's dig burst from the shipped seed
+							// (never recomputed from local node state).
 							GameRng rg;
-							rg.seed(mix32(fireSeedNodeID(), seq));
+							rg.seed(seed);
 							GameplayRngScope scope(rg);
 							BaseWorm::dig(digPos, digAngle);
+							burstChecksumMismatch("DIG", fireSeedNodeID(), seq, shippedChecksum, rg.checksum());
 							reconcileFireActionSeq(seq + 1);
 						} break;
 						case Die: {
@@ -345,20 +325,29 @@ void NetWorm::think() {
 							else
 								m_lastHurtName.clear();
 							uint32_t seq = data->getInt(32);
-							// Reproduce the authority's seeded death burst.
+							Vec deathPos = game.level.vectorEncoding.decode<Vec>(*data);
+							Vec deathSpd = game.level.vectorEncoding.decode<Vec>(*data);
+							uint32_t seed = data->getInt(32);
+							uint32_t shippedChecksum = data->getInt(32);
+							// Reproduce the authority's death burst from the shipped seed
+							// and burst-tick state (the local proxy pos/spd lag by RTT).
 							GameRng rg;
-							rg.seed(mix32(fireSeedNodeID(), seq));
-							GameplayRngScope scope(rg);
-							BaseWorm::die();
+							rg.seed(seed);
+							{
+								BurstStateScope burstState(*this);
+								burstState.applyPos(deathPos);
+								burstState.applySpd(deathSpd);
+								GameplayRngScope scope(rg);
+								BaseWorm::die();
+							}
+							burstChecksumMismatch("DIE", fireSeedNodeID(), seq, shippedChecksum, rg.checksum());
 							reconcileFireActionSeq(seq + 1);
 						} break;
 						case ChangeWeapon: {
-							// size_t weapIndex = data->getInt(Encoding::bitsOf(game.weaponList.size() - 1));
 							size_t weapIndex = Encoding::decode(*data, m_weapons.size());
 							changeWeaponTo(weapIndex);
 						} break;
 						case WeaponMessage: {
-							// size_t weapIndex = data->getInt(Encoding::bitsOf(game.weaponList.size() - 1));
 							size_t weapIndex = Encoding::decode(*data, m_weapons.size());
 							if (weapIndex < m_weapons.size() && m_weapons[weapIndex])
 								m_weapons[weapIndex]->recieveMessage(data.get());
@@ -382,7 +371,6 @@ void NetWorm::think() {
 						case SYNC: {
 							m_isActive = data->getBool();
 							m_ninjaRope->active = data->getBool();
-							// currentWeapon = data->getInt(Encoding::bitsOf(game.weaponList.size() - 1));
 							currentWeapon = Encoding::decode(*data, m_weapons.size());
 							BaseWorm::clearWeapons();
 							while (data->getBool()) {
@@ -414,7 +402,7 @@ void NetWorm::think() {
 			} break;
 
 			default:
-				break; // Annoying warnings >:O
+				break;
 		}
 	}
 }
@@ -438,12 +426,7 @@ void NetWorm::sendLuaEvent(LuaEventDef *event, eZCom_SendMode mode, zU8 rules, Z
 void NetWorm::correctOwnerPosition() {
 	ZCom_BitStream data;
 	addEvent(&data, PosCorrection);
-	/*
-	data.addFloat(pos.x,32); // Maybe this packet is too heavy...
-	data.addFloat(pos.y,32);
-	data.addFloat(spd.x,32);
-	data.addFloat(spd.y,32);*/
-	game.level.vectorEncoding.encode<Vec>(data, pos); // ...nah ;o
+	game.level.vectorEncoding.encode<Vec>(data, pos);
 	game.level.vectorEncoding.encode<Vec>(data, spd);
 	m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_OWNER, &data);
 }
@@ -462,7 +445,6 @@ void NetWorm::sendSyncMessage(ZCom_ConnID id) {
 	addEvent(&data, SYNC);
 	data.addBool(m_isActive);
 	data.addBool(m_ninjaRope->active);
-	// data.addInt(currentWeapon, Encoding::bitsOf(game.weaponList.size() - 1));
 	Encoding::encode(data, currentWeapon, m_weapons.size());
 
 	for (size_t i = 0; i < m_weapons.size(); ++i) {
@@ -480,7 +462,6 @@ void NetWorm::sendSyncMessage(ZCom_ConnID id) {
 void NetWorm::sendWeaponMessage(int index, ZCom_BitStream *weaponData, zU8 repRules) {
 	ZCom_BitStream data;
 	addEvent(&data, WeaponMessage);
-	// data.addInt(index, Encoding::bitsOf(game.weaponList.size() - 1));
 	Encoding::encode(data, index, m_weapons.size());
 	data.addBitStream(weaponData);
 	m_node->sendEvent(eZCom_ReliableOrdered, repRules, &data);
@@ -499,17 +480,13 @@ void NetWorm::respawn() {
 		// m_timeSinceDeath > minRespawnTime gate in BaseWorm::respawn().
 		// That gate exists for auto-respawn timing, not for explicit
 		// user-initiated respawn requests (JUMP with inactive worm).
-		DLOG("NetWorm::respawn authority nodeID=" << m_node->getNetworkID()
-			  << " m_timeSinceDeath=" << m_timeSinceDeath << " m_isActive(before)=" << m_isActive);
+		DLOG("NetWorm::respawn authority nodeID=" << m_node->getNetworkID() << " m_timeSinceDeath=" << m_timeSinceDeath
+												  << " m_isActive(before)=" << m_isActive);
 		BaseWorm::respawn(game.level.getSpawnLocation(m_owner));
-		DLOG("NetWorm::respawn authority nodeID=" << m_node->getNetworkID()
-			  << " m_isActive(after)=" << m_isActive);
+		DLOG("NetWorm::respawn authority nodeID=" << m_node->getNetworkID() << " m_isActive(after)=" << m_isActive);
 		if (m_isActive) {
 			ZCom_BitStream data;
 			addEvent(&data, Respawn);
-			/*
-			data.addFloat(pos.x,32);
-			data.addFloat(pos.y,32);*/
 			game.level.vectorEncoding.encode<Vec>(data, pos);
 			m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, &data);
 		}
@@ -524,8 +501,9 @@ void NetWorm::dig() {
 			// (and any creation-script sub-spawns) reproduce identically on
 			// every peer. See game_rng.h.
 			uint32_t seq = m_actionSeq;
+			uint32_t seed = mix32(fireSeedNodeID(), seq);
 			GameRng rg;
-			rg.seed(mix32(fireSeedNodeID(), seq));
+			rg.seed(seed);
 			GameplayRngScope scope(rg);
 			BaseWorm::dig();
 			++m_actionSeq;
@@ -534,6 +512,8 @@ void NetWorm::dig() {
 			game.level.vectorEncoding.encode<Vec>(data, pos);
 			data.addInt(int(getAngle()), Angle::prec);
 			data.addInt(seq, 32); // pre-increment action sequence
+			data.addInt(seed, 32);
+			data.addInt(rg.checksum(), 32);
 			m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, &data);
 		}
 	}
@@ -548,6 +528,23 @@ void NetWorm::die() {
 			killerName = Network::findSavedName(m_lastHurtShooterID);
 		m_lastHurtName = killerName; // so BaseWorm::die uses it consistently
 
+		// Deterministic death burst: seed the gameplay RNG from the worm's
+		// network id + per-worm action counter so the death particle (and the
+		// wormDeath Lua callback's spawns) reproduce identically on every peer.
+		// The burst runs BEFORE the event is packed because the burst-tick
+		// pos/spd and the burst draw checksum ride along in the payload. See
+		// game_rng.h.
+		uint32_t seq = m_actionSeq;
+		uint32_t seed = mix32(fireSeedNodeID(), seq);
+		GameRng rg;
+		rg.seed(seed);
+		Vec deathPos = pos;
+		Vec deathSpd = spd;
+		{
+			GameplayRngScope scope(rg);
+			BaseWorm::die();
+		}
+		++m_actionSeq;
 		ZCom_BitStream data;
 		addEvent(&data, Die);
 		if (m_lastHurt) {
@@ -558,18 +555,12 @@ void NetWorm::die() {
 		int wcount = (int)game.weaponList.size();
 		Encoding::encode(data, m_lastHurtWeapon + 1, wcount + 1); // -1 -> 0 sentinel
 		data.addString(killerName.c_str());
-		uint32_t seq = m_actionSeq;
 		data.addInt(seq, 32); // pre-increment action sequence
+		game.level.vectorEncoding.encode<Vec>(data, deathPos);
+		game.level.vectorEncoding.encode<Vec>(data, deathSpd);
+		data.addInt(seed, 32);
+		data.addInt(rg.checksum(), 32);
 		m_node->sendEvent(eZCom_ReliableOrdered, ZCOM_REPRULE_AUTH_2_ALL, &data);
-		// Deterministic death burst: seed the gameplay RNG from the worm's
-		// network id and its per-worm action counter so the death particle
-		// (and the wormDeath Lua callback's particle spawns) reproduce
-		// identically on every peer. See game_rng.h.
-		GameRng rg;
-		rg.seed(mix32(fireSeedNodeID(), seq));
-		GameplayRngScope scope(rg);
-		BaseWorm::die();
-		++m_actionSeq;
 	}
 }
 

@@ -6,6 +6,7 @@
 #include "viewport.h"
 #endif
 #include "material.h"
+#include "dedicated.h"
 #include "base_player.h"
 #include "sprite_set.h"
 #include "sprite.h"
@@ -173,62 +174,62 @@ void Level::think() {
 		if (m_config && m_config->gameStart)
 			m_config->gameStart->run(0, 0, 0, 0);
 	}
-#ifndef DEDSERV
-	for (auto it = m_water.begin(); it != m_water.end();) {
-		if (getMaterialIndex(it->x, it->y) != it->mat) {
-			putpixel_solid(image, it->x, it->y, getpixel(background, it->x, it->y));
-			it = m_water.erase(it);
-		} else if (rnd() > WaterSkipFactor) {
-			unsigned char mat = getMaterialIndex(it->x, it->y + 1);
-			if (m_materialList[mat].particle_pass && !m_materialList[mat].flows) {
-				checkWBorders(it->x, it->y);
+	if (!g_dedicated) {
+		for (auto it = m_water.begin(); it != m_water.end();) {
+			if (getMaterialIndex(it->x, it->y) != it->mat) {
 				putpixel_solid(image, it->x, it->y, getpixel(background, it->x, it->y));
-				putMaterial(1, it->x, it->y);
-				++it->y;
-				putpixel_solid(image, it->x, it->y, getpixel(watermap, it->x, it->y));
-				putMaterial(it->mat, it->x, it->y);
-				it->count = 0; // Reset stagnation counter because it moved
-				++it;
-			} else {
-				char dir;
-				if (it->dir)
-					dir = 1;
-				else
-					dir = -1;
-
-				mat = getMaterialIndex(it->x + dir, it->y);
+				it = m_water.erase(it);
+			} else if (rnd() > WaterSkipFactor) {
+				unsigned char mat = getMaterialIndex(it->x, it->y + 1);
 				if (m_materialList[mat].particle_pass && !m_materialList[mat].flows) {
 					checkWBorders(it->x, it->y);
 					putpixel_solid(image, it->x, it->y, getpixel(background, it->x, it->y));
 					putMaterial(1, it->x, it->y);
-					it->x += dir;
+					++it->y;
 					putpixel_solid(image, it->x, it->y, getpixel(watermap, it->x, it->y));
 					putMaterial(it->mat, it->x, it->y);
-					it->count = 0;
-					// Reset stagnation counter because it moved
+					it->count = 0; // Reset stagnation counter because it moved
 					++it;
 				} else {
-					it->dir = !it->dir;
-					++it->count; // It didnt move so the stagnation counter gets incremented.
-					if (it->count > 1) {
-						mat = getMaterialIndex(it->x - dir, it->y);
-						if (!m_materialList[mat].particle_pass || m_materialList[mat].flows) {
-							putMaterial(it->mat + 1, it->x, it->y);
-							putpixel_solid(image, it->x, it->y, getpixel(watermap, it->x, it->y));
-							it = m_water.erase(it);
+					char dir;
+					if (it->dir)
+						dir = 1;
+					else
+						dir = -1;
+
+					mat = getMaterialIndex(it->x + dir, it->y);
+					if (m_materialList[mat].particle_pass && !m_materialList[mat].flows) {
+						checkWBorders(it->x, it->y);
+						putpixel_solid(image, it->x, it->y, getpixel(background, it->x, it->y));
+						putMaterial(1, it->x, it->y);
+						it->x += dir;
+						putpixel_solid(image, it->x, it->y, getpixel(watermap, it->x, it->y));
+						putMaterial(it->mat, it->x, it->y);
+						it->count = 0;
+						// Reset stagnation counter because it moved
+						++it;
+					} else {
+						it->dir = !it->dir;
+						++it->count; // It didnt move so the stagnation counter gets incremented.
+						if (it->count > 1) {
+							mat = getMaterialIndex(it->x - dir, it->y);
+							if (!m_materialList[mat].particle_pass || m_materialList[mat].flows) {
+								putMaterial(it->mat + 1, it->x, it->y);
+								putpixel_solid(image, it->x, it->y, getpixel(watermap, it->x, it->y));
+								it = m_water.erase(it);
+							} else {
+								++it;
+							}
 						} else {
 							++it;
 						}
-					} else {
-						++it;
 					}
 				}
+			} else {
+				++it;
 			}
-		} else {
-			++it;
 		}
 	}
-#endif
 }
 
 #ifndef DEDSERV
@@ -332,9 +333,8 @@ bool Level::applyEffect(LevelEffect *effect, int drawX, int drawY) {
 					putMaterial(1, drawX + x, drawY + y);
 					markDestroyed(drawX + x, drawY + y);
 					checkWBorders(drawX + x, drawY + y);
-#ifndef DEDSERV
-					putpixel(image, drawX + x, drawY + y, getpixel(background, drawX + x, drawY + y));
-#endif
+					if (!g_dedicated)
+						putpixel(image, drawX + x, drawY + y, getpixel(background, drawX + x, drawY + y));
 				}
 			}
 	}
@@ -427,34 +427,34 @@ void Level::loaderSucceeded() {
 			}
 		}
 
-#ifndef DEDSERV
-	if (!lightmap) {
-		LocalSetColorDepth cd(8);
-		lightmap = create_bitmap(material->w, material->h);
-		clear_to_color(lightmap, 50);
-		for (int x = 0; x < lightmap->w; ++x)
-			for (int y = 0; y < lightmap->h; ++y) {
-				if (unsafeGetMaterial(x, y).blocks_light)
-					putpixel(lightmap, x, y, 200);
-			}
-	}
+	if (!g_dedicated) {
+		if (!lightmap) {
+			LocalSetColorDepth cd(8);
+			lightmap = create_bitmap(material->w, material->h);
+			clear_to_color(lightmap, 50);
+			for (int x = 0; x < lightmap->w; ++x)
+				for (int y = 0; y < lightmap->h; ++y) {
+					if (unsafeGetMaterial(x, y).blocks_light)
+						putpixel(lightmap, x, y, 200);
+				}
+		}
 
-	if (!background) {
-		background = create_bitmap(material->w, material->h);
-		blit(image, background, 0, 0, 0, 0, material->w, material->h);
-		gfx.setBlender(ALPHA, 120);
-		rectfill(background, 0, 0, background->w, background->h, 0);
-		solid_mode();
-	}
+		if (!background) {
+			background = create_bitmap(material->w, material->h);
+			blit(image, background, 0, 0, 0, 0, material->w, material->h);
+			gfx.setBlender(ALPHA, 120);
+			rectfill(background, 0, 0, background->w, background->h, 0);
+			solid_mode();
+		}
 
-	if (!watermap) {
-		watermap = create_bitmap(image->w, image->h);
-		blit(background, watermap, 0, 0, 0, 0, image->w, image->h);
-		gfx.setBlender(ALPHA, 150);
-		rectfill(watermap, 0, 0, watermap->w, watermap->h, makecol(0, 0, 200));
-		solid_mode();
+		if (!watermap) {
+			watermap = create_bitmap(image->w, image->h);
+			blit(background, watermap, 0, 0, 0, 0, image->w, image->h);
+			gfx.setBlender(ALPHA, 150);
+			rectfill(watermap, 0, 0, watermap->w, watermap->h, makecol(0, 0, 200));
+			solid_mode();
+		}
 	}
-#endif
 	// Make the domain one pixel larger than the level so that things like ninjarope hook
 	// can get slightly outside the level and attach.
 	vectorEncoding = Encoding::VectorEncoding(Rect(-1, -1, width() + 1, height() + 1), 2048);
@@ -475,97 +475,4 @@ void Level::markDestroyed(unsigned x, unsigned y) {
 		return;
 	size_t bit = size_t(y) * w + x;
 	m_destructionMask[bit >> 3] |= uint8_t(1u << (bit & 7));
-}
-
-bool Level::encodeDestructionMaskRLE(ZCom_BitStream &out) const {
-	if (!material || m_destructionMask.empty())
-		return false;
-
-	unsigned w = static_cast<unsigned>(material->w);
-	unsigned h = static_cast<unsigned>(material->h);
-	size_t totalPixels = size_t(w) * h;
-
-	// Compose the RLE payload: 1 start-value bit, then alternating run lengths
-	// encoded with Elias-delta. Run lengths are >= 1 (Elias-delta encodes n>=1).
-	ZCom_BitStream rlePayload;
-	bool startValue = (m_destructionMask[0] >> 0) & 1;
-	rlePayload.addBool(startValue);
-
-	bool curValue = startValue;
-	size_t run = 0;
-	for (size_t i = 0; i < totalPixels; ++i) {
-		bool bit = (m_destructionMask[i >> 3] >> (i & 7)) & 1;
-		if (bit == curValue) {
-			++run;
-		} else {
-			Encoding::encodeEliasDelta(rlePayload, static_cast<unsigned int>(run));
-			curValue = bit;
-			run = 1;
-		}
-	}
-	if (run > 0)
-		Encoding::encodeEliasDelta(rlePayload, static_cast<unsigned int>(run));
-
-	// Mode 0 = RLE, Mode 1 = raw (1 bit per pixel). Pick the smaller encoding.
-	if (rlePayload.getBitCount() <= static_cast<zU32>(totalPixels)) {
-		out.addBool(false); // RLE mode
-		out.addBitStream(&rlePayload);
-	} else {
-		out.addBool(true); // raw mode
-		for (size_t i = 0; i < totalPixels; ++i) {
-			bool bit = (m_destructionMask[i >> 3] >> (i & 7)) & 1;
-			out.addBool(bit);
-		}
-	}
-	return true;
-}
-
-void Level::applyDestructionMaskRLE(ZCom_BitStream &in) {
-	if (!material)
-		return;
-
-	unsigned w = static_cast<unsigned>(material->w);
-	unsigned h = static_cast<unsigned>(material->h);
-	size_t totalPixels = size_t(w) * h;
-	if (totalPixels == 0)
-		return;
-
-	bool rleMode = !in.getBool(); // false bit == RLE mode
-	if (rleMode) {
-		bool value = in.getBool();
-		size_t consumed = 0;
-		while (consumed < totalPixels) {
-			unsigned int run = Encoding::decodeEliasDelta(in);
-			if (run == 0)
-				break;
-			for (unsigned int k = 0; k < run && consumed < totalPixels; ++k) {
-				if (value) {
-					unsigned x = static_cast<unsigned>(consumed % w);
-					unsigned y = static_cast<unsigned>(consumed / w);
-					putMaterial(1, x, y);
-					checkWBorders(x, y);
-#ifndef DEDSERV
-					putpixel(image, x, y, getpixel(background, x, y));
-#endif
-					markDestroyed(x, y);
-				}
-				++consumed;
-			}
-			value = !value;
-		}
-	} else {
-		for (size_t i = 0; i < totalPixels; ++i) {
-			bool bit = in.getBool();
-			if (bit) {
-				unsigned x = static_cast<unsigned>(i % w);
-				unsigned y = static_cast<unsigned>(i / w);
-				putMaterial(1, x, y);
-				checkWBorders(x, y);
-#ifndef DEDSERV
-				putpixel(image, x, y, getpixel(background, x, y));
-#endif
-				markDestroyed(x, y);
-			}
-		}
-	}
 }

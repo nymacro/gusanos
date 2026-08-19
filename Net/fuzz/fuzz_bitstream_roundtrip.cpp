@@ -22,7 +22,9 @@ namespace {
 struct Cur {
 	const uint8_t *p;
 	size_t n;
-	bool eof() const { return n == 0; }
+	bool eof() const {
+		return n == 0;
+	}
 	uint8_t u8() {
 		if (n == 0)
 			return 0;

@@ -299,8 +299,10 @@ env.StaticLibrary(env.getLibName('omfggui'), env.getObjects(['detail', 'lua']))
   processed to generate the parser
 - All `.cpp` files in `detail/` and `lua/` are auto-discovered
 
-## DEDSERV Guards
+## Dedicated (Headless) Mode
 
-All GUI code is wrapped in `#ifndef DEDSERV` in the engine's integration layer
-(the `bindings-gui.cpp` file includes guards). The core GUI library itself has
-no guards — it builds independently of rendering.
+GUI rendering is gated at runtime with `if (!g_dedicated)` in the engine's
+integration layer (the main loop wraps `menu.render()` and related calls).
+`DEDSERV` is no longer defined at compile time, so the `#ifndef DEDSERV`
+wrappers that remain in `bindings-gui.cpp` are dead (they always compile). The
+core GUI library itself has no guards — it builds independently of rendering.

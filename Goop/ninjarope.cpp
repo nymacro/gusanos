@@ -1,4 +1,5 @@
 #include "ninjarope.h"
+#include "dedicated.h"
 
 #include "util/vec.h"
 #include "game.h"
@@ -26,15 +27,16 @@ NinjaRope::NinjaRope(PartType *type, BaseObject *worm) : m_worm(worm) {
 
 	m_angle = 0;
 	m_angleSpeed = 0;
-	// m_animator = NULL;
+	m_sprite = nullptr;
+	m_animator = nullptr;
 
-#ifndef DEDSERV
-	m_sprite = m_type->sprite;
+	if (!g_dedicated) {
+		m_sprite = m_type->sprite;
 
-	m_animator = m_type->allocateAnimator();
-#endif
+		m_animator = m_type->allocateAnimator();
+	}
 
-	// Why this?? :OO // Re: Modders may want to make the rope leave trails or sth :o
+	// Modders may want the rope to leave trails
 	for (auto t : m_type->timer) {
 		timer.push_back(t->createState());
 	}
@@ -59,7 +61,6 @@ void NinjaRope::shoot(Vec _pos, Vec _spd) {
 	m_angle = spd.getAngle();
 	m_angleSpeed = 0;
 
-	// for ( vector< TimerEvent::State >::iterator t = timer.begin(); t != timer.end(); t++)
 	for (auto &t : timer) {
 		t.reset();
 	}
@@ -113,13 +114,6 @@ void NinjaRope::think() {
 		float curLen = diff.length();
 		Vec force(diff * game.options.ninja_rope_pullForce);
 
-		/*
-		if(<attached to object>)
-		{
-			//Apply force to object
-		}
-		else
-		*/
 		if (!game.level.getMaterial(ipos.x, ipos.y).particle_pass) {
 			if (!attached) {
 				m_length = 450.f / 16.f - 1.0f;
@@ -147,62 +141,6 @@ void NinjaRope::think() {
 		if (m_animator)
 			m_animator->tick();
 #endif
-
-		/* OLD CODE
-		if ( justCreated && m_type->creation )
-		{
-			m_type->creation->run(this);
-			justCreated = false;
-		}
-
-		if( !game.level.getMaterial( (int)(pos+spd).x, (int)(pos+spd).y ).particle_pass )
-		{
-			if (!attached)
-			{
-				attached = true;
-				pos = pos + spd;
-				spd *= 0;
-				if ( m_type->groundCollision != NULL )
-						m_type->groundCollision->run(this);
-			}
-		}else attached = false;
-
-		if (!attached)
-		{
-			spd.y+=m_type->gravity;
-
-			for ( vector< NRTimer >::iterator t = timer.begin(); t != timer.end(); t++)
-			{
-				(*t).count--;
-				if ( (*t).count < 0 )
-				{
-					(*t).m_tEvent->event->run(this);
-					(*t).reset();
-				}
-			}
-
-			if ( m_type->acceleration )
-			{
-				if ( spd.dotProduct(angleVec(m_angle,1)) < m_type->maxSpeed || m_type->maxSpeed < 0)
-				spd+= angleVec(m_angle,m_type->acceleration);
-			}
-
-			spd*=m_type->damping;
-
-			if ( abs(m_angleSpeed) < m_type->angularFriction ) m_angleSpeed = 0;
-			else if ( m_angleSpeed < 0 ) m_angleSpeed += m_type->angularFriction;
-			else m_angleSpeed -= m_type->angularFriction;
-
-			m_angle += m_angleSpeed;
-			while ( m_angle > 360 ) m_angle -= 360;
-			while ( m_angle < 0 ) m_angle += 360;
-
-
-			if ( !deleteMe ) pos = pos + spd;
-			else break;
-			if ( m_animator ) m_animator->tick();
-		}
-		*/
 	}
 }
 

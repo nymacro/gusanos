@@ -14,8 +14,7 @@ namespace {
 
 class TestAction : public BaseAction {
   public:
-	TestAction(std::vector<TokenBase *> const &params)
-		: value(params[0]->toInt()) {}
+	TestAction(std::vector<TokenBase *> const &params) : value(params[0]->toInt()) {}
 
 	void run(ActionParams const &) override {
 		// No-op for parser tests.
@@ -33,8 +32,7 @@ struct Fixture {
 	std::istringstream stream;
 	Parser parser;
 
-	Fixture(std::string const &script)
-		: stream(script), parser(stream, af, "test.obj") {
+	Fixture(std::string const &script) : stream(script), parser(stream, af, "test.obj") {
 		af.add("test_action", createTestAction, 0)("value", false);
 	}
 };
@@ -44,10 +42,8 @@ struct Fixture {
 BOOST_AUTO_TEST_SUITE(parser_events)
 
 BOOST_AUTO_TEST_CASE(parse_simple_action) {
-	Fixture f(
-		"on creation()\n"
-		"    test_action(123)\n"
-	);
+	Fixture f("on creation()\n"
+			  "    test_action(123)\n");
 	f.parser.addEvent("creation", 0, 0);
 	BOOST_REQUIRE(f.parser.run());
 
@@ -64,10 +60,8 @@ BOOST_AUTO_TEST_CASE(parse_simple_action) {
 }
 
 BOOST_AUTO_TEST_CASE(parse_event_with_param) {
-	Fixture f(
-		"on timer(delay = 10)\n"
-		"    test_action(20)\n"
-	);
+	Fixture f("on timer(delay = 10)\n"
+			  "    test_action(20)\n");
 	f.parser.addEvent("timer", 1, 0)("delay", false);
 	BOOST_REQUIRE(f.parser.run());
 
@@ -89,11 +83,9 @@ BOOST_AUTO_TEST_CASE(parse_event_with_param) {
 }
 
 BOOST_AUTO_TEST_CASE(parse_multiple_actions) {
-	Fixture f(
-		"on creation()\n"
-		"    test_action(1)\n"
-		"    test_action(2)\n"
-	);
+	Fixture f("on creation()\n"
+			  "    test_action(1)\n"
+			  "    test_action(2)\n");
 	f.parser.addEvent("creation", 0, 0);
 	BOOST_REQUIRE(f.parser.run());
 
@@ -107,10 +99,8 @@ BOOST_AUTO_TEST_CASE(parse_multiple_actions) {
 
 // Unknown events are a semantic error and cause parsing to fail.
 BOOST_AUTO_TEST_CASE(parse_unknown_event_fails) {
-	Fixture f(
-		"on not_registered()\n"
-		"    test_action(1)\n"
-	);
+	Fixture f("on not_registered()\n"
+			  "    test_action(1)\n");
 	f.parser.addEvent("creation", 0, 0);
 	BOOST_CHECK(!f.parser.run());
 }

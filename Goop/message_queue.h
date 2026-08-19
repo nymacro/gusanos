@@ -96,23 +96,4 @@ struct MessageQueue {
 	}                                                                                                                  \
 	}
 
-/*
-mq_define_message(ChangeLevel, 0, (std::string level_))
-	: level(level_)
-	{
-
-	}
-
-	std::string level;
-mq_end_define_message()
-
-mq_process_messages(messages)
-	mq_case(ChangeLevel)
-		game.changeLevel(data.level);
-	mq_end_case()
-mq_end_process_messages()
-
-mq_queue(messages, ChangeLevel, "foo");
-*/
-
 #endif // GUSANOS_MESSAGE_QUEUE_H
